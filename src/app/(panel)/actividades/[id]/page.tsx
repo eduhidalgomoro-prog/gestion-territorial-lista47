@@ -11,7 +11,7 @@ import { Badge, btn, Card, cx, Notice, PageHeader } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { snapshot } from "@/lib/db";
 import { ESTADO_COLOR, FLYER_COLOR, titulo, zonaLabel } from "@/lib/labels";
-import { puede } from "@/lib/permisos";
+import { esAgenda, puede } from "@/lib/permisos";
 import { ESTADOS_FLYER, type EstadoActividad } from "@/lib/schema";
 import { linkInscripcion, resumenAsistencia } from "@/lib/services/actividades";
 import { formatDate, formatDateLong, formatMoney, titleCase } from "@/lib/util";
@@ -52,6 +52,8 @@ export default async function FichaActividad({ params, searchParams }: { params:
   const costos = puede.verCostos(yo);
   const verInscriptos = puede.verInscriptos(yo, a, s.asignaciones);
   const editarFlyer = puede.editarFlyer(yo, a);
+  // Agenda: ficha simplificada (sin logística ni formulario de inscripción).
+  const agenda = esAgenda(yo);
   const reqs = s.requerimientos.filter((x) => x.actividad_id === a.id && x.estado !== "ANULADO");
   const inst = s.instituciones.find((i) => i.id === a.institucion_id);
   const asignaciones = s.asignaciones.filter((x) => x.actividad_id === a.id && x.estado === "ACTIVA");
@@ -102,7 +104,7 @@ export default async function FichaActividad({ params, searchParams }: { params:
         {verInscriptos && <Accion href={`/actividades/${a.id}/inscriptos`} Icon={IconUsers}>Ver inscriptos</Accion>}
         {puede.verFlyers(yo) && a.requiere_flyer && <Accion href={`/flyers?mes=${a.mes || 0}&anio=${a.anio || ""}#${(a.estado_flyer || "SOLICITADO").replace(/\s/g, "-")}`} Icon={IconImage}>Flyer</Accion>}
         {asistencia && a.estado !== "CANCELADA" && <Accion href={`/actividades/${a.id}/asistencia`} Icon={IconClipboard} principal>Tomar asistencia</Accion>}
-        <Accion href="#inscripcion" Icon={IconForm}>Formulario de inscripción</Accion>
+        {!agenda && <Accion href="#inscripcion" Icon={IconForm}>Formulario de inscripción</Accion>}
         <Accion href={`/mapa?foco=${a.id}&mes=${a.mes || ""}&anio=${a.anio || ""}`} Icon={IconMap}>Ver en mapa</Accion>
         <a
           href={whatsappCompartir(mensajeActividad(a, r))}
@@ -160,7 +162,7 @@ export default async function FichaActividad({ params, searchParams }: { params:
         </div>
       </Seccion>
 
-      <Seccion titulo="Requerimientos y logística">
+      {!agenda && <Seccion titulo="Requerimientos y logística">
         <ul className="grid gap-2 text-[15px] sm:grid-cols-2">
           <Req ok={a.gazebo} label={`Gazebos${a.gazebo ? `: ${a.gazebo_cant || "?"}` : ""}`} />
           <Req ok={a.mesas} label={`Mesas${a.mesas ? `: ${a.mesas_cant || "?"}` : ""}`} />
@@ -190,7 +192,7 @@ export default async function FichaActividad({ params, searchParams }: { params:
           </div>
         )}
         {a.obs_logistica && <p className="mt-3 text-[15px] whitespace-pre-line text-gris">{a.obs_logistica}</p>}
-      </Seccion>
+      </Seccion>}
 
       <Seccion titulo="Comunicación">
         {a.requiere_flyer ? (
@@ -221,7 +223,7 @@ export default async function FichaActividad({ params, searchParams }: { params:
         )}
       </Seccion>
 
-      <Seccion titulo="Formulario de inscripción" id="inscripcion">
+      {!agenda && <Seccion titulo="Formulario de inscripción" id="inscripcion">
         {link ? (
           <>
             <p className="mb-2 text-[15px]">
@@ -257,7 +259,7 @@ export default async function FichaActividad({ params, searchParams }: { params:
             <Link href={`/actividades/${a.id}/importar`} className="font-bold text-petroleo hover:underline">Importar Excel / CSV →</Link>
           </p>
         )}
-      </Seccion>
+      </Seccion>}
 
       <Seccion titulo="Instituciones relacionadas">
         {a.articula ? (
