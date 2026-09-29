@@ -18,7 +18,7 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
   const q = await searchParams;
   const s = await snapshot();
   const a = s.actividades.find((x) => x.id === id);
-  if (!a || !puede.verActividad(yo, a, s.asignaciones)) notFound();
+  if (!a || !puede.verInscriptos(yo, a, s.asignaciones)) notFound();
   const personas = new Map(s.participantes.map((p) => [p.id, p]));
   const asis = new Map(s.asistencias.filter((x) => x.actividad_id === id).map((x) => [x.participante_id, x.estado]));
   const busq = normalizeText(sp(q, "q"));

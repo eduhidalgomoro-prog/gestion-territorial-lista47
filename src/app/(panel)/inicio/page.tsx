@@ -9,7 +9,8 @@ import { requireUser } from "@/lib/auth";
 import { snapshot } from "@/lib/db";
 import { conteosPorActividad, cumplimiento, evolucion, indicadores, inscriptosVsAsistentes } from "@/lib/domain/metricas";
 import { zonaLabel } from "@/lib/labels";
-import { actividadesVisibles, esOperador, puede, zonaForzada } from "@/lib/permisos";
+import { redirect } from "next/navigation";
+import { actividadesVisibles, esDiseno, esOperador, puede, zonaForzada } from "@/lib/permisos";
 import { formatMoney, formatNumber, nombreMes, today } from "@/lib/util";
 import { periodo, type SP } from "@/lib/view";
 
@@ -17,6 +18,8 @@ export const metadata = { title: "Inicio" };
 
 export default async function Inicio({ searchParams }: { searchParams: Promise<SP> }) {
   const yo = await requireUser();
+  // Diseño trabaja desde la pantalla de flyers.
+  if (esDiseno(yo)) redirect("/flyers");
   const q = await searchParams;
   const { anio, mes: mesQ } = periodo(q);
   const mes = mesQ || Number(today().slice(5, 7));

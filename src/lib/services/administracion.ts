@@ -4,12 +4,13 @@ import { insert, readFresh, setConfigValue, snapshot, update, upsertBarrio, NotF
 import { UserError } from "../errors";
 import { withLock } from "../lock";
 import { ROLES, ZONAS, type Rol, type Zona } from "../schema";
-import { cleanString, normalizeBarrio, titleCase } from "../util";
+import { cleanString, normalizeBarrio, normalizePhone, titleCase } from "../util";
 
 export interface UsuarioInput {
   nombre: string;
   apellido: string;
   email: string;
+  telefono: string;
   rol: string;
   zona: string;
   activo: boolean;
@@ -26,7 +27,10 @@ function validarUsuario(u: UsuarioInput) {
   const zona: Zona | "" = (ZONAS as readonly string[]).includes(u.zona) ? (u.zona as Zona) : "";
   if (rol === "RESPONSABLE" && !zona) f.zona = "Un responsable necesita una zona.";
   if (Object.keys(f).length) throw new UserError("Revisá los datos del usuario.", f);
-  return { nombre, apellido: titleCase(cleanString(u.apellido, 80)), email, rol: rol!, zona, estado: u.activo ? ("ACTIVO" as const) : ("INACTIVO" as const) };
+  const telefono = normalizePhone(cleanString(u.telefono, 40));
+  if (u.telefono && telefono.length < 10) f.telefono = "Teléfono inválido (con característica, ej. 379 4123456).";
+  if (Object.keys(f).length) throw new UserError("Revisá los datos del usuario.", f);
+  return { nombre, apellido: titleCase(cleanString(u.apellido, 80)), email, telefono, rol: rol!, zona, estado: u.activo ? ("ACTIVO" as const) : ("INACTIVO" as const) };
 }
 
 export async function crearUsuario(input: UsuarioInput, user: string) {

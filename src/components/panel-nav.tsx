@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { IconCalendar, IconChart, IconGear, IconHome, IconList, IconLogout, IconMap, IconMore, IconPlus, IconUsers } from "./icons";
+import { IconCalendar, IconChart, IconGear, IconHome, IconImage, IconList, IconLogout, IconMap, IconMore, IconPlus, IconUsers } from "./icons";
 import { InstallButton } from "./install-button";
 import { cx, SelloLista47 } from "./ui";
 
@@ -12,16 +12,20 @@ export interface NavPermisos {
   participantes: boolean;
   estadisticas: boolean;
   configurar: boolean;
+  flyers: boolean;
+  inicio: boolean;
 }
 
 function items(p: NavPermisos) {
   return [
-    { href: "/inicio", label: "Inicio", Icon: IconHome, show: true },
+    { href: "/inicio", label: "Inicio", Icon: IconHome, show: p.inicio },
+    { href: "/flyers", label: "Flyers", Icon: IconImage, show: p.flyers && !p.inicio },
     { href: "/actividades", label: "Actividades", Icon: IconList, show: true },
     { href: "/calendario", label: "Calendario", Icon: IconCalendar, show: true },
     { href: "/mapa", label: "Mapa", Icon: IconMap, show: true },
     { href: "/participantes", label: "Participantes", Icon: IconUsers, show: p.participantes },
     { href: "/estadisticas", label: "Estadísticas", Icon: IconChart, show: p.estadisticas },
+    { href: "/flyers", label: "Flyers", Icon: IconImage, show: p.flyers && p.inicio },
     { href: "/configuracion", label: p.configurar ? "Configuración" : "Mi cuenta", Icon: IconGear, show: true },
   ].filter((i) => i.show);
 }
@@ -101,8 +105,11 @@ export function MobileNav({ permisos }: { permisos: NavPermisos }) {
   }
 
   const todos = items(permisos);
-  const principales = todos.filter((i) => ["/inicio", "/actividades", "/participantes"].includes(i.href));
-  if (!permisos.participantes) principales.push(todos.find((i) => i.href === "/mapa")!);
+  // 3 accesos directos en la barra (el resto va a «Más»). Diseño no tiene inicio: su pantalla principal es Flyers.
+  const atajos = !permisos.inicio
+    ? ["/flyers", "/actividades", "/mapa"]
+    : ["/inicio", "/actividades", permisos.participantes ? "/participantes" : "/mapa"];
+  const principales = atajos.map((h) => todos.find((i) => i.href === h)).filter((i): i is (typeof todos)[number] => !!i);
   const resto = todos.filter((i) => !principales.includes(i));
   const izquierda = principales.slice(0, 2);
   const derecha = principales.slice(2);
@@ -145,19 +152,17 @@ export function MobileNav({ permisos }: { permisos: NavPermisos }) {
       )}
 
       <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-linea bg-white lg:hidden" aria-label="Principal">
-        <div className="grid h-16 grid-cols-5">
+        <div className={cx("grid h-16", permisos.crear ? "grid-cols-5" : "grid-cols-4")}>
           {izquierda.map((i) => (
             <Tab key={i.href} {...i} />
           ))}
-          {permisos.crear ? (
+          {permisos.crear && (
             <Link href="/actividades/nueva" aria-label="Nueva actividad" className="flex flex-col items-center justify-center gap-0.5 text-[11px] font-bold text-marca">
               <span className="-mt-6 flex size-14 items-center justify-center rounded-full bg-verde text-white shadow-lg ring-4 ring-white">
                 <IconPlus size={28} />
               </span>
               Nueva
             </Link>
-          ) : (
-            <span />
           )}
           {derecha.map((i) => (
             <Tab key={i.href} {...i} />

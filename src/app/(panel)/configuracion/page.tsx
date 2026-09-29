@@ -112,6 +112,7 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
               <p><b>Administrador:</b> todo, incluidos datos personales, costos y configuración.</p>
               <p className="mt-1"><b>Responsable de zona:</b> carga y edita actividades de su zona, toma asistencia, cierra y ve estadísticas de su zona.</p>
               <p className="mt-1"><b>Operador:</b> solo las actividades que le asignan: inscriptos, asistencia y agregar personas.</p>
+              <p className="mt-1"><b>Comunicación / Diseño:</b> ve todas las actividades (sin datos de personas ni costos) y gestiona los flyers: estado, link y envío por WhatsApp.</p>
             </Card>
           </section>
         </div>
@@ -234,6 +235,9 @@ function UsuarioForm({ u }: { u?: Usuario }) {
         <Field label="Apellido" name="apellido" optional><Input name="apellido" defaultValue={u?.apellido} /></Field>
       </div>
       <Field label="Email (cuenta de Google)" name="email"><Input name="email" type="email" inputMode="email" defaultValue={u?.email} autoComplete="off" /></Field>
+      <Field label="Teléfono (WhatsApp)" name="telefono" optional hint="Para que el equipo de diseño le envíe los flyers por WhatsApp.">
+        <Input name="telefono" type="tel" inputMode="tel" defaultValue={u?.telefono} placeholder="Ej: 379 4123456" autoComplete="off" />
+      </Field>
       <div className="grid gap-x-3 sm:grid-cols-2">
         <Field label="Rol" name="rol"><Select name="rol" defaultValue={u?.rol ?? "RESPONSABLE"} options={ROLES.map((r) => [r, ROL_LABEL[r]] as const)} /></Field>
         <Field label="Zona" name="zona" hint="Obligatoria para responsables."><Select name="zona" defaultValue={u?.zona ?? ""} placeholder="Sin zona" options={ZONAS.map((z) => [z, zonaLabel(z)] as const)} /></Field>

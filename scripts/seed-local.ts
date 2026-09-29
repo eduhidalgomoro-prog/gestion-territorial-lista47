@@ -31,8 +31,9 @@ async function main() {
     ["Resp.", "Este", "este@prueba.local", "RESPONSABLE", "ESTE"],
     ["Resp.", "Sur", "sur@prueba.local", "RESPONSABLE", "SUR"],
     ["Operador", "Prueba", "operador@prueba.local", "OPERADOR", ""],
+    ["Diseño", "Prueba", "diseno@prueba.local", "DISENO", ""],
   ] as const) {
-    await insert("usuarios", { nombre, apellido, email, rol, zona, estado: "ACTIVO" }, U);
+    await insert("usuarios", { nombre, apellido, email, telefono: "", rol, zona, estado: "ACTIVO" }, U);
   }
 
   const hoy = today();

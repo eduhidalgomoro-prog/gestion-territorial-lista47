@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { CopyButton } from "@/components/copy-button";
 import { ActionForm, Input, Select, SubmitButton } from "@/components/forms";
-import { IconCheck, IconClipboard, IconEdit, IconForm, IconLock, IconMap, IconUpload, IconUsers, IconX } from "@/components/icons";
+import { IconCheck, IconClipboard, IconEdit, IconForm, IconImage, IconLock, IconMap, IconUpload, IconUsers, IconX } from "@/components/icons";
 import { Badge, btn, Card, cx, Notice, PageHeader } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { snapshot } from "@/lib/db";
@@ -47,6 +47,8 @@ export default async function FichaActividad({ params, searchParams }: { params:
   const asistencia = puede.tomarAsistencia(yo, a, s.asignaciones);
   const cerrar = puede.cerrarActividad(yo, a) && a.estado !== "CANCELADA";
   const costos = puede.verCostos(yo);
+  const verInscriptos = puede.verInscriptos(yo, a, s.asignaciones);
+  const editarFlyer = puede.editarFlyer(yo, a);
   const reqs = s.requerimientos.filter((x) => x.actividad_id === a.id && x.estado !== "ANULADO");
   const inst = s.instituciones.find((i) => i.id === a.institucion_id);
   const asignaciones = s.asignaciones.filter((x) => x.actividad_id === a.id && x.estado === "ACTIVA");
@@ -94,7 +96,8 @@ export default async function FichaActividad({ params, searchParams }: { params:
       {/* Acciones principales */}
       <nav className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Acciones de la actividad">
         {editar && <Accion href={`/actividades/${a.id}/editar`} Icon={IconEdit}>Editar actividad</Accion>}
-        <Accion href={`/actividades/${a.id}/inscriptos`} Icon={IconUsers}>Ver inscriptos</Accion>
+        {verInscriptos && <Accion href={`/actividades/${a.id}/inscriptos`} Icon={IconUsers}>Ver inscriptos</Accion>}
+        {puede.verFlyers(yo) && a.requiere_flyer && <Accion href={`/flyers?mes=${a.mes || 0}&anio=${a.anio || ""}#${(a.estado_flyer || "SOLICITADO").replace(/\s/g, "-")}`} Icon={IconImage}>Flyer</Accion>}
         {asistencia && a.estado !== "CANCELADA" && <Accion href={`/actividades/${a.id}/asistencia`} Icon={IconClipboard} principal>Tomar asistencia</Accion>}
         <Accion href="#inscripcion" Icon={IconForm}>Formulario de inscripción</Accion>
         <Accion href={`/mapa?foco=${a.id}&mes=${a.mes || ""}&anio=${a.anio || ""}`} Icon={IconMap}>Ver en mapa</Accion>
@@ -187,7 +190,7 @@ export default async function FichaActividad({ params, searchParams }: { params:
                 <IconUpload size={18} /> Ver flyer
               </a>
             )}
-            {editar && (
+            {editarFlyer && (
               <ActionForm action={flyerAction.bind(null, a.id)} className="grid gap-2 sm:grid-cols-[1fr_2fr_auto] sm:items-end">
                 <Select name="estado_flyer" defaultValue={a.estado_flyer || "SOLICITADO"} options={ESTADOS_FLYER.map((e) => [e, e] as const)} aria-label="Estado del flyer" />
                 <Input name="link_flyer" type="url" defaultValue={a.link_flyer} placeholder="Link al flyer (Drive, Canva…)" aria-label="Link al flyer" />
@@ -250,7 +253,7 @@ export default async function FichaActividad({ params, searchParams }: { params:
         )}
       </Seccion>
 
-      <Seccion titulo="Participantes">
+      {verInscriptos && <Seccion titulo="Participantes">
         <p className="text-[15px]">
           <b>{r.inscriptos}</b> inscriptos · <b>{r.presentes}</b> presentes
           {r.sinMarcar > 0 && a.estado !== "REALIZADA" && <> · <b>{r.sinMarcar}</b> sin marcar</>}
@@ -291,7 +294,7 @@ export default async function FichaActividad({ params, searchParams }: { params:
             )}
           </div>
         )}
-      </Seccion>
+      </Seccion>}
 
       {a.estado === "REALIZADA" && (
         <Seccion titulo="Resultados">

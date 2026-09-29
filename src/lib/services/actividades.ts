@@ -287,7 +287,7 @@ export async function cambiarEstado(id: string, estado: string, yo: Yo) {
 }
 
 export async function actualizarFlyer(id: string, estado: string, link: string, yo: Yo) {
-  await actividadEditable(id, yo);
+  await actividadEditable(id, yo, puede.editarFlyer);
   const e = (ESTADOS_FLYER as readonly string[]).includes(estado) ? (estado as EstadoFlyer) : "SOLICITADO";
   return update("actividades", id, { requiere_flyer: true, estado_flyer: e, link_flyer: cleanString(link, 500) }, yo.email, { accion: `flyer → ${e}` });
 }

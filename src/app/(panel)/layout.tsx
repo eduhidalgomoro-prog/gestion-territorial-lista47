@@ -1,6 +1,6 @@
 import { MobileNav, Sidebar } from "@/components/panel-nav";
 import { requireUser } from "@/lib/auth";
-import { puede, ROL_LABEL } from "@/lib/permisos";
+import { esDiseno, puede, ROL_LABEL } from "@/lib/permisos";
 import { zonaLabel } from "@/lib/labels";
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
@@ -10,6 +10,8 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     participantes: puede.verParticipantes(yo),
     estadisticas: puede.verEstadisticas(yo),
     configurar: puede.configurar(yo),
+    flyers: puede.verFlyers(yo),
+    inicio: !esDiseno(yo),
   };
   const rol = ROL_LABEL[yo.rol] + (yo.rol === "RESPONSABLE" && yo.zona ? ` · ${zonaLabel(yo.zona)}` : "");
   return (

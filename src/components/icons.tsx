@@ -54,4 +54,4 @@ export const IconClipboard = (p: P) => (<svg {...base(p)}><rect x="5" y="4" widt
 export const IconLock = (p: P) => (<svg {...base(p)}><rect x="5" y="10.5" width="14" height="10" rx="2" /><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" /></svg>);
 export const IconForm = (p: P) => (<svg {...base(p)}><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></svg>);
 export const IconCloudOff = (p: P) => (<svg {...base(p)}><path d="M3 3l18 18M8.5 7.1A5 5 0 0 1 17 10a4 4 0 0 1 3 6.6M16 19H7a4.5 4.5 0 0 1-1.5-8.7" /></svg>);
-export const IconTarget = (p: P) => (<svg {...base(p)}><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="4.5" /><circle cx="12" cy="12" r="1" /></svg>);
+export const IconTarget = (p: P) => (<svg {...base(p)}><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="4.5" /><circle cx="12" cy="12" r="1" /></svg>);export const IconImage = (p: P) => (<svg {...base(p)}><rect x="3" y="4" width="18" height="16" rx="2.5" /><circle cx="8.5" cy="9.5" r="1.8" /><path d="m21 16-5-5-8 8" /></svg>);

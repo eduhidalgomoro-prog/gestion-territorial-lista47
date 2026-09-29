@@ -18,7 +18,7 @@ export const ESTADOS_ACTIVIDAD = ["BORRADOR", "PROGRAMADA", "CONFIRMADA", "REALI
 /** Estados que cuentan para el objetivo mensual de cada zona (decisión confirmada con la coordinación). */
 export const ESTADOS_QUE_CUENTAN = ["PROGRAMADA", "CONFIRMADA", "REALIZADA"] as const;
 export const ESTADOS_FLYER = ["SOLICITADO", "EN DISEÑO", "PARA APROBACIÓN", "APROBADO", "PUBLICADO"] as const;
-export const ROLES = ["ADMINISTRADOR", "RESPONSABLE", "OPERADOR"] as const;
+export const ROLES = ["ADMINISTRADOR", "RESPONSABLE", "OPERADOR", "DISENO"] as const;
 export const ESTADOS_USUARIO = ["ACTIVO", "INACTIVO"] as const;
 export const ORIGENES_INSCRIPCION = ["FORMULARIO PROPIO", "GOOGLE FORMS", "CARGA MANUAL"] as const;
 export const ESTADOS_INSCRIPCION = ["INSCRIPTO", "DADO DE BAJA"] as const;
@@ -148,6 +148,7 @@ export interface Usuario extends Meta {
   nombre: string;
   apellido: string;
   email: string;
+  telefono: string; // para enviarle mensajes por WhatsApp (ej. flyers listos)
   rol: Rol;
   zona: Zona | "";
   estado: (typeof ESTADOS_USUARIO)[number];
@@ -360,6 +361,7 @@ export const TABLES: Record<TableName, TableDef> = {
       ["apellido", "Apellido"],
       ["email", "Email"],
       ["rol", "Rol"],
+      ["telefono", "Teléfono"],
       ["zona", "Zona asignada"],
       ["estado", "Estado"],
       ...META,
