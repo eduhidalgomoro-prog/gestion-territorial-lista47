@@ -24,6 +24,7 @@ export interface WizardOpciones {
   lugares: string[];
   responsables: string[];
   estados: string[]; // estados elegibles en este formulario
+  gestionaFlyer: boolean; // puede elegir estado y link del flyer (admin / diseño)
 }
 
 const PASOS = ["Información general", "Fecha y ubicación", "Articulación y público", "Logística", "Comunicación e inscripción", "Confirmación"];
@@ -474,12 +475,20 @@ export function ActividadWizard({
       {paso === 4 && (
         <div>
           <SiNo label="¿Requiere flyer?" value={d.requiere_flyer} onChange={(v) => set("requiere_flyer", v)}>
+            {!opciones.gestionaFlyer ? (
+              <p className="text-sm text-gris">
+                El pedido le llega al equipo de diseño{d.estado_flyer ? ` (estado actual: ${d.estado_flyer.toLowerCase()})` : ""}. Cuando esté listo, vas a poder ver y descargar el flyer desde la ficha de la actividad.
+              </p>
+            ) : (
+            <>
             <Campo label="Estado del flyer">
               <Chips label="Estado del flyer" value={d.estado_flyer || "SOLICITADO"} onChange={(v) => set("estado_flyer", v)} options={ESTADOS_FLYER.map((e) => [e, e] as const)} />
             </Campo>
             <Campo label="Link al flyer terminado" optional htmlFor="lf" hint="Cuando esté listo, la imagen se sube desde la ficha de la actividad o la pantalla Flyers. También podés pegar acá un link de Drive o Canva.">
               <input id="lf" type="url" inputMode="url" className={inputCls} value={d.link_flyer} onChange={(e) => set("link_flyer", e.target.value)} placeholder="https://…" />
             </Campo>
+            </>
+            )}
           </SiNo>
           <SiNo label="¿Generar formulario de inscripción propio?" value={d.generar_formulario} onChange={(v) => set("generar_formulario", v)}>
             <p className="mb-3 text-sm text-gris">

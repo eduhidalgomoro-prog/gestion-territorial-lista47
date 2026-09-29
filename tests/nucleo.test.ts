@@ -69,6 +69,14 @@ describe("actividades", () => {
     expect(s.barrios.map((x) => x.barrio)).toContain("PIRAYUI");
   });
 
+  it("el responsable pide el flyer pero no lo gestiona", async () => {
+    const a = await crearActividad(input({ requiere_flyer: true, estado_flyer: "PUBLICADO", link_flyer: "https://x.test/f.jpg" }), respEste);
+    expect(a.estado_flyer).toBe("SOLICITADO");
+    expect(a.link_flyer).toBe("");
+    expect(puede.editarFlyer(respEste, a)).toBe(false);
+    expect(puede.editarFlyer(admin, a)).toBe(true);
+  });
+
   it("un responsable solo carga actividades de su zona", async () => {
     const a = await crearActividad(input({ zona: "NORTE" }), respEste);
     expect(a.zona).toBe("ESTE");

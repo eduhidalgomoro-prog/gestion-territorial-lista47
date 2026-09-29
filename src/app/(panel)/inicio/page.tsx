@@ -54,7 +54,8 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<S
   const zona = zonaForzada(yo);
   const delMes = visibles.filter((a) => a.anio === anio && a.mes === mes && (!zona || a.zona === zona));
   const ind = indicadores(delMes, s, { anio, mes });
-  const cumpl = cumplimiento(s.actividades, anio, mes, s.config.objetivo_mensual);
+  // El responsable ve solo el objetivo de su zona.
+  const cumpl = cumplimiento(s.actividades, anio, mes, s.config.objetivo_mensual).filter((c) => !zona || c.zona === zona);
   const evo = evolucion({ ...s, actividades: visibles }, { anio, mes }, 6, zona || undefined);
   const costos = puede.verCostos(yo);
   const sinZona = s.actividades.filter((a) => !a.zona && a.estado !== "BORRADOR").length;

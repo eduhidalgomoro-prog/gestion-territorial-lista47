@@ -1,7 +1,7 @@
 import "server-only";
 import type { WizardOpciones } from "@/components/actividad-wizard";
 import type { Snapshot } from "@/lib/db";
-import { esResponsable, type Yo } from "@/lib/permisos";
+import { esResponsable, puede, type Yo } from "@/lib/permisos";
 import type { ActividadInput } from "@/lib/services/actividades";
 import { ZONAS_ACTIVIDAD, type Actividad } from "@/lib/schema";
 
@@ -21,6 +21,7 @@ export function opcionesWizard(s: Snapshot, yo: Yo, actual?: Actividad): WizardO
     lugares: s.config.lugares,
     responsables: [...new Set([...s.actividades.map((a) => a.responsable), ...s.usuarios.filter((u) => u.estado === "ACTIVO").map((u) => `${u.nombre} ${u.apellido}`.trim())].filter(Boolean))].sort(),
     estados,
+    gestionaFlyer: puede.editarFlyer(yo),
   };
 }
 

@@ -60,8 +60,8 @@ export const puede = {
   asignarOperadores: (yo: Yo, act: Actividad) => esAdmin(yo) || (esResponsable(yo) && deSuZona(yo, act)),
   /** Listado de inscriptos (nombres y datos de contacto): nunca para Diseño. */
   verInscriptos: (yo: Yo, act: Actividad, asig: Asignacion[]) => !esDiseno(yo) && !esAgenda(yo) && puede.verActividad(yo, act, asig),
-  /** Estado y link del flyer. */
-  editarFlyer: (yo: Yo, act: Actividad) => esAdmin(yo) || esDiseno(yo) || (esResponsable(yo) && deSuZona(yo, act)),
+  /** Estado, imágenes y link del flyer: solo administración y diseño (el responsable solo lo pide y lo descarga). */
+  editarFlyer: (yo: Yo, _act?: Actividad) => esAdmin(yo) || esDiseno(yo),
   verFlyers: (yo: Yo) => esAdmin(yo) || esDiseno(yo) || esResponsable(yo),
   verCostos: (yo: Yo) => esAdmin(yo) || esResponsable(yo),
   verParticipantes: (yo: Yo) => esAdmin(yo) || esResponsable(yo),

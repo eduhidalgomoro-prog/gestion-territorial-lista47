@@ -140,8 +140,9 @@ function validar(input: ActividadInput, yo: Yo) {
       institucion_id: input.articula ? cleanString(input.institucion_id, 40) : "",
       institucion_nombre: "",
       requiere_flyer: !!input.requiere_flyer,
-      estado_flyer: (input.requiere_flyer ? flyerEstado || "SOLICITADO" : "") as EstadoFlyer | "",
-      link_flyer: input.requiere_flyer ? cleanString(input.link_flyer, 500) : "",
+      // Quien no gestiona flyers (ej. responsable) solo puede pedirlo: queda SOLICITADO y sin link.
+      estado_flyer: (input.requiere_flyer ? (puede.editarFlyer(yo) ? flyerEstado || "SOLICITADO" : "SOLICITADO") : "") as EstadoFlyer | "",
+      link_flyer: input.requiere_flyer && puede.editarFlyer(yo) ? cleanString(input.link_flyer, 500) : "",
       gazebo: !!input.gazebo,
       gazebo_cant: input.gazebo ? Math.max(0, Math.round(Number(input.gazebo_cant) || 0)) : 0,
       mesas: !!input.mesas,
@@ -257,6 +258,11 @@ export async function editarActividad(id: string, input: ActividadInput, yo: Yo,
   if (!actual) throw new NotFoundError("La actividad");
   if (!puede.editarActividad(yo, actual)) throw new ForbiddenError("Solo podés modificar actividades de tu zona.");
   const v = validar(input, yo);
+  if (!puede.editarFlyer(yo) && v.data.requiere_flyer) {
+    // Al editar, el responsable no toca el estado ni la imagen del flyer que ya cargó diseño.
+    v.data.estado_flyer = actual.estado_flyer || "SOLICITADO";
+    v.data.link_flyer = actual.link_flyer;
+  }
   const inst = v.data.articula ? await resolverInstitucion(v.institucion_nueva, v.institucion_nueva_tipo, v.data.institucion_id, yo.email) : { institucion_id: "", institucion_nombre: "" };
   let slug = actual.slug;
   if (input.generar_formulario && !slug) slug = slugUnico(v.data.nombre, v.data.fecha, s.actividades, id);
