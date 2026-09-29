@@ -20,6 +20,9 @@ const args = process.argv.slice(2);
 const probar = args.includes("--probar");
 const sinMapa = args.includes("--sin-mapa");
 const hoja = args.includes("--hoja") ? args[args.indexOf("--hoja") + 1] : "Respuestas de formulario 1";
+// Las respuestas del Google Forms viven en la planilla original (compartida con el equipo);
+// la app guarda sus datos en otra planilla privada (GOOGLE_SHEETS_SPREADSHEET_ID).
+const PLANILLA_FORMULARIO = args.includes("--origen") ? args[args.indexOf("--origen") + 1] : "1UHcwgAjpARlDxrAlIWA7sE-W5KRDGG3GY_DKI55S78g";
 const USER = "migracion-formulario";
 
 if (process.env.DATA_BACKEND !== "sheets" && !probar) {
@@ -72,7 +75,7 @@ function tipoDe(mesa: string, nombre: string): string {
 }
 
 async function main() {
-  const spreadsheetId = (process.env.GOOGLE_SHEETS_SPREADSHEET_ID ?? "").trim();
+  const spreadsheetId = PLANILLA_FORMULARIO;
   const api = sheets({
     version: "v4",
     auth: new auth.JWT({
