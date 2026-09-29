@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { SelloLista47 } from "@/components/ui";
 import { formToken } from "@/lib/antispam";
+import { parsePreguntas } from "@/lib/preguntas";
 import { snapshot } from "@/lib/db";
 import { formatDate, titleCase } from "@/lib/util";
 import { inscripcionAbiertaPublica } from "@/lib/services/inscripciones";
@@ -38,7 +39,7 @@ export default async function FormularioPublico({ params }: { params: Promise<{ 
   if (!r) notFound();
   const { a, s } = r;
   const abierta = inscripcionAbiertaPublica(a);
-  const preguntas = a.preguntas_extra.split(/\r?\n/).map((q) => q.trim()).filter(Boolean);
+  const preguntas = parsePreguntas(a.preguntas_extra);
   const barrios = s.barrios.filter((b) => b.activo).map((b) => b.barrio).sort();
 
   return (

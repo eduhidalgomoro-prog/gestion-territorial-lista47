@@ -112,6 +112,8 @@ export interface Participante extends Meta {
   dni: string; // solo dígitos
   telefono: string; // solo dígitos, sin 0 ni 15 cuando se puede
   barrio: string;
+  direccion: string;
+  fecha_nacimiento: string; // YYYY-MM-DD
   fecha_primera: string; // YYYY-MM-DD
   origen: OrigenInscripcion | "";
   consentimiento: string; // fecha ISO en que aceptó el aviso (formulario público)
@@ -299,6 +301,8 @@ export const TABLES: Record<TableName, TableDef> = {
       ["dni", "DNI"],
       ["telefono", "Teléfono"],
       ["barrio", "Barrio"],
+      ["direccion", "Dirección"],
+      ["fecha_nacimiento", "Fecha de nacimiento"],
       ["fecha_primera", "Fecha primera inscripción"],
       ["origen", "Origen alta"],
       ["consentimiento", "Consentimiento datos"],

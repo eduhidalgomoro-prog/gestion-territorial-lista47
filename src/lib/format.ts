@@ -224,6 +224,34 @@ export function parseFechaFlexible(v: unknown): string {
   return "";
 }
 
+/**
+ * Fecha de nacimiento tal como la escribe la gente: corrige años «0082» → 1982 y «82» → 1982,
+ * y descarta fechas imposibles (futuras o de hace más de 110 años).
+ */
+export function parseFechaNacimiento(v: unknown, hoy = today()): string {
+  const s = String(v ?? "").trim();
+  const m = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{1,4})$/);
+  let r = "";
+  if (m) {
+    let y = Number(m[3]);
+    if (y < 100) y += y > Number(hoy.slice(2, 4)) ? 1900 : 2000;
+    else if (y < 1000) y = 1900 + (y % 100);
+    r = `${y}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  } else {
+    r = parseFechaFlexible(v);
+  }
+  if (!isValidDate(r)) return "";
+  const edad = Number(hoy.slice(0, 4)) - Number(r.slice(0, 4));
+  return r < hoy && edad >= 3 && edad <= 110 ? r : "";
+}
+
+export function edad(fechaNacimiento: string, hoy = today()): number | null {
+  if (!isValidDate(fechaNacimiento)) return null;
+  let e = Number(hoy.slice(0, 4)) - Number(fechaNacimiento.slice(0, 4));
+  if (hoy.slice(5) < fechaNacimiento.slice(5)) e--;
+  return e;
+}
+
 /** Horas como «19hs», «16.30», «9:30:00», «18 HS» → «HH:MM». «0:00:00» se toma como vacío. */
 export function parseHoraFlexible(v: unknown): string {
   const s = String(v ?? "").trim().toLowerCase();

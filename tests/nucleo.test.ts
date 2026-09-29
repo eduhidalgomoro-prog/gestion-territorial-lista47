@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { categoriaDe, emojisDe } from "@/lib/categorias";
 import { invalidate, snapshot } from "@/lib/db";
 import { cumplimiento, indicadores } from "@/lib/domain/metricas";
-import { normalizeDni, normalizePhone, parseFechaFlexible, parseHoraFlexible, phoneKey } from "@/lib/format";
+import { normalizeDni, normalizePhone, parseFechaFlexible, parseFechaNacimiento, parseHoraFlexible, phoneKey } from "@/lib/format";
+import { parsePreguntas } from "@/lib/preguntas";
 import type { Yo } from "@/lib/permisos";
 import { puede } from "@/lib/permisos";
 import { cerrarActividad, crearActividad, type ActividadInput } from "@/lib/services/actividades";
@@ -146,6 +147,17 @@ describe("participantes, importación y asistencia", () => {
     expect(s.asistencias.filter((x) => x.estado === "AUSENTE")).toHaveLength(1); // el no marcado quedó ausente
     const ind = indicadores(s.actividades, s, { anio: 2026, mes: 10 });
     expect(ind).toMatchObject({ realizadas: 1, inscriptos: 4, asistentes: 3, pctAsistencia: 75, costoReal: 20000 });
+  });
+});
+
+describe("formularios", () => {
+  it("fechas de nacimiento mal tipeadas y preguntas con opciones", () => {
+    expect(parseFechaNacimiento("8/05/0082", "2026-09-29")).toBe("1982-05-08");
+    expect(parseFechaNacimiento("14/04/1959", "2026-09-29")).toBe("1959-04-14");
+    expect(parseFechaNacimiento("25/09/2026", "2026-09-29")).toBe(""); // imposible
+    expect(parseFechaNacimiento("2003-02-20", "2026-09-29")).toBe("2003-02-20");
+    const p = parsePreguntas("¿Fuiste alumna? [Sí / No]\n¿Profesión?");
+    expect(p).toEqual([{ texto: "¿Fuiste alumna?", opciones: ["Sí", "No"] }, { texto: "¿Profesión?", opciones: null }]);
   });
 });
 

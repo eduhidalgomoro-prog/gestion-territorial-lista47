@@ -3,7 +3,7 @@ import { insertMany, nextSeq, readFresh, updateMany } from "../db";
 import { UserError } from "../errors";
 import { withLock } from "../lock";
 import type { OrigenInscripcion, Participante } from "../schema";
-import { cleanString, normalizeBarrio, normalizeDni, normalizePhone, phoneKey, titleCase, today } from "../util";
+import { cleanString, normalizeBarrio, normalizeDni, normalizePhone, parseFechaNacimiento, phoneKey, titleCase, today } from "../util";
 
 export interface PersonaInput {
   nombre: string;
@@ -11,6 +11,8 @@ export interface PersonaInput {
   dni: string;
   telefono: string;
   barrio: string;
+  direccion?: string;
+  fecha_nacimiento?: string;
 }
 
 export interface PersonaLimpia {
@@ -19,6 +21,8 @@ export interface PersonaLimpia {
   dni: string;
   telefono: string;
   barrio: string;
+  direccion: string;
+  fecha_nacimiento: string;
 }
 
 /** Valida los datos mínimos de una persona. Lanza UserError con el detalle por campo. */
@@ -35,7 +39,9 @@ export function limpiarPersona(p: PersonaInput, opts: { telefonoObligatorio?: bo
   if (opts.telefonoObligatorio && telefono.length < 8) f.telefono = "Poné un teléfono válido (con característica).";
   if (opts.barrioObligatorio && !barrio) f.barrio = "Indicá el barrio.";
   if (Object.keys(f).length) throw new UserError("Revisá los datos de la persona.", f);
-  return { nombre, apellido, dni, telefono, barrio };
+  const direccion = cleanString(p.direccion ?? "", 200);
+  const fecha_nacimiento = parseFechaNacimiento(p.fecha_nacimiento ?? "");
+  return { nombre, apellido, dni, telefono, barrio, direccion, fecha_nacimiento };
 }
 
 export interface UpsertResultado {
@@ -72,6 +78,8 @@ export async function upsertParticipantes(
         const patch: Partial<Participante> = {};
         if (!ex.telefono && p.telefono) patch.telefono = p.telefono;
         if (!ex.barrio && p.barrio) patch.barrio = p.barrio;
+        if (!ex.direccion && p.direccion) patch.direccion = p.direccion;
+        if (!ex.fecha_nacimiento && p.fecha_nacimiento) patch.fecha_nacimiento = p.fecha_nacimiento;
         if (Object.keys(patch).length) {
           completar.set(ex.id, { ...completar.get(ex.id), ...patch });
           Object.assign(ex, patch);

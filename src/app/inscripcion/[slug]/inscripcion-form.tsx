@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useState, type ReactNode } from "react";
 import { useSubmitWithoutReset } from "@/components/forms";
 import { titleCase } from "@/lib/format";
+import type { Pregunta } from "@/lib/preguntas";
 import { inscribirAction, type InscripcionState } from "./actions";
 
 const field =
@@ -21,7 +22,7 @@ function F({ label, name, error, optional, children }: { label: string; name: st
   );
 }
 
-export function InscripcionForm({ slug, token, preguntas, barrios }: { slug: string; token: string; preguntas: string[]; barrios: string[] }) {
+export function InscripcionForm({ slug, token, preguntas, barrios }: { slug: string; token: string; preguntas: Pregunta[]; barrios: string[] }) {
   const [state, action, pending] = useActionState<InscripcionState, FormData>(inscribirAction.bind(null, slug), { ok: true });
   const onSubmit = useSubmitWithoutReset(action);
   const [otro, setOtro] = useState(false);
@@ -72,11 +73,34 @@ export function InscripcionForm({ slug, token, preguntas, barrios }: { slug: str
         {otro && <input name="barrio_otro" placeholder="Escribí tu barrio" className={`${field} mt-2`} aria-label="Nombre de tu barrio" />}
       </F>
 
-      {preguntas.map((q, i) => (
-        <F key={i} label={q} name={`respuesta-${i}`} optional>
-          <input id={`respuesta-${i}`} name="respuesta" className={field} />
-        </F>
-      ))}
+      <F label="Dirección" name="direccion" optional>
+        <input id="direccion" name="direccion" autoComplete="street-address" placeholder="Calle y altura, o manzana y casa" className={field} />
+      </F>
+      <F label="Fecha de nacimiento" name="fecha_nacimiento" optional>
+        <input id="fecha_nacimiento" name="fecha_nacimiento" type="date" autoComplete="bday" className={field} />
+      </F>
+
+      {preguntas.map((q, i) =>
+        q.opciones ? (
+          <fieldset key={i} className="mb-4">
+            <legend className="mb-1.5 text-[15px] font-bold">{q.texto}</legend>
+            <div className="flex flex-wrap gap-2">
+              {q.opciones.map((o) => (
+                <label key={o} className="cursor-pointer">
+                  <input type="radio" name={`respuesta-${i}`} value={o} className="peer sr-only" />
+                  <span className="inline-flex min-h-11 items-center rounded-full border border-linea bg-white px-5 text-[15px] font-semibold peer-checked:border-marca peer-checked:bg-verde-50 peer-checked:text-marca-600 peer-focus-visible:outline-2 peer-focus-visible:outline-petroleo">
+                    {o}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        ) : (
+          <F key={i} label={q.texto} name={`respuesta-${i}`} optional>
+            <input id={`respuesta-${i}`} name={`respuesta-${i}`} className={field} />
+          </F>
+        ),
+      )}
 
       <label className="my-5 flex cursor-pointer items-start gap-3 rounded-2xl bg-fondo p-4 text-[15px]">
         <input type="checkbox" name="consentimiento" required className="mt-0.5 size-5 shrink-0 accent-[#3f742c]" aria-invalid={!!e.consentimiento} />

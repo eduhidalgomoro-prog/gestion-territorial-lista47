@@ -6,6 +6,7 @@ import type { ActionResult } from "@/lib/errors";
 import { formatMoney, titleCase } from "@/lib/format";
 import { zonaLabel } from "@/lib/labels";
 import type { ActividadInput, InsumoInput } from "@/lib/services/actividades";
+import { PREGUNTAS_ESME } from "@/lib/preguntas";
 import { ESTADOS_FLYER } from "@/lib/schema";
 import { IconArrowLeft, IconArrowRight, IconCheck, IconPin, IconPlus, IconTarget, IconX } from "./icons";
 import { SelectorUbicacion } from "./mapa";
@@ -484,8 +485,14 @@ export function ActividadWizard({
             <p className="mb-3 text-sm text-gris">
               Se crea un link público (sin usuario ni contraseña) para compartir o publicar en la página de Cuqui Calvano. Pide nombre, apellido, DNI, teléfono y barrio.
             </p>
-            <Campo label="Preguntas adicionales" optional htmlFor="pe" hint="Una pregunta por línea. Ej: ¿Trae sus propios materiales?">
-              <textarea id="pe" rows={3} className={inputCls} value={d.preguntas_extra} onChange={(e) => set("preguntas_extra", e.target.value)} />
+            <p className="mb-3 text-sm text-gris">También pide dirección y fecha de nacimiento (opcionales).</p>
+            <Campo label="Preguntas adicionales" optional htmlFor="pe" hint="Una pregunta por línea. Para elegir entre opciones, ponelas entre corchetes: ¿Trae materiales? [Sí / No]">
+              <textarea id="pe" rows={4} className={inputCls} value={d.preguntas_extra} onChange={(e) => set("preguntas_extra", e.target.value)} />
+              {!d.preguntas_extra.includes("Escuela de Mujeres Emprendedoras") && (
+                <button type="button" onClick={() => set("preguntas_extra", [d.preguntas_extra.trim(), PREGUNTAS_ESME].filter(Boolean).join("\n"))} className="mt-2 text-sm font-bold text-petroleo hover:underline">
+                  + Agregar las preguntas de ESME (alumna, profesión u oficio, ¿enseñarlo?)
+                </button>
+              )}
             </Campo>
           </SiNo>
           <p className="mt-2 rounded-xl bg-petroleo-50 px-4 py-3 text-sm text-petroleo-600">

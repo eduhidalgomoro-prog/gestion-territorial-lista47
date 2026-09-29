@@ -5,6 +5,7 @@ import { withLock } from "../lock";
 import { puede, type Yo } from "../permisos";
 import type { Actividad, Inscripcion, OrigenInscripcion } from "../schema";
 import { cleanString, normalizeDni, nowIso, parseFechaFlexible, phoneKey, today } from "../util";
+import { parsePreguntas } from "../preguntas";
 import { ajustarPrimeraFecha, limpiarPersona, upsertParticipantes, type PersonaInput, type PersonaLimpia } from "./participantes";
 
 /**
@@ -62,6 +63,7 @@ export async function darDeBaja(inscripcionId: string, yo: Yo) {
 
 export interface FilaImportada extends PersonaInput {
   fecha?: string; // marca temporal del formulario
+  respuestas?: string; // otras preguntas del formulario: «Pregunta: respuesta» por línea
 }
 
 export interface VistaPrevia {
@@ -80,15 +82,16 @@ const MAX_FILAS = 3000;
 function prepararFilas(filas: FilaImportada[]) {
   if (!Array.isArray(filas) || !filas.length) throw new UserError("El archivo no tiene filas para importar.");
   if (filas.length > MAX_FILAS) throw new UserError(`El archivo tiene más de ${MAX_FILAS} filas. Dividilo en partes.`);
-  const ok: { fila: number; persona: PersonaLimpia; fecha: string }[] = [];
+  const ok: { fila: number; persona: PersonaLimpia; fecha: string; respuestas: string }[] = [];
   const errores: { fila: number; motivo: string }[] = [];
   filas.forEach((f, i) => {
     try {
       const persona = limpiarPersona({
         nombre: String(f.nombre ?? ""), apellido: String(f.apellido ?? ""), dni: String(f.dni ?? ""),
         telefono: String(f.telefono ?? ""), barrio: String(f.barrio ?? ""),
+        direccion: String(f.direccion ?? ""), fecha_nacimiento: String(f.fecha_nacimiento ?? ""),
       });
-      ok.push({ fila: i + 2, persona, fecha: parseFechaFlexible(f.fecha) });
+      ok.push({ fila: i + 2, persona, fecha: parseFechaFlexible(f.fecha), respuestas: cleanString(String(f.respuestas ?? ""), 2000) });
     } catch (e) {
       const fields = e instanceof UserError ? e.fields : undefined;
       errores.push({ fila: i + 2, motivo: fields ? Object.values(fields).join(" ") : "Datos inválidos." });
@@ -151,7 +154,7 @@ export async function confirmarImportacion(actividadId: string, filas: FilaImpor
   for (const [fecha, ids] of porFecha) await ajustarPrimeraFecha(ids, fecha, yo.email);
   const insc = await inscribir(
     actividadId,
-    res.map((r, i) => ({ participanteId: r.participante.id, fecha: ok[i].fecha || today() })),
+    res.map((r, i) => ({ participanteId: r.participante.id, fecha: ok[i].fecha || today(), respuestas: ok[i].respuestas })),
     "GOOGLE FORMS",
     yo.email,
   );
@@ -192,11 +195,12 @@ export async function inscribirPublico(slug: string, input: InscripcionPublicaIn
   if (!abierta.abierta) return { status: "cerrada", motivo: abierta.motivo };
   const persona = limpiarPersona(input, { telefonoObligatorio: true, barrioObligatorio: true });
   if (!input.consentimiento) throw new UserError("Para inscribirte tenés que aceptar el uso de tus datos.", { consentimiento: "Marcá esta casilla para continuar." });
-  const preguntas = a.preguntas_extra.split(/\r?\n/).map((q) => q.trim()).filter(Boolean);
+  const preguntas = parsePreguntas(a.preguntas_extra);
   const respuestas = preguntas
     .map((q, i) => {
-      const r = cleanString(input.respuestas?.[i]?.respuesta ?? "", 300);
-      return r ? `${q}: ${r}` : "";
+      let r = cleanString(input.respuestas?.[i]?.respuesta ?? "", 300);
+      if (q.opciones && r && !q.opciones.includes(r)) r = ""; // solo opciones válidas
+      return r ? `${q.texto}: ${r}` : "";
     })
     .filter(Boolean)
     .join("\n");

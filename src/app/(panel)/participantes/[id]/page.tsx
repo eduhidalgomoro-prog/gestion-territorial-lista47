@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { snapshot } from "@/lib/db";
 import { zonaLabel } from "@/lib/labels";
 import { actividadesVisibles, esAdmin, puede } from "@/lib/permisos";
-import { formatDate, formatDni, formatPhone, fullName, maskDni, nombreMes, titleCase } from "@/lib/util";
+import { edad, formatDate, formatDni, formatPhone, fullName, maskDni, nombreMes, titleCase } from "@/lib/util";
 
 export const metadata = { title: "Participante" };
 
@@ -47,6 +47,8 @@ export default async function FichaParticipante({ params }: { params: Promise<{ 
           <Fila k="DNI" v={puede.verDniCompleto(yo) ? formatDni(p.dni) : maskDni(p.dni)} />
           <Fila k="Teléfono" v={p.telefono ? formatPhone(p.telefono) : "—"} />
           <Fila k="Barrio" v={titleCase(p.barrio) || "—"} />
+          <Fila k="Dirección" v={p.direccion || "—"} />
+          <Fila k="Edad" v={edad(p.fecha_nacimiento) !== null ? `${edad(p.fecha_nacimiento)} años (${formatDate(p.fecha_nacimiento)})` : "—"} />
           <Fila k="Primera participación" v={primera} />
         </dl>
         <div className="mt-4 grid grid-cols-2 gap-2 text-center">

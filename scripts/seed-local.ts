@@ -72,7 +72,7 @@ async function main() {
     "participantes",
     nombres.map((n, i) => ({
       id: pids[i], nombre: n, apellido: apellidos[i], dni: String(30000000 + i * 1111), telefono: `37940000${String(i).padStart(2, "0")}`,
-      barrio: barrios[i % barrios.length][0], fecha_primera: f(prev.anio, prev.mes, 1), origen: "GOOGLE FORMS" as const, consentimiento: "", posible_duplicado_de: "",
+      barrio: barrios[i % barrios.length][0], direccion: "", fecha_nacimiento: "", fecha_primera: f(prev.anio, prev.mes, 1), origen: "GOOGLE FORMS" as const, consentimiento: "", posible_duplicado_de: "",
     })),
     U,
   );

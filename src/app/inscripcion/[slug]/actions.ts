@@ -15,13 +15,16 @@ export async function inscribirAction(slug: string, _: InscripcionState, fd: For
     return spam.silencioso ? { ok: true, data: { status: "inscripto", nombre: "" } } : { ok: false, message: spam.message };
   }
   try {
-    const respuestas = fd.getAll("respuesta").map((r, i) => ({ pregunta: String(i), respuesta: String(r ?? "") }));
+    // Cada pregunta viene como respuesta-0, respuesta-1… (así las opciones sin elegir no corren el orden).
+    const respuestas = Array.from({ length: 30 }, (_, i) => ({ pregunta: String(i), respuesta: s(fd, `respuesta-${i}`) }));
     const r = await inscribirPublico(slug, {
       nombre: s(fd, "nombre"),
       apellido: s(fd, "apellido"),
       dni: s(fd, "dni"),
       telefono: s(fd, "telefono"),
       barrio: s(fd, "barrio") === "__otro" ? s(fd, "barrio_otro") : s(fd, "barrio"),
+      direccion: s(fd, "direccion"),
+      fecha_nacimiento: s(fd, "fecha_nacimiento"),
       respuestas,
       consentimiento: fd.get("consentimiento") === "on",
     });

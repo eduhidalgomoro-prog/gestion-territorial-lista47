@@ -8,7 +8,7 @@ import { normalizeText } from "@/lib/format";
 import type { FilaImportada, VistaPrevia } from "@/lib/services/inscripciones";
 import { importarAction, vistaPreviaAction } from "../../../actions";
 
-type Campo = "nombre" | "apellido" | "completo" | "dni" | "telefono" | "barrio" | "fecha";
+type Campo = "nombre" | "apellido" | "completo" | "dni" | "telefono" | "barrio" | "direccion" | "fecha_nacimiento" | "fecha";
 
 const CAMPOS: { id: Campo; label: string; hint?: string }[] = [
   { id: "nombre", label: "Nombre" },
@@ -17,8 +17,14 @@ const CAMPOS: { id: Campo; label: string; hint?: string }[] = [
   { id: "dni", label: "DNI" },
   { id: "telefono", label: "Teléfono" },
   { id: "barrio", label: "Barrio" },
+  { id: "direccion", label: "Dirección" },
+  { id: "fecha_nacimiento", label: "Fecha de nacimiento" },
   { id: "fecha", label: "Fecha de inscripción", hint: "La «Marca temporal» de Google Forms." },
 ];
+
+const VACIO: Record<Campo, number> = { nombre: -1, apellido: -1, completo: -1, dni: -1, telefono: -1, barrio: -1, direccion: -1, fecha_nacimiento: -1, fecha: -1 };
+/** Columnas que no vale la pena guardar como respuesta. */
+const IGNORAR = /^(ciudad|localidad|direccion de correo|correo|email|puntuacion)/;
 
 /** Reconoce las columnas típicas de un Google Forms. */
 function detectar(headers: string[]): Record<Campo, number> {
@@ -32,7 +38,9 @@ function detectar(headers: string[]): Record<Campo, number> {
     dni: find((s) => /\bdni\b|documento|d\.n\.i/.test(s)),
     telefono: find((s) => /tel|cel|whats|movil|contacto/.test(s)),
     barrio: find((s) => /barrio/.test(s)),
-    fecha: find((s) => /marca temporal|timestamp|fecha/.test(s)),
+    direccion: find((s) => /direccion|domicilio/.test(s) && !/correo|mail/.test(s)),
+    fecha_nacimiento: find((s) => /nacimiento/.test(s)),
+    fecha: find((s) => /marca temporal|timestamp/.test(s)),
   };
 }
 
@@ -53,7 +61,8 @@ export function Importador({ actividadId }: { actividadId: string }) {
   const [archivo, setArchivo] = useState("");
   const [headers, setHeaders] = useState<string[]>([]);
   const [filas, setFilas] = useState<unknown[][]>([]);
-  const [map, setMap] = useState<Record<Campo, number>>({ nombre: -1, apellido: -1, completo: -1, dni: -1, telefono: -1, barrio: -1, fecha: -1 });
+  const [map, setMap] = useState<Record<Campo, number>>(VACIO);
+  const [guardarResto, setGuardarResto] = useState(true);
   const [previa, setPrevia] = useState<VistaPrevia | null>(null);
   const [resultado, setResultado] = useState<{ importadas: number; personasNuevas: number; inscripcionesNuevas: number; yaInscriptos: number; conErrores: number } | null>(null);
   const [error, setError] = useState("");
@@ -99,9 +108,25 @@ export function Importador({ actividadId }: { actividadId: string }) {
         nombre ||= p.nombre;
         apellido ||= p.apellido;
       }
-      return { nombre, apellido, dni: col(r, "dni"), telefono: col(r, "telefono"), barrio: col(r, "barrio"), fecha: col(r, "fecha") };
+      const respuestas = guardarResto
+        ? otrasColumnas
+            .map((i) => {
+              const v = String(r[i] ?? "").trim();
+              return v ? `${headers[i].replace(/\s+/g, " ").trim()}: ${v}` : "";
+            })
+            .filter(Boolean)
+            .join("\n")
+        : "";
+      return {
+        nombre, apellido, dni: col(r, "dni"), telefono: col(r, "telefono"), barrio: col(r, "barrio"),
+        direccion: col(r, "direccion"), fecha_nacimiento: col(r, "fecha_nacimiento"), fecha: col(r, "fecha"), respuestas,
+      };
     });
   }
+
+  // Columnas que no se relacionaron con ningún dato: se guardan como respuestas de la inscripción.
+  const usadas = new Set(Object.values(map).filter((i) => i >= 0));
+  const otrasColumnas = headers.map((_, i) => i).filter((i) => !usadas.has(i) && headers[i] && !IGNORAR.test(normalizeText(headers[i])));
 
   const faltanMinimos = map.dni < 0 || (map.nombre < 0 && map.completo < 0) || (map.apellido < 0 && map.completo < 0);
 
@@ -179,6 +204,15 @@ export function Importador({ actividadId }: { actividadId: string }) {
             ))}
           </div>
           {faltanMinimos && <p className="mt-3 text-sm font-semibold text-alerta">Como mínimo hacen falta nombre, apellido y DNI.</p>}
+          {otrasColumnas.length > 0 && (
+            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl bg-fondo p-3 text-sm">
+              <input type="checkbox" checked={guardarResto} onChange={(e) => { setGuardarResto(e.target.checked); setPrevia(null); }} className="mt-0.5 size-5 shrink-0 accent-[#3f742c]" />
+              <span>
+                Guardar también las otras preguntas como respuestas de la inscripción:{" "}
+                <b>{otrasColumnas.map((i) => headers[i].trim()).join(" · ")}</b>
+              </span>
+            </label>
+          )}
 
           <p className="mt-4 mb-2 text-sm font-bold">Vista previa</p>
           <div className="overflow-x-auto rounded-xl border border-linea">
