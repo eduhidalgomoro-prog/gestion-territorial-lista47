@@ -1,0 +1,45 @@
+{
+  "name": "gestion-territorial-47",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Gestión territorial y organización de actividades · Coalición Cívica ARI Lista 47 · Corrientes",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "setup:sheets": "tsx --env-file=.env.local scripts/setup-sheets.ts",
+    "check:sheets": "tsx --env-file=.env.local scripts/setup-sheets.ts --check",
+    "migrar:formulario": "tsx --env-file=.env.local scripts/migrar-formulario.ts",
+    "seed:local": "tsx scripts/seed-local.ts"
+  },
+  "dependencies": {
+    "@googleapis/sheets": "^18.0.1",
+    "@upstash/redis": "^1.39.0",
+    "arctic": "^3.7.0",
+    "jose": "^6.2.12",
+    "leaflet": "^1.9.4",
+    "next": "16.3.6",
+    "papaparse": "^5.7.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "server-only": "^0.0.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/leaflet": "^1.9.22",
+    "@types/node": "^24.19.0",
+    "@types/papaparse": "^5.5.2",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.6",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.15",
+    "typescript": "^5",
+    "vitest": "^5.0.2"
+  }
+}

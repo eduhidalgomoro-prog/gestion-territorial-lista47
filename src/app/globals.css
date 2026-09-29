@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+/*
+ * Identidad Coalición Cívica ARI · Lista 47 · Cuqui Calvano (tomada de cuquicalvano.com):
+ *   verde Lista 47 #66BA47 · verde oscuro #3F742C · petróleo #106985 (degradado del encabezado)
+ *   azul pizarra #324158 (textos) · verde claro #AAE7C0 (fondos suaves) · Montserrat.
+ * Para textos y botones se usan los tonos oscuros (contraste AA sobre blanco);
+ * el verde Lista 47 se usa en superficies, sellos e indicadores.
+ */
+@theme {
+  --color-marca: #3f742c; /* botones principales */
+  --color-marca-600: #325d23;
+  --color-verde: #66ba47; /* verde Lista 47 */
+  --color-verde-50: #eff8eb;
+  --color-verde-100: #d9efcf;
+  --color-menta: #aae7c0;
+  --color-petroleo: #106985;
+  --color-petroleo-600: #0c546b;
+  --color-petroleo-50: #e8f2f5;
+  --color-tinta: #324158; /* textos */
+  --color-gris: #5b6678;
+  --color-linea: #dfe5ea;
+  --color-fondo: #f4f7f5;
+  --color-ok: #2f7d32;
+  --color-ok-50: #e8f5e9;
+  --color-alerta: #a15c07;
+  --color-alerta-50: #fdf3e2;
+  --color-peligro: #b3261e;
+  --color-peligro-50: #fbe9e8;
+
+  --font-sans: var(--font-nunito), system-ui, sans-serif;
+  --font-titulo: var(--font-montserrat), system-ui, sans-serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-fondo);
+  color: var(--color-tinta);
+  font-family: var(--font-sans);
+}
+
+h1,
+h2,
+h3,
+.font-titulo {
+  font-family: var(--font-titulo);
+}
+
+/* Accesibilidad: foco visible y objetivos táctiles cómodos */
+:where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 3px solid var(--color-petroleo);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+input,
+select,
+textarea {
+  font-size: 16px; /* evita el zoom automático en iPhone */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
+/* Degradado institucional (encabezado de cuquicalvano.com) */
+.bg-institucional {
+  background: linear-gradient(120deg, #0c546b 0%, #106985 45%, #3f8f3a 100%);
+}
+
+/* Leaflet: que los popups usen la tipografía de la app */
+.leaflet-container {
+  font-family: var(--font-sans);
+  z-index: 0;
+}
+.leaflet-popup-content {
+  margin: 12px 14px;
+  font-size: 14px;
+  line-height: 1.4;
+}

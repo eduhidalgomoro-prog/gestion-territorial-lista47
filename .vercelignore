@@ -1,0 +1,11 @@
+# Nunca subir a Vercel: credenciales, configuración local ni datos personales
+.env*
+!.env.example
+service-account*.json
+oauth-client*.json
+*-credentials.json
+.data/
+.claude/
+node_modules/
+.next/
+coverage/

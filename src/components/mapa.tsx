@@ -1,0 +1,186 @@
+"use client";
+
+import "leaflet/dist/leaflet.css";
+import type { LatLngExpression, LayerGroup, Map as LMap, Marker } from "leaflet";
+import { useEffect, useRef, useState } from "react";
+
+export const CENTRO_CORRIENTES: [number, number] = [-27.4806, -58.8341];
+
+const TILES = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+const ATTRIB = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+
+function esc(s: string) {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+}
+
+export interface PuntoMapa {
+  id: string;
+  lat: number;
+  lng: number;
+  nombre: string;
+  fecha: string; // ya formateada
+  zona: string;
+  barrio: string;
+  responsable: string;
+  tipo: string;
+  estado: string;
+  asistentes: number;
+  color: string;
+}
+
+/** Mapa territorial: cada actividad es un punto; al tocarlo se ve el resumen y el link a la ficha. */
+export function MapaActividades({ puntos, focoId, alto = "min(70dvh, 640px)" }: { puntos: PuntoMapa[]; focoId?: string; alto?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<LMap | null>(null);
+  const grupoRef = useRef<LayerGroup | null>(null);
+  // Solo se redibuja (y reencuadra) cuando cambian los puntos de verdad, no cuando cambia la referencia del arreglo.
+  const clave = puntos.map((p) => `${p.id}:${p.lat}:${p.lng}:${p.estado}`).join("|");
+  const puntosRef = useRef(puntos);
+  useEffect(() => {
+    puntosRef.current = puntos;
+  }, [puntos]);
+
+  useEffect(() => {
+    const puntos = puntosRef.current;
+    let cancel = false;
+    (async () => {
+      const L = (await import("leaflet")).default;
+      if (cancel || !ref.current) return;
+      if (!mapRef.current) {
+        // Sin zoom con la rueda del mouse: así desplazar la página no mueve el mapa por accidente (se usa + / − o pellizcar).
+        mapRef.current = L.map(ref.current, { zoomControl: true, attributionControl: true, scrollWheelZoom: false }).setView(CENTRO_CORRIENTES, 13);
+        L.tileLayer(TILES, { maxZoom: 19, attribution: ATTRIB }).addTo(mapRef.current);
+        grupoRef.current = L.layerGroup().addTo(mapRef.current);
+      }
+      const map = mapRef.current;
+      const grupo = grupoRef.current!;
+      grupo.clearLayers();
+      const bounds: LatLngExpression[] = [];
+      let foco: ReturnType<typeof L.circleMarker> | null = null;
+      for (const p of puntos) {
+        const m = L.circleMarker([p.lat, p.lng], {
+          radius: p.id === focoId ? 12 : 9,
+          color: "#ffffff",
+          weight: 2,
+          fillColor: p.color,
+          fillOpacity: 0.95,
+        }).addTo(grupo);
+        m.bindPopup(
+          `<div style="min-width:200px">
+            <div style="font-size:11px;font-weight:800;letter-spacing:.08em;color:#3f742c;text-transform:uppercase">${esc(p.tipo || "Actividad")}</div>
+            <div style="font-weight:800;font-size:15px;color:#324158;margin:2px 0 6px">${esc(p.nombre)}</div>
+            <div>📅 ${esc(p.fecha || "Sin fecha")}</div>
+            <div>📍 ${esc(p.zona)}${p.barrio ? " · " + esc(p.barrio) : ""}</div>
+            <div>👤 ${esc(p.responsable || "—")}</div>
+            <div style="margin-top:4px"><b>${esc(p.estado)}</b>${p.asistentes ? ` · ${p.asistentes} asistentes` : ""}</div>
+            <a href="/actividades/${encodeURIComponent(p.id)}" style="display:inline-block;margin-top:8px;padding:8px 12px;border-radius:10px;background:#3f742c;color:#fff;font-weight:700;text-decoration:none">Ver ficha</a>
+          </div>`,
+        );
+        bounds.push([p.lat, p.lng]);
+        if (p.id === focoId) foco = m;
+      }
+      // El contenedor puede haber cambiado de tamaño al terminar de cargar la página.
+      map.invalidateSize();
+      if (foco) {
+        map.setView((foco as ReturnType<typeof L.circleMarker>).getLatLng(), 16);
+        (foco as ReturnType<typeof L.circleMarker>).openPopup();
+      } else if (bounds.length > 1) {
+        const b = L.latLngBounds(bounds as [number, number][]);
+        map.fitBounds(b, { padding: [30, 30], maxZoom: 15 });
+        // Si la página todavía se estaba acomodando, reencuadrar un instante después.
+        setTimeout(() => {
+          if (mapRef.current !== map) return;
+          map.invalidateSize();
+          map.fitBounds(b, { padding: [30, 30], maxZoom: 15 });
+        }, 300);
+      } else if (bounds.length === 1) {
+        map.setView(bounds[0], 15);
+      }
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [clave, focoId]);
+
+  useEffect(
+    () => () => {
+      mapRef.current?.remove();
+      mapRef.current = null;
+      grupoRef.current = null;
+    },
+    [],
+  );
+
+  return <div ref={ref} className="w-full overflow-hidden rounded-2xl border border-linea" style={{ height: alto }} role="region" aria-label="Mapa de actividades" />;
+}
+
+/**
+ * Selector de ubicación para la carga de actividades: marcador arrastrable.
+ * Tocar el mapa también mueve el marcador.
+ */
+export function SelectorUbicacion({ lat, lng, onChange }: { lat: number; lng: number; onChange: (lat: number, lng: number) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<LMap | null>(null);
+  const markerRef = useRef<Marker | null>(null);
+  const onChangeRef = useRef(onChange);
+  const [listo, setListo] = useState(false);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      const L = (await import("leaflet")).default;
+      if (cancel || !ref.current || mapRef.current) return;
+      const tiene = !!(lat && lng);
+      const map = L.map(ref.current, { scrollWheelZoom: false }).setView(tiene ? [lat, lng] : CENTRO_CORRIENTES, tiene ? 16 : 13);
+      L.tileLayer(TILES, { maxZoom: 19, attribution: ATTRIB }).addTo(map);
+      const icon = L.divIcon({
+        className: "",
+        html: '<div style="width:30px;height:30px;border-radius:50% 50% 50% 0;background:#3f742c;transform:rotate(-45deg);border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)"></div>',
+        iconSize: [30, 30],
+        iconAnchor: [15, 30],
+      });
+      const marker = L.marker(tiene ? [lat, lng] : CENTRO_CORRIENTES, { draggable: true, icon, opacity: tiene ? 1 : 0.45 }).addTo(map);
+      marker.on("dragend", () => {
+        const p = marker.getLatLng();
+        marker.setOpacity(1);
+        onChangeRef.current(p.lat, p.lng);
+      });
+      map.on("click", (e) => {
+        marker.setLatLng(e.latlng).setOpacity(1);
+        onChangeRef.current(e.latlng.lat, e.latlng.lng);
+      });
+      mapRef.current = map;
+      markerRef.current = marker;
+      setListo(true);
+    })();
+    return () => {
+      cancel = true;
+    };
+    // Solo al montar: después, los cambios de coordenadas se aplican en el efecto de abajo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Cuando llegan coordenadas desde "Ubicar dirección" o "Usar mi ubicación".
+  useEffect(() => {
+    if (!listo || !mapRef.current || !markerRef.current || !lat || !lng) return;
+    const cur = markerRef.current.getLatLng();
+    if (Math.abs(cur.lat - lat) > 1e-7 || Math.abs(cur.lng - lng) > 1e-7) {
+      markerRef.current.setLatLng([lat, lng]).setOpacity(1);
+      mapRef.current.setView([lat, lng], Math.max(mapRef.current.getZoom(), 16));
+    }
+  }, [lat, lng, listo]);
+
+  useEffect(
+    () => () => {
+      mapRef.current?.remove();
+      mapRef.current = null;
+    },
+    [],
+  );
+
+  return <div ref={ref} className="h-72 w-full overflow-hidden rounded-2xl border border-linea sm:h-80" role="region" aria-label="Mapa para ubicar la actividad" />;
+}
