@@ -122,7 +122,8 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<S
 
       {!agenda && proximasSeccion}
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+      {/* Agenda no necesita gráficos: su inicio es la lista de próximas actividades. */}
+      {!agenda && <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <ChartCard title="Inscriptos vs. asistentes por zona">
           <BarrasDobles data={inscriptosVsAsistentes(delMes, s)} leyenda={["Inscriptos", "Asistentes"]} />
         </ChartCard>
@@ -138,7 +139,7 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<S
             Actividades por mes: {evo.map((e) => `${nombreMes(e.mes).slice(0, 3)} ${e.actividades}`).join(" · ")}
           </p>
         </ChartCard>
-      </div>
+      </div>}
     </>
   );
 }
