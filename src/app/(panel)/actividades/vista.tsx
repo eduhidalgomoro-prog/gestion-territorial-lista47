@@ -57,11 +57,11 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
             href={`${t.href}${qs(keep)}`}
             aria-current={t.id === vista ? "page" : undefined}
             className={cx(
-              "flex min-h-11 items-center justify-center gap-1.5 rounded-xl text-sm font-bold uppercase tracking-wide",
+              "flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-xl text-[12px] font-bold tracking-tight uppercase sm:gap-1.5 sm:text-sm sm:tracking-wide",
               t.id === vista ? "bg-petroleo text-white" : "text-gris hover:bg-fondo",
             )}
           >
-            <t.Icon size={18} /> {t.label}
+            <t.Icon size={16} className="shrink-0" /> {t.label}
           </Link>
         ))}
       </nav>

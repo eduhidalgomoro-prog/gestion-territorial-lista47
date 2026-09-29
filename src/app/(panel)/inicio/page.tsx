@@ -4,13 +4,13 @@ import { BarrasDobles, ChartCard, Columnas } from "@/components/charts";
 import { CumplimientoZonas } from "@/components/cumplimiento";
 import { InstallBanner } from "@/components/install-button";
 import { SelectorPeriodo } from "@/components/periodo";
-import { Empty, LinkButton, Notice, PageHeader, Stat } from "@/components/ui";
+import { cx, Empty, LinkButton, Notice, PageHeader, Stat } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { snapshot } from "@/lib/db";
 import { conteosPorActividad, cumplimiento, evolucion, indicadores, inscriptosVsAsistentes } from "@/lib/domain/metricas";
 import { zonaLabel } from "@/lib/labels";
 import { redirect } from "next/navigation";
-import { actividadesVisibles, esDiseno, esOperador, puede, zonaForzada } from "@/lib/permisos";
+import { actividadesVisibles, esAgenda, esDiseno, esOperador, puede, zonaForzada } from "@/lib/permisos";
 import { formatMoney, formatNumber, nombreMes, today } from "@/lib/util";
 import { periodo, type SP } from "@/lib/view";
 
@@ -58,6 +58,27 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<S
   const evo = evolucion({ ...s, actividades: visibles }, { anio, mes }, 6, zona || undefined);
   const costos = puede.verCostos(yo);
   const sinZona = s.actividades.filter((a) => !a.zona && a.estado !== "BORRADOR").length;
+  const agenda = esAgenda(yo);
+
+  const proximasSeccion = (
+    <section className="mt-6" aria-labelledby="prox">
+      <div className="mb-2 flex items-center justify-between">
+        <h2 id="prox" className="text-lg font-bold">Próximas actividades</h2>
+        <Link href="/calendario" className="text-sm font-bold text-petroleo hover:underline">Ver calendario →</Link>
+      </div>
+      {proximas.length === 0 ? (
+        <Empty action={puede.crearActividad(yo) ? <LinkButton href="/actividades/nueva">+ Nueva actividad</LinkButton> : undefined}>
+          No hay actividades programadas próximamente.
+        </Empty>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {proximas.slice(0, agenda ? 12 : 6).map((a) => (
+            <ActividadCard key={a.id} a={a} conteo={conteos.get(a.id)} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
 
   return (
     <>
@@ -76,12 +97,19 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<S
         </Notice>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_1.4fr]">
-        <CumplimientoZonas data={cumpl} anio={anio} mes={mes} />
-        <section aria-label="Indicadores del mes" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <Stat label="Programadas" value={ind.programadas} hint={ind.borradores ? `${ind.borradores} en borrador` : undefined} />
-          <Stat label="Realizadas" value={ind.realizadas} tone="verde" />
-          <Stat label="Suspendidas / canceladas" value={ind.suspendidas + ind.canceladas} tone={ind.suspendidas + ind.canceladas ? "alerta" : "gris"} />
+      {/* Agenda: lo primero son las próximas actividades (es lo que usa para armar la agenda de los referentes). */}
+      {agenda && proximasSeccion}
+
+      <div className={cx("grid gap-4", !agenda && "lg:grid-cols-[1fr_1.4fr]", agenda && "mt-6")}>
+        {!agenda && <CumplimientoZonas data={cumpl} anio={anio} mes={mes} />}
+        <section aria-label="Indicadores del mes" className={cx("grid grid-cols-2 gap-3", agenda ? "sm:grid-cols-5" : "sm:grid-cols-3")}>
+          {!agenda && (
+            <>
+              <Stat label="Programadas" value={ind.programadas} hint={ind.borradores ? `${ind.borradores} en borrador` : undefined} />
+              <Stat label="Realizadas" value={ind.realizadas} tone="verde" />
+              <Stat label="Suspendidas / canceladas" value={ind.suspendidas + ind.canceladas} tone={ind.suspendidas + ind.canceladas ? "alerta" : "gris"} />
+            </>
+          )}
           <Stat label="Inscriptos" value={formatNumber(ind.inscriptos)} />
           <Stat label="Asistentes" value={formatNumber(ind.asistentes)} tone="verde" />
           <Stat label="% asistencia" value={`${ind.pctAsistencia}%`} hint="en actividades realizadas" />
@@ -92,23 +120,7 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<S
         </section>
       </div>
 
-      <section className="mt-6" aria-labelledby="prox">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 id="prox" className="text-lg font-bold">Próximas actividades</h2>
-          <Link href="/calendario" className="text-sm font-bold text-petroleo hover:underline">Ver calendario →</Link>
-        </div>
-        {proximas.length === 0 ? (
-          <Empty action={puede.crearActividad(yo) ? <LinkButton href="/actividades/nueva">+ Nueva actividad</LinkButton> : undefined}>
-            No hay actividades programadas próximamente.
-          </Empty>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {proximas.slice(0, 6).map((a) => (
-              <ActividadCard key={a.id} a={a} conteo={conteos.get(a.id)} />
-            ))}
-          </div>
-        )}
-      </section>
+      {!agenda && proximasSeccion}
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <ChartCard title="Inscriptos vs. asistentes por zona">
