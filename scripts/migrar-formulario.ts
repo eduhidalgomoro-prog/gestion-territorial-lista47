@@ -213,6 +213,7 @@ async function main() {
       estado_flyer: si(col(r, I.reqFlyer)) ? (/listo/.test(flyr) ? "PUBLICADO" : "SOLICITADO") : "",
       link_flyer: "",
       link_flyer_historia: "",
+      link_grupo: "",
       gazebo: si(col(r, I.gazebo)),
       gazebo_cant: si(col(r, I.gazebo)) ? q(I.gazebo) : 0,
       mesas: si(col(r, I.mesas)),

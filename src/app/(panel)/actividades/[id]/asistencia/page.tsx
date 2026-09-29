@@ -28,7 +28,11 @@ export default async function Asistencia({ params }: { params: Promise<{ id: str
       return {
         id: i.participante_id,
         nombre: fullName(p),
-        detalle: [p?.dni ? `DNI ${maskDni(p.dni)}` : "", p?.barrio ? titleCase(p.barrio) : ""].filter(Boolean).join(" · "),
+        detalle: [
+          i.confirmacion === "CONFIRMÓ" ? "✓ Confirmó" : i.confirmacion === "NO VA" ? "✗ Avisó que no va" : "",
+          p?.dni ? `DNI ${maskDni(p.dni)}` : "",
+          p?.barrio ? titleCase(p.barrio) : "",
+        ].filter(Boolean).join(" · "),
         // Solo la administración recibe el DNI completo; el resto, los últimos 4 dígitos (alcanza para buscar).
         dni: puede.verDniCompleto(yo) ? p?.dni ?? "" : (p?.dni ?? "").slice(-4),
         estado: asis.get(i.participante_id) ?? null,

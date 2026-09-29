@@ -1,4 +1,4 @@
-import { formatDate, titleCase } from "./format";
+import { formatDate, normalizePhone, titleCase } from "./format";
 import { zonaLabel } from "./labels";
 import type { Actividad } from "./schema";
 
@@ -22,6 +22,29 @@ export function mensajeActividad(a: Actividad, n: { inscriptos: number; presente
     a.lat && a.lng ? `🗺️ https://www.google.com/maps/search/?api=1&query=${a.lat},${a.lng}` : "",
   ];
   return lineas.filter(Boolean).join("\n");
+}
+
+function cuandoDonde(a: Actividad): string {
+  const cuando = a.fecha ? formatDate(a.fecha, { weekday: "long", day: "numeric", month: "long" }) : "";
+  const hora = a.hora_inicio ? `${a.hora_inicio} h` : "";
+  const donde = [a.lugar, a.direccion, a.barrio ? `B° ${titleCase(a.barrio)}` : ""].filter(Boolean).join(", ");
+  return [cuando, hora].filter(Boolean).join(", ") + (donde ? `, en ${donde}` : "");
+}
+
+/** Mensaje para pedirle a una persona inscripta que confirme si va a ir. */
+export function mensajeConfirmacion(nombre: string, a: Actividad): string {
+  return `Hola ${nombre} 👋 Te escribimos por *${a.nombre}*, al que te inscribiste: ${cuandoDonde(a)}.\n¿Nos confirmás si vas a venir? 🙌`;
+}
+
+/** Mensaje con el link de invitación al grupo de WhatsApp de la actividad. */
+export function mensajeGrupo(nombre: string, a: Actividad): string {
+  return `¡Gracias por confirmar, ${nombre}! 🙌 Sumate al grupo de *${a.nombre}* para recibir las novedades:\n${a.link_grupo}`;
+}
+
+/** Link de WhatsApp a un número argentino (10 dígitos) con el mensaje ya escrito. "" si el teléfono no sirve. */
+export function whatsappA(telefono: string, texto: string): string {
+  const d = normalizePhone(telefono);
+  return d.length === 10 ? `https://wa.me/549${d}?text=${encodeURIComponent(texto)}` : "";
 }
 
 /** Link para abrir WhatsApp con el mensaje (la persona elige a quién mandarlo). */

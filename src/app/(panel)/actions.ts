@@ -12,7 +12,7 @@ import {
 import { crearUsuario, editarUsuario, guardarBarrio, guardarConfig, guardarInstitucion } from "@/lib/services/administracion";
 import { agregarPresente, buscarPorDni, guardarAsistencia, type Marca } from "@/lib/services/asistencia";
 import { geocodificar, type Ubicacion } from "@/lib/services/geocode";
-import { confirmarImportacion, darDeBaja, vistaPreviaImportacion, type FilaImportada, type VistaPrevia } from "@/lib/services/inscripciones";
+import { confirmarImportacion, darDeBaja, guardarLinkGrupo, marcarConfirmacion, vistaPreviaImportacion, type FilaImportada, type VistaPrevia } from "@/lib/services/inscripciones";
 import type { Yo } from "@/lib/permisos";
 
 const str = (fd: FormData, k: string) => {
@@ -82,6 +82,14 @@ export async function asignarOperadorAction(actividadId: string, _: ActionResult
 
 export async function quitarOperadorAction(asignacionId: string): Promise<ActionResult> {
   return act((yo) => quitarOperador(asignacionId, yo), { ok: "Asignación quitada." });
+}
+
+export async function confirmacionAction(inscripcionId: string, valor: string): Promise<ActionResult> {
+  return act((yo) => marcarConfirmacion(inscripcionId, valor, yo), { ok: "Anotado." });
+}
+
+export async function linkGrupoAction(actividadId: string, _: ActionResult, fd: FormData): Promise<ActionResult> {
+  return act((yo) => guardarLinkGrupo(actividadId, str(fd, "link_grupo"), yo), { ok: "Link del grupo guardado." });
 }
 
 export async function bajaInscripcionAction(inscripcionId: string): Promise<ActionResult> {

@@ -22,6 +22,8 @@ export const ROLES = ["ADMINISTRADOR", "RESPONSABLE", "OPERADOR", "DISENO", "AGE
 export const ESTADOS_USUARIO = ["ACTIVO", "INACTIVO"] as const;
 export const ORIGENES_INSCRIPCION = ["FORMULARIO PROPIO", "GOOGLE FORMS", "CARGA MANUAL"] as const;
 export const ESTADOS_INSCRIPCION = ["INSCRIPTO", "DADO DE BAJA"] as const;
+/** Respuesta al mensaje de confirmación por WhatsApp ("" = sin respuesta). */
+export const CONFIRMACIONES = ["CONFIRMÓ", "NO VA"] as const;
 export const ESTADOS_ASISTENCIA = ["PRESENTE", "AUSENTE"] as const;
 export const ESTADOS_REQUERIMIENTO = ["PENDIENTE", "CONSEGUIDO", "ANULADO"] as const;
 export const ESTADOS_ASIGNACION = ["ACTIVA", "QUITADA"] as const;
@@ -33,6 +35,7 @@ export type EstadoFlyer = (typeof ESTADOS_FLYER)[number];
 export type Rol = (typeof ROLES)[number];
 export type OrigenInscripcion = (typeof ORIGENES_INSCRIPCION)[number];
 export type EstadoInscripcion = (typeof ESTADOS_INSCRIPCION)[number];
+export type Confirmacion = (typeof CONFIRMACIONES)[number];
 export type EstadoAsistencia = (typeof ESTADOS_ASISTENCIA)[number];
 export type EstadoRequerimiento = (typeof ESTADOS_REQUERIMIENTO)[number];
 
@@ -79,6 +82,7 @@ export interface Actividad extends Meta {
   estado_flyer: EstadoFlyer | "";
   link_flyer: string; // versión feed (o link externo)
   link_flyer_historia: string; // versión historias
+  link_grupo: string; // link de invitación al grupo de WhatsApp de la actividad
   gazebo: boolean;
   gazebo_cant: number;
   mesas: boolean;
@@ -128,6 +132,7 @@ export interface Inscripcion extends Meta {
   origen: OrigenInscripcion;
   estado: EstadoInscripcion;
   respuestas: string; // preguntas adicionales: "Pregunta: respuesta" por línea
+  confirmacion: Confirmacion | "";
 }
 
 export interface Asistencia extends Meta {
@@ -258,6 +263,7 @@ export const TABLES: Record<TableName, TableDef> = {
       ["estado_flyer", "Estado flyer"],
       ["link_flyer", "Link flyer"],
       ["link_flyer_historia", "Link flyer historias"],
+      ["link_grupo", "Link grupo WhatsApp"],
       ["gazebo", "Requiere gazebo"],
       ["gazebo_cant", "Cantidad gazebos"],
       ["mesas", "Requiere mesas"],
@@ -324,9 +330,10 @@ export const TABLES: Record<TableName, TableDef> = {
       ["origen", "Origen inscripción"],
       ["estado", "Estado"],
       ["respuestas", "Respuestas adicionales"],
+      ["confirmacion", "Confirmación"],
       ...META,
     ],
-    enums: { origen: ORIGENES_INSCRIPCION, estado: ESTADOS_INSCRIPCION },
+    enums: { origen: ORIGENES_INSCRIPCION, estado: ESTADOS_INSCRIPCION, confirmacion: CONFIRMACIONES },
   },
   asistencias: {
     sheet: "ASISTENCIAS",

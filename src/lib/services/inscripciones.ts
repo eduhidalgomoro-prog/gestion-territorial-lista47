@@ -3,7 +3,7 @@ import { insertMany, readFresh, snapshot, update, updateMany, NotFoundError } fr
 import { ForbiddenError, UserError } from "../errors";
 import { withLock } from "../lock";
 import { puede, type Yo } from "../permisos";
-import type { Actividad, Inscripcion, OrigenInscripcion } from "../schema";
+import { CONFIRMACIONES, type Actividad, type Confirmacion, type Inscripcion, type OrigenInscripcion } from "../schema";
 import { cleanString, normalizeDni, nowIso, parseFechaFlexible, phoneKey, today } from "../util";
 import { parsePreguntas } from "../preguntas";
 import { ajustarPrimeraFecha, limpiarPersona, upsertParticipantes, type PersonaInput, type PersonaLimpia } from "./participantes";
@@ -39,6 +39,7 @@ export async function inscribir(
           origen,
           estado: "INSCRIPTO",
           respuestas: it.respuestas ?? "",
+          confirmacion: "",
         });
     }
     await updateMany("inscripciones", reactivar, user, "reactivar inscripción");
@@ -55,6 +56,37 @@ export async function darDeBaja(inscripcionId: string, yo: Yo) {
   const act = s.actividades.find((a) => a.id === ins.actividad_id);
   if (!act || !puede.editarActividad(yo, act)) throw new ForbiddenError();
   return update("inscripciones", inscripcionId, { estado: "DADO DE BAJA" }, yo.email, { accion: "baja de inscripción" });
+}
+
+// ---------------------------------------------------------------------------
+// Confirmación por WhatsApp y grupo de la actividad
+// (lo pueden usar quienes toman asistencia: operador asignado, responsable de la zona y administración)
+// ---------------------------------------------------------------------------
+
+async function actividadDeContacto(actividadId: string, yo: Yo) {
+  const s = await snapshot();
+  const a = s.actividades.find((x) => x.id === actividadId);
+  if (!a) throw new NotFoundError("La actividad");
+  if (!puede.tomarAsistencia(yo, a, s.asignaciones)) throw new ForbiddenError("No tenés asignada esta actividad.");
+  return { a, s };
+}
+
+export async function marcarConfirmacion(inscripcionId: string, valor: string, yo: Yo) {
+  const s = await snapshot();
+  const ins = s.inscripciones.find((i) => i.id === inscripcionId);
+  if (!ins) throw new NotFoundError("La inscripción");
+  await actividadDeContacto(ins.actividad_id, yo);
+  const confirmacion = (CONFIRMACIONES as readonly string[]).includes(valor) ? (valor as Confirmacion) : "";
+  return update("inscripciones", inscripcionId, { confirmacion }, yo.email, { accion: `confirmación → ${confirmacion || "sin respuesta"}` });
+}
+
+export async function guardarLinkGrupo(actividadId: string, link: string, yo: Yo) {
+  await actividadDeContacto(actividadId, yo);
+  const l = cleanString(link, 300);
+  if (l && !/^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]+/.test(l)) {
+    throw new UserError("Pegá el link de invitación del grupo (empieza con https://chat.whatsapp.com/).", { link_grupo: "Link inválido." });
+  }
+  return update("actividades", actividadId, { link_grupo: l }, yo.email, { accion: l ? "guardar link del grupo" : "quitar link del grupo" });
 }
 
 // ---------------------------------------------------------------------------
