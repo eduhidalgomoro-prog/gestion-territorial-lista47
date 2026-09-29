@@ -152,7 +152,8 @@ describe("participantes, importación y asistencia", () => {
 describe("categorías del mapa", () => {
   it("agrupa por tipo y, si el tipo es genérico, por nombre", () => {
     expect(categoriaDe({ tipo: "MESA DE DEPORTES", nombre: "3x3" })).toBe("DEPORTES");
-    expect(categoriaDe({ tipo: "MARCANDO HUELLAS", nombre: "Semillero de campeones" })).toBe("MASCOTAS");
+    expect(categoriaDe({ tipo: "MARCANDO HUELLAS", nombre: "Marcando Huellas y Semillero de campeones" })).toBe("DEPORTES");
+    expect(categoriaDe({ tipo: "MARCANDO HUELLAS", nombre: "MarcandoHuellas" })).toBe("MASCOTAS");
     expect(categoriaDe({ tipo: "TALLER", nombre: "Clases de apoyo" })).toBe("CAPACITACIONES");
     expect(categoriaDe({ tipo: "TALLER", nombre: "Taller de barbería" })).toBe("TALLERES");
     expect(categoriaDe({ tipo: "", nombre: "Vacunación de mascotas" })).toBe("MASCOTAS");

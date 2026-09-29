@@ -38,9 +38,13 @@ function porReglas(texto: string): CategoriaId | null {
   return null;
 }
 
+/** Palabras del nombre que mandan por sobre el tipo (ej. «Semillero de Campeones» es deporte aunque sea de Marcando Huellas). */
+const NOMBRE_PRIORITARIO: [CategoriaId, RegExp][] = [["DEPORTES", /semillero|campeones/]];
+
 export function categoriaDe(a: { tipo: string; nombre: string }): CategoriaId {
   const tipo = normalizeText(a.tipo);
   const nombre = normalizeText(a.nombre);
+  for (const [id, re] of NOMBRE_PRIORITARIO) if (re.test(nombre)) return id;
   if (TIPOS_GENERICOS.has(tipo)) return porReglas(nombre) ?? porReglas(tipo) ?? "OTRAS";
   // El tipo lo elige quien carga la actividad: tiene prioridad sobre el nombre.
   return porReglas(tipo) ?? porReglas(nombre) ?? "OTRAS";
