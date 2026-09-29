@@ -36,6 +36,8 @@ export const esResponsable = (yo: Yo) => yo.rol === "RESPONSABLE";
 export const esOperador = (yo: Yo) => yo.rol === "OPERADOR";
 /** Comunicación / Diseño: ve todas las actividades (sin datos personales ni costos) y gestiona los flyers. */
 export const esDiseno = (yo: Yo) => yo.rol === "DISENO";
+/** Agenda de referentes: ve todas las actividades y sus números (sin datos de personas ni costos). Solo lectura. */
+export const esAgenda = (yo: Yo) => yo.rol === "AGENDA";
 
 function asignada(yo: Yo, act: Actividad, asignaciones: Asignacion[]) {
   return asignaciones.some((a) => a.estado === "ACTIVA" && a.actividad_id === act.id && a.usuario_id === yo.usuarioId);
@@ -48,7 +50,7 @@ function deSuZona(yo: Yo, act: Actividad) {
 
 export const puede = {
   verActividad: (yo: Yo, act: Actividad, asig: Asignacion[]) =>
-    esAdmin(yo) || esDiseno(yo) || (esResponsable(yo) && (deSuZona(yo, act) || act.zona === "GENERAL" || !act.zona)) || (esOperador(yo) && asignada(yo, act, asig)),
+    esAdmin(yo) || esDiseno(yo) || esAgenda(yo) || (esResponsable(yo) && (deSuZona(yo, act) || act.zona === "GENERAL" || !act.zona)) || (esOperador(yo) && asignada(yo, act, asig)),
   crearActividad: (yo: Yo) => esAdmin(yo) || esResponsable(yo),
   editarActividad: (yo: Yo, act: Actividad) => esAdmin(yo) || (esResponsable(yo) && deSuZona(yo, act)),
   tomarAsistencia: (yo: Yo, act: Actividad, asig: Asignacion[]) =>
@@ -57,7 +59,7 @@ export const puede = {
   importar: (yo: Yo, act: Actividad) => esAdmin(yo) || (esResponsable(yo) && deSuZona(yo, act)),
   asignarOperadores: (yo: Yo, act: Actividad) => esAdmin(yo) || (esResponsable(yo) && deSuZona(yo, act)),
   /** Listado de inscriptos (nombres y datos de contacto): nunca para Diseño. */
-  verInscriptos: (yo: Yo, act: Actividad, asig: Asignacion[]) => !esDiseno(yo) && puede.verActividad(yo, act, asig),
+  verInscriptos: (yo: Yo, act: Actividad, asig: Asignacion[]) => !esDiseno(yo) && !esAgenda(yo) && puede.verActividad(yo, act, asig),
   /** Estado y link del flyer. */
   editarFlyer: (yo: Yo, act: Actividad) => esAdmin(yo) || esDiseno(yo) || (esResponsable(yo) && deSuZona(yo, act)),
   verFlyers: (yo: Yo) => esAdmin(yo) || esDiseno(yo) || esResponsable(yo),
@@ -71,7 +73,7 @@ export const puede = {
 
 /** Actividades visibles para el usuario. */
 export function actividadesVisibles(yo: Yo, acts: Actividad[], asig: Asignacion[]): Actividad[] {
-  if (esAdmin(yo) || esDiseno(yo)) return acts;
+  if (esAdmin(yo) || esDiseno(yo) || esAgenda(yo)) return acts;
   return acts.filter((a) => puede.verActividad(yo, a, asig));
 }
 
@@ -85,4 +87,5 @@ export const ROL_LABEL: Record<Rol, string> = {
   RESPONSABLE: "Responsable de zona",
   OPERADOR: "Operador/a de actividad",
   DISENO: "Comunicación / Diseño",
+  AGENDA: "Agenda (solo lectura)",
 };

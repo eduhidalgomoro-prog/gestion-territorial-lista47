@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { CopyButton } from "@/components/copy-button";
 import { ActionForm, Input, Select, SubmitButton } from "@/components/forms";
-import { IconCheck, IconClipboard, IconEdit, IconForm, IconImage, IconLock, IconMap, IconUpload, IconUsers, IconX } from "@/components/icons";
+import { IconCheck, IconClipboard, IconEdit, IconForm, IconImage, IconLock, IconMap, IconUpload, IconUsers, IconWhatsApp, IconX } from "@/components/icons";
+import { mensajeActividad, whatsappCompartir } from "@/lib/compartir";
 import { Badge, btn, Card, cx, Notice, PageHeader } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { snapshot } from "@/lib/db";
@@ -101,6 +102,14 @@ export default async function FichaActividad({ params, searchParams }: { params:
         {asistencia && a.estado !== "CANCELADA" && <Accion href={`/actividades/${a.id}/asistencia`} Icon={IconClipboard} principal>Tomar asistencia</Accion>}
         <Accion href="#inscripcion" Icon={IconForm}>Formulario de inscripción</Accion>
         <Accion href={`/mapa?foco=${a.id}&mes=${a.mes || ""}&anio=${a.anio || ""}`} Icon={IconMap}>Ver en mapa</Accion>
+        <a
+          href={whatsappCompartir(mensajeActividad(a, r))}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cx(btn("secundario", "lg"), "border-[#1f8f4e]/40 text-[14px] leading-tight text-[#1f8f4e] uppercase")}
+        >
+          <IconWhatsApp size={20} className="shrink-0" /> Compartir por WhatsApp
+        </a>
         {cerrar && a.estado !== "REALIZADA" && <Accion href={`/actividades/${a.id}/cerrar`} Icon={IconLock}>Cerrar actividad</Accion>}
       </nav>
 

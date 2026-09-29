@@ -114,7 +114,10 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<S
         <ChartCard title="Inscriptos vs. asistentes por zona">
           <BarrasDobles data={inscriptosVsAsistentes(delMes, s)} leyenda={["Inscriptos", "Asistentes"]} />
         </ChartCard>
-        <ChartCard title="Evolución (últimos 6 meses)" action={<Link href="/estadisticas" className="text-sm font-bold text-petroleo hover:underline">Más →</Link>}>
+        <ChartCard
+          title="Evolución (últimos 6 meses)"
+          action={puede.verEstadisticas(yo) ? <Link href="/estadisticas" className="text-sm font-bold text-petroleo hover:underline">Más →</Link> : undefined}
+        >
           <Columnas
             data={evo.map((e) => ({ label: nombreMes(e.mes).slice(0, 3), value: e.inscriptos, value2: e.asistentes }))}
             leyenda={["Inscriptos", "Asistentes"]}

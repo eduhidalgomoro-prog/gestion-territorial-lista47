@@ -112,6 +112,7 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
               <p><b>Administrador:</b> todo, incluidos datos personales, costos y configuración.</p>
               <p className="mt-1"><b>Responsable de zona:</b> carga y edita actividades de su zona, toma asistencia, cierra y ve estadísticas de su zona.</p>
               <p className="mt-1"><b>Operador:</b> solo las actividades que le asignan: inscriptos, asistencia y agregar personas.</p>
+              <p className="mt-1"><b>Agenda (solo lectura):</b> ve todas las actividades, el calendario, el mapa y la cantidad de inscriptos. No ve datos de personas ni costos, y no puede modificar nada.</p>
               <p className="mt-1"><b>Comunicación / Diseño:</b> ve todas las actividades (sin datos de personas ni costos) y gestiona los flyers: estado, link y envío por WhatsApp.</p>
             </Card>
           </section>

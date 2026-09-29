@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { categoriaDe, emojisDe } from "@/lib/categorias";
+import { mensajeActividad } from "@/lib/compartir";
 import { invalidate, snapshot } from "@/lib/db";
 import { cumplimiento, indicadores } from "@/lib/domain/metricas";
 import { normalizeDni, normalizePhone, parseFechaFlexible, parseFechaNacimiento, parseHoraFlexible, phoneKey } from "@/lib/format";
@@ -147,6 +148,24 @@ describe("participantes, importación y asistencia", () => {
     expect(s.asistencias.filter((x) => x.estado === "AUSENTE")).toHaveLength(1); // el no marcado quedó ausente
     const ind = indicadores(s.actividades, s, { anio: 2026, mes: 10 });
     expect(ind).toMatchObject({ realizadas: 1, inscriptos: 4, asistentes: 3, pctAsistencia: 75, costoReal: 20000 });
+  });
+});
+
+describe("roles de solo lectura", () => {
+  it("Agenda ve todas las actividades y sus números, sin datos de personas ni costos", async () => {
+    const agenda: Yo = { email: "agenda@lista47.test", nombre: "Agenda", rol: "AGENDA", zona: "", usuarioId: "U-A" };
+    const a = await crearActividad(input({ zona: "SUR" }), admin);
+    expect(puede.verActividad(agenda, a, [])).toBe(true);
+    expect(puede.verInscriptos(agenda, a, [])).toBe(false);
+    expect(puede.verCostos(agenda)).toBe(false);
+    expect(puede.verParticipantes(agenda)).toBe(false);
+    expect(puede.editarActividad(agenda, a)).toBe(false);
+    expect(puede.tomarAsistencia(agenda, a, [])).toBe(false);
+    const msg = mensajeActividad(a, { inscriptos: 30, presentes: 0 });
+    expect(msg).toContain("*Taller de Fieltro*");
+    expect(msg).toContain("30 inscriptos");
+    expect(msg).toContain("google.com/maps");
+    expect(msg).not.toMatch(/\$|costo/i);
   });
 });
 

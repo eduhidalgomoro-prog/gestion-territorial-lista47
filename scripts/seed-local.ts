@@ -32,6 +32,7 @@ async function main() {
     ["Resp.", "Sur", "sur@prueba.local", "RESPONSABLE", "SUR"],
     ["Operador", "Prueba", "operador@prueba.local", "OPERADOR", ""],
     ["Diseño", "Prueba", "diseno@prueba.local", "DISENO", ""],
+    ["Agenda", "Prueba", "agenda@prueba.local", "AGENDA", ""],
   ] as const) {
     await insert("usuarios", { nombre, apellido, email, telefono: "", rol, zona, estado: "ACTIVO" }, U);
   }
