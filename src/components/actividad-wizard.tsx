@@ -477,7 +477,7 @@ export function ActividadWizard({
             <Campo label="Estado del flyer">
               <Chips label="Estado del flyer" value={d.estado_flyer || "SOLICITADO"} onChange={(v) => set("estado_flyer", v)} options={ESTADOS_FLYER.map((e) => [e, e] as const)} />
             </Campo>
-            <Campo label="Link al flyer terminado" optional htmlFor="lf" hint="Pegá el link de Google Drive, Canva o Instagram cuando esté listo.">
+            <Campo label="Link al flyer terminado" optional htmlFor="lf" hint="Cuando esté listo, la imagen se sube desde la ficha de la actividad o la pantalla Flyers. También podés pegar acá un link de Drive o Canva.">
               <input id="lf" type="url" inputMode="url" className={inputCls} value={d.link_flyer} onChange={(e) => set("link_flyer", e.target.value)} placeholder="https://…" />
             </Campo>
           </SiNo>

@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { FiltroSelect, FiltrosForm } from "@/components/filtros";
+import { FlyerImagen } from "@/components/flyer-imagen";
+import { esFlyerSubido } from "@/lib/flyers";
 import { ActionForm, Input, Select, SubmitButton } from "@/components/forms";
 import { IconWhatsApp } from "@/components/icons";
 import { Badge, btn, cx, Empty, Notice, PageHeader } from "@/components/ui";
@@ -106,17 +108,22 @@ export default async function Flyers({ searchParams }: { searchParams: Promise<S
                           <p className="mt-1 whitespace-pre-line text-gris">{a.detalle}</p>
                         </details>
                       )}
-                      {a.link_flyer && (
+                      <FlyerImagen actividadId={a.id} url={a.link_flyer} editable={editable} nombre={a.nombre} compacto />
+                      {a.link_flyer && !esFlyerSubido(a.link_flyer) && (
                         <a href={a.link_flyer} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm font-bold text-petroleo underline">
-                          Ver flyer
+                          Ver flyer (link)
                         </a>
                       )}
 
                       {editable && (
                         <ActionForm action={flyerAction.bind(null, a.id)} className="mt-3 grid gap-2 border-t border-linea pt-3 sm:grid-cols-[1fr_1.4fr_auto] sm:items-start">
                           <Select name="estado_flyer" defaultValue={a.estado_flyer || "SOLICITADO"} options={ESTADOS_FLYER.map((x) => [x, x] as const)} aria-label="Estado del flyer" className="h-11" />
-                          <Input name="link_flyer" type="url" defaultValue={a.link_flyer} placeholder="Link al flyer (Drive, Canva…)" aria-label="Link al flyer" className="h-11" />
-                          <SubmitButton size="md" pendingText="…">Guardar</SubmitButton>
+                          {esFlyerSubido(a.link_flyer) ? (
+                            <input type="hidden" name="link_flyer" value={a.link_flyer} />
+                          ) : (
+                            <Input name="link_flyer" type="url" defaultValue={a.link_flyer} placeholder="…o pegá un link (Drive, Canva)" aria-label="Link al flyer" className="h-11" />
+                          )}
+                          <SubmitButton size="md" pendingText="…">Guardar estado</SubmitButton>
                         </ActionForm>
                       )}
 

@@ -24,6 +24,14 @@ export async function requireUser(): Promise<Yo> {
   return yo;
 }
 
+/** Para rutas de API: devuelve el usuario o null (sin redirigir). */
+export async function usuarioActual(): Promise<Yo | null> {
+  const s = await getSession();
+  if (!s) return null;
+  const { usuarios } = await snapshot();
+  return resolverUsuario(s.email, s.name, usuarios);
+}
+
 /** Igual que requireUser pero para acciones: si no cumple la condición, error de permiso. */
 export async function requireUserWhere(cond: (yo: Yo) => boolean, msg?: string): Promise<Yo> {
   const yo = await requireUser();
