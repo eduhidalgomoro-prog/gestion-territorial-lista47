@@ -80,6 +80,14 @@ async function main() {
       console.log(`✓ ${TABLES[t].sheet}: ${actual.length ? "columnas agregadas" : "encabezados"} (${agregar.length})`);
     }
   });
+  // Si la hoja no tiene columnas suficientes, se agregan antes de escribir los encabezados nuevos.
+  const cols = new Map((meta.sheets ?? []).map((s) => [s.properties!.title!, s.properties!.gridProperties?.columnCount ?? 26]));
+  const agrandar: sheets_v4.Schema$Request[] = [];
+  for (const t of ALL_TABLES) {
+    const faltanCols = headerFinal.get(t)!.length - (cols.get(TABLES[t].sheet) ?? 26);
+    if (faltanCols > 0) agrandar.push({ appendDimension: { sheetId: existentes.get(TABLES[t].sheet)!, dimension: "COLUMNS", length: faltanCols + 5 } });
+  }
+  if (agrandar.length) await api.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: agrandar } });
   if (writes.length) await api.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: { valueInputOption: "RAW", data: writes } });
 
   // 3. Formato, texto plano (para que Sheets no convierta DNI, fechas u horas) y desplegables
