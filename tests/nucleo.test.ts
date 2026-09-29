@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { categoriaDe, emojisDe } from "@/lib/categorias";
 import { invalidate, snapshot } from "@/lib/db";
 import { cumplimiento, indicadores } from "@/lib/domain/metricas";
 import { normalizeDni, normalizePhone, parseFechaFlexible, parseHoraFlexible, phoneKey } from "@/lib/format";
@@ -145,6 +146,20 @@ describe("participantes, importación y asistencia", () => {
     expect(s.asistencias.filter((x) => x.estado === "AUSENTE")).toHaveLength(1); // el no marcado quedó ausente
     const ind = indicadores(s.actividades, s, { anio: 2026, mes: 10 });
     expect(ind).toMatchObject({ realizadas: 1, inscriptos: 4, asistentes: 3, pctAsistencia: 75, costoReal: 20000 });
+  });
+});
+
+describe("categorías del mapa", () => {
+  it("agrupa por tipo y, si el tipo es genérico, por nombre", () => {
+    expect(categoriaDe({ tipo: "MESA DE DEPORTES", nombre: "3x3" })).toBe("DEPORTES");
+    expect(categoriaDe({ tipo: "MARCANDO HUELLAS", nombre: "Semillero de campeones" })).toBe("MASCOTAS");
+    expect(categoriaDe({ tipo: "TALLER", nombre: "Clases de apoyo" })).toBe("CAPACITACIONES");
+    expect(categoriaDe({ tipo: "TALLER", nombre: "Taller de barbería" })).toBe("TALLERES");
+    expect(categoriaDe({ tipo: "", nombre: "Vacunación de mascotas" })).toBe("MASCOTAS");
+    expect(categoriaDe({ tipo: "OPERATIVO DE SALUD", nombre: "Entrega de anteojos" })).toBe("SALUD");
+    expect(categoriaDe({ tipo: "", nombre: "Algo nuevo" })).toBe("OTRAS");
+    expect(emojisDe(["Deportes = 🏀"]).DEPORTES).toBe("🏀");
+    expect(emojisDe([]).TALLERES).toBe("🎨");
   });
 });
 

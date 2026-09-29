@@ -25,7 +25,9 @@ export interface PuntoMapa {
   tipo: string;
   estado: string;
   asistentes: number;
-  color: string;
+  color: string; // color del estado (borde)
+  emoji: string; // categoría (centro)
+  categoria: string;
 }
 
 /** Mapa territorial: cada actividad es un punto; al tocarlo se ve el resumen y el link a la ficha. */
@@ -34,7 +36,7 @@ export function MapaActividades({ puntos, focoId, alto = "min(70dvh, 640px)" }: 
   const mapRef = useRef<LMap | null>(null);
   const grupoRef = useRef<LayerGroup | null>(null);
   // Solo se redibuja (y reencuadra) cuando cambian los puntos de verdad, no cuando cambia la referencia del arreglo.
-  const clave = puntos.map((p) => `${p.id}:${p.lat}:${p.lng}:${p.estado}`).join("|");
+  const clave = puntos.map((p) => `${p.id}:${p.lat}:${p.lng}:${p.estado}:${p.emoji}`).join("|");
   const puntosRef = useRef(puntos);
   useEffect(() => {
     puntosRef.current = puntos;
@@ -56,18 +58,21 @@ export function MapaActividades({ puntos, focoId, alto = "min(70dvh, 640px)" }: 
       const grupo = grupoRef.current!;
       grupo.clearLayers();
       const bounds: LatLngExpression[] = [];
-      let foco: ReturnType<typeof L.circleMarker> | null = null;
+      let foco: ReturnType<typeof L.marker> | null = null;
       for (const p of puntos) {
-        const m = L.circleMarker([p.lat, p.lng], {
-          radius: p.id === focoId ? 12 : 9,
-          color: "#ffffff",
-          weight: 2,
-          fillColor: p.color,
-          fillOpacity: 0.95,
-        }).addTo(grupo);
+        // Pin con el emoji de la categoría y borde del color del estado.
+        const s = p.id === focoId ? 42 : 30;
+        const icon = L.divIcon({
+          className: "",
+          html: `<div style="width:${s}px;height:${s}px;border-radius:50%;background:#fff;border:3px solid ${p.color};box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font-size:${Math.round(s * 0.52)}px;line-height:1">${esc(p.emoji)}</div>`,
+          iconSize: [s, s],
+          iconAnchor: [s / 2, s / 2],
+          popupAnchor: [0, -s / 2],
+        });
+        const m = L.marker([p.lat, p.lng], { icon, title: p.nombre, riseOnHover: true }).addTo(grupo);
         m.bindPopup(
           `<div style="min-width:200px">
-            <div style="font-size:11px;font-weight:800;letter-spacing:.08em;color:#3f742c;text-transform:uppercase">${esc(p.tipo || "Actividad")}</div>
+            <div style="font-size:11px;font-weight:800;letter-spacing:.08em;color:#3f742c;text-transform:uppercase">${esc(p.emoji)} ${esc(p.tipo || p.categoria)}</div>
             <div style="font-weight:800;font-size:15px;color:#324158;margin:2px 0 6px">${esc(p.nombre)}</div>
             <div>📅 ${esc(p.fecha || "Sin fecha")}</div>
             <div>📍 ${esc(p.zona)}${p.barrio ? " · " + esc(p.barrio) : ""}</div>
@@ -82,8 +87,8 @@ export function MapaActividades({ puntos, focoId, alto = "min(70dvh, 640px)" }: 
       // El contenedor puede haber cambiado de tamaño al terminar de cargar la página.
       map.invalidateSize();
       if (foco) {
-        map.setView((foco as ReturnType<typeof L.circleMarker>).getLatLng(), 16);
-        (foco as ReturnType<typeof L.circleMarker>).openPopup();
+        map.setView((foco as ReturnType<typeof L.marker>).getLatLng(), 16);
+        (foco as ReturnType<typeof L.marker>).openPopup();
       } else if (bounds.length > 1) {
         const b = L.latLngBounds(bounds as [number, number][]);
         map.fitBounds(b, { padding: [30, 30], maxZoom: 15 });

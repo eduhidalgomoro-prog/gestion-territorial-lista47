@@ -5,6 +5,7 @@ import { IconCalendar, IconList, IconMap, IconPlus } from "@/components/icons";
 import { MapaActividades, type PuntoMapa } from "@/components/mapa";
 import { Badge, cx, Empty, LinkButton, Notice, PageHeader } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
+import { CATEGORIAS, categoriaDe, emojisDe, labelCategoria, type CategoriaId } from "@/lib/categorias";
 import { snapshot } from "@/lib/db";
 import { conteosPorActividad, filtrarActividades } from "@/lib/domain/metricas";
 import { ESTADO_COLOR, ESTADO_HEX, zonaLabel } from "@/lib/labels";
@@ -95,7 +96,7 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
 
       {vista === "listado" && <Listado lista={lista} conteos={conteos} />}
       {vista === "calendario" && <Calendario lista={lista} anio={f.anio!} mes={f.mes!} keep={keep} />}
-      {vista === "mapa" && <Mapa lista={lista} conteos={conteos} foco={sp(q, "foco")} />}
+      {vista === "mapa" && <Mapa lista={lista} conteos={conteos} foco={sp(q, "foco")} emojis={emojisDe(s.config.emojis_mapa)} />}
     </>
   );
 }
@@ -230,10 +231,13 @@ function Calendario({ lista, anio, mes, keep }: { lista: Actividad[]; anio: numb
   );
 }
 
-function Mapa({ lista, conteos, foco }: { lista: Actividad[]; conteos: ReturnType<typeof conteosPorActividad>; foco: string }) {
+function Mapa({ lista, conteos, foco, emojis }: { lista: Actividad[]; conteos: ReturnType<typeof conteosPorActividad>; foco: string; emojis: Record<CategoriaId, string> }) {
   const con = lista.filter((a) => a.lat && a.lng);
   const sin = lista.filter((a) => !a.lat || !a.lng);
+  const presentes = new Set(con.map((a) => categoriaDe(a)));
   const puntos: PuntoMapa[] = con.map((a) => ({
+    emoji: emojis[categoriaDe(a)],
+    categoria: labelCategoria(categoriaDe(a)),
     id: a.id,
     lat: a.lat,
     lng: a.lng,
@@ -250,10 +254,18 @@ function Mapa({ lista, conteos, foco }: { lista: Actividad[]; conteos: ReturnTyp
   return (
     <div>
       <MapaActividades puntos={puntos} focoId={foco || undefined} />
-      <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold text-gris">
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm font-semibold text-tinta">
+        {CATEGORIAS.filter((c) => presentes.has(c.id)).map((c) => (
+          <span key={c.id} className="inline-flex items-center gap-1.5">
+            <span className="text-lg leading-none">{emojis[c.id]}</span> {c.label}
+          </span>
+        ))}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-3 text-xs font-semibold text-gris">
+        <span>Borde:</span>
         {ESTADOS_ACTIVIDAD.map((e) => (
           <span key={e} className="inline-flex items-center gap-1.5">
-            <span className="size-2.5 rounded-full" style={{ background: ESTADO_HEX[e] }} /> {e}
+            <span className="size-3 rounded-full border-[3px] bg-white" style={{ borderColor: ESTADO_HEX[e] }} /> {e}
           </span>
         ))}
       </div>

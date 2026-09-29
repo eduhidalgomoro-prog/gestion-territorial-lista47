@@ -1,3 +1,4 @@
+import { CATEGORIAS } from "./categorias";
 import type { ConfigRow } from "./schema";
 
 /**
@@ -12,6 +13,7 @@ export interface AppConfig {
   mesas: string[];
   tipos_insumo: string[];
   lugares: string[];
+  emojis_mapa: string[];
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -24,6 +26,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   mesas: ["ESME EN LOS BARRIOS", "FERIAS DE ESME", "MARCANDO HUELLAS", "MESA DE DEPORTES"],
   tipos_insumo: ["MATERIALES", "ALIMENTOS", "IMPRESIÓN", "TRANSPORTE", "PREMIOS", "EQUIPAMIENTO", "OTRO"],
   lugares: ["Casa partidaria", "Sede del partido", "Casa de vecino/a", "Plaza o parque", "Cancha", "Salón", "Club", "Capilla", "Escuela"],
+  emojis_mapa: CATEGORIAS.map((c) => `${c.label} = ${c.emoji}`),
 };
 
 export const CONFIG_LABELS: Record<keyof AppConfig, { titulo: string; descripcion: string }> = {
@@ -34,6 +37,10 @@ export const CONFIG_LABELS: Record<keyof AppConfig, { titulo: string; descripcio
   mesas: { titulo: "Mesas internas", descripcion: "Mesas con las que se puede articular. Una por línea." },
   tipos_insumo: { titulo: "Tipos de insumo", descripcion: "Para «otros insumos» de logística. Una por línea." },
   lugares: { titulo: "Lugares frecuentes", descripcion: "Sugerencias para «Lugar específico». Una por línea." },
+  emojis_mapa: {
+    titulo: "Emojis del mapa",
+    descripcion: "Un emoji por categoría (Deportes, Talleres, Salud, Mascotas, Ferias, Capacitaciones, Comunidad, Otras). Formato: Categoría = emoji.",
+  },
 };
 
 export const CONFIG_KEYS = Object.keys(DEFAULT_CONFIG) as (keyof AppConfig)[];
