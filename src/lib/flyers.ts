@@ -1,5 +1,16 @@
 /** Flyers subidos a la app (Vercel Blob). Sirve en el servidor y en el navegador. */
 
+export type FormatoFlyer = "feed" | "historia";
+
+export const FORMATOS_FLYER: { id: FormatoFlyer; label: string; campo: "link_flyer" | "link_flyer_historia"; medida: string }[] = [
+  { id: "feed", label: "Feed", campo: "link_flyer", medida: "cuadrado o 4:5" },
+  { id: "historia", label: "Historias", campo: "link_flyer_historia", medida: "9:16" },
+];
+
+export function formatoDe(v: string | null | undefined): (typeof FORMATOS_FLYER)[number] {
+  return FORMATOS_FLYER.find((f) => f.id === v) ?? FORMATOS_FLYER[0];
+}
+
 export function esFlyerSubido(url: string): boolean {
   return /^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\//i.test(url ?? "");
 }

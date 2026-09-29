@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { esFlyerSubido, linkDescarga } from "@/lib/flyers";
+import { esFlyerSubido, formatoDe, linkDescarga, type FormatoFlyer } from "@/lib/flyers";
 import { IconDownload, IconUpload } from "./icons";
 import { btn, cx } from "./ui";
 
@@ -30,17 +30,38 @@ async function achicar(file: File): Promise<Blob> {
   return blob.size < file.size ? blob : file;
 }
 
+/** Las dos versiones del flyer (Feed e Historias), una al lado de la otra. */
+export function FlyersActividad({ actividadId, feed, historia, editable, nombre, compacto }: {
+  actividadId: string;
+  feed: string;
+  historia: string;
+  editable: boolean;
+  nombre: string;
+  compacto?: boolean;
+}) {
+  return (
+    <div className={cx("grid gap-4", compacto ? "mt-3 grid-cols-1 min-[420px]:grid-cols-2" : "sm:grid-cols-2")}>
+      <FlyerImagen actividadId={actividadId} url={feed} editable={editable} nombre={nombre} compacto={compacto} formato="feed" />
+      <FlyerImagen actividadId={actividadId} url={historia} editable={editable} nombre={nombre} compacto={compacto} formato="historia" />
+    </div>
+  );
+}
+
 /**
  * Imagen del flyer de una actividad: vista previa + Descargar para todos;
  * Subir / Reemplazar / Quitar para quien puede editar el flyer.
  */
-export function FlyerImagen({ actividadId, url, editable, nombre, compacto }: {
+export function FlyerImagen({ actividadId, url, editable, nombre, compacto, formato = "feed" }: {
   actividadId: string;
   url: string;
   editable: boolean;
   nombre: string;
   compacto?: boolean;
+  formato?: FormatoFlyer;
 }) {
+  const f = formatoDe(formato);
+  const endpoint = `/api/flyer/${encodeURIComponent(actividadId)}?formato=${f.id}`;
+  const historia = f.id === "historia";
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [estado, setEstado] = useState<"" | "achicando" | "subiendo" | "quitando">("");
@@ -57,7 +78,7 @@ export function FlyerImagen({ actividadId, url, editable, nombre, compacto }: {
       const fd = new FormData();
       const tipo = blob.type || file.type;
       fd.append("archivo", new File([blob], `flyer.${tipo === "image/png" ? "png" : tipo === "image/webp" ? "webp" : "jpg"}`, { type: tipo }));
-      const res = await fetch(`/api/flyer/${encodeURIComponent(actividadId)}`, { method: "POST", body: fd });
+      const res = await fetch(endpoint, { method: "POST", body: fd });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(data.error || "No se pudo subir el flyer.");
       router.refresh();
@@ -70,10 +91,10 @@ export function FlyerImagen({ actividadId, url, editable, nombre, compacto }: {
   }
 
   async function quitar() {
-    if (!confirm("¿Quitar la imagen del flyer?")) return;
+    if (!confirm(`¿Quitar la imagen del flyer (${f.label})?`)) return;
     setEstado("quitando");
     setError("");
-    const res = await fetch(`/api/flyer/${encodeURIComponent(actividadId)}`, { method: "DELETE" });
+    const res = await fetch(endpoint, { method: "DELETE" });
     if (!res.ok) setError("No se pudo quitar el flyer.");
     setEstado("");
     router.refresh();
@@ -82,12 +103,20 @@ export function FlyerImagen({ actividadId, url, editable, nombre, compacto }: {
   const ocupado = estado !== "";
 
   return (
-    <div className={cx(compacto ? "mt-3" : "")}>
+    <div>
+      <p className="mb-1.5 text-xs font-bold tracking-wide text-gris uppercase">
+        {f.label} <span className="font-semibold normal-case">({f.medida})</span>
+      </p>
       {imagen && (
         <div className="flex items-start gap-3">
           <a href={url} target="_blank" rel="noopener noreferrer" className="block shrink-0 overflow-hidden rounded-xl border border-linea bg-fondo" title="Ver en tamaño completo">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={url} alt={`Flyer de ${nombre}`} loading="lazy" className={cx("object-contain", compacto ? "h-28 w-24" : "h-56 w-44 sm:h-72 sm:w-56")} />
+            <img
+              src={url}
+              alt={`Flyer de ${nombre} (${f.label})`}
+              loading="lazy"
+              className={cx("object-contain", compacto ? (historia ? "h-32 w-[72px]" : "h-28 w-24") : historia ? "h-64 w-36 sm:h-80 sm:w-44" : "h-56 w-44 sm:h-72 sm:w-56")}
+            />
           </a>
           <div className="flex flex-col gap-2">
             <a href={linkDescarga(url)} className={btn("primario", "sm")} download>
@@ -108,9 +137,10 @@ export function FlyerImagen({ actividadId, url, editable, nombre, compacto }: {
       )}
       {!imagen && editable && (
         <button type="button" onClick={() => input.current?.click()} disabled={ocupado} className={btn("petroleo", compacto ? "sm" : "md")}>
-          <IconUpload size={18} /> Subir imagen del flyer
+          <IconUpload size={18} /> Subir {f.label.toLowerCase()}
         </button>
       )}
+      {!imagen && !editable && <p className="text-sm text-gris">Todavía no se subió.</p>}
       {estado && (
         <p className="mt-2 text-sm font-semibold text-petroleo" role="status">
           {estado === "achicando" ? "Preparando la imagen…" : estado === "subiendo" ? "Subiendo…" : "Quitando…"}

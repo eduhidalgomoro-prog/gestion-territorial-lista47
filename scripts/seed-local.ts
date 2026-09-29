@@ -43,7 +43,7 @@ async function main() {
   const f = (a: number, m: number, d: number) => `${a}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   const base = {
     detalle: "", publico: "FAMILIAS EN GENERAL", fecha_alt: "", hora_alt: "", entre_calles: "", lugar: "Salón", articula: false,
-    tipo_articulacion: "", mesa: "", institucion_id: "", institucion_nombre: "", requiere_flyer: true, estado_flyer: "PUBLICADO" as const, link_flyer: "",
+    tipo_articulacion: "", mesa: "", institucion_id: "", institucion_nombre: "", requiere_flyer: true, estado_flyer: "PUBLICADO" as const, link_flyer: "", link_flyer_historia: "",
     gazebo: false, gazebo_cant: 0, mesas: true, mesas_cant: 2, sillas: true, sillas_cant: 30, luz: false, sonido: false, otros_insumos: "",
     costo_real: 0, obs_logistica: "", slug: "", link_inscripcion: "", inscripcion_abierta: false, preguntas_extra: "",
     inscriptos: 0, presentes: 0, ausentes: 0, pct_asistencia: 0, resultados: "", incidencias: "", fotos: "", observaciones: "", origen: "SEED", creado_por: U,

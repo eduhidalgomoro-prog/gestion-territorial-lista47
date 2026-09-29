@@ -5,7 +5,7 @@ import { CopyButton } from "@/components/copy-button";
 import { ActionForm, Input, Select, SubmitButton } from "@/components/forms";
 import { IconCheck, IconClipboard, IconEdit, IconForm, IconImage, IconLock, IconMap, IconUpload, IconUsers, IconWhatsApp, IconX } from "@/components/icons";
 import { mensajeActividad, whatsappCompartir } from "@/lib/compartir";
-import { FlyerImagen } from "@/components/flyer-imagen";
+import { FlyersActividad } from "@/components/flyer-imagen";
 import { esFlyerSubido } from "@/lib/flyers";
 import { Badge, btn, Card, cx, Notice, PageHeader } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
@@ -197,7 +197,7 @@ export default async function FichaActividad({ params, searchParams }: { params:
           <>
             <p className="mb-3 text-[15px]">Flyer: {a.estado_flyer ? <Badge color={FLYER_COLOR[a.estado_flyer]}>{a.estado_flyer}</Badge> : "—"}</p>
             <div className="mb-3">
-              <FlyerImagen actividadId={a.id} url={a.link_flyer} editable={editarFlyer} nombre={a.nombre} />
+              <FlyersActividad actividadId={a.id} feed={a.link_flyer} historia={a.link_flyer_historia} editable={editarFlyer} nombre={a.nombre} />
             </div>
             {a.link_flyer && !esFlyerSubido(a.link_flyer) && (
               <a href={a.link_flyer} target="_blank" rel="noopener noreferrer" className={cx(btn("secundario", "sm"), "mb-3")}>

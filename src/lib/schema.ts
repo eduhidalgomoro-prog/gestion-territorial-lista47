@@ -77,7 +77,8 @@ export interface Actividad extends Meta {
   institucion_nombre: string;
   requiere_flyer: boolean;
   estado_flyer: EstadoFlyer | "";
-  link_flyer: string;
+  link_flyer: string; // versión feed (o link externo)
+  link_flyer_historia: string; // versión historias
   gazebo: boolean;
   gazebo_cant: number;
   mesas: boolean;
@@ -256,6 +257,7 @@ export const TABLES: Record<TableName, TableDef> = {
       ["requiere_flyer", "Requiere flyer"],
       ["estado_flyer", "Estado flyer"],
       ["link_flyer", "Link flyer"],
+      ["link_flyer_historia", "Link flyer historias"],
       ["gazebo", "Requiere gazebo"],
       ["gazebo_cant", "Cantidad gazebos"],
       ["mesas", "Requiere mesas"],

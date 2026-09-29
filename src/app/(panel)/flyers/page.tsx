@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { FiltroSelect, FiltrosForm } from "@/components/filtros";
-import { FlyerImagen } from "@/components/flyer-imagen";
+import { FlyersActividad } from "@/components/flyer-imagen";
 import { esFlyerSubido } from "@/lib/flyers";
 import { ActionForm, Input, Select, SubmitButton } from "@/components/forms";
 import { IconWhatsApp } from "@/components/icons";
@@ -22,8 +22,12 @@ const ORDEN: EstadoFlyer[] = ["SOLICITADO", "EN DISEÑO", "PARA APROBACIÓN", "A
 function whatsapp(u: Usuario, a: Actividad): string {
   const tel = normalizePhone(u.telefono);
   const cuando = [a.fecha ? formatDate(a.fecha, { weekday: "long", day: "numeric", month: "long" }) : "", a.hora_inicio ? `${a.hora_inicio} h` : ""].filter(Boolean).join(", ");
-  const texto = a.link_flyer
-    ? `Hola ${u.nombre} 👋 Ya está el flyer de *${a.nombre}* (${cuando}, ${zonaLabel(a.zona)}):\n${a.link_flyer}`
+  const links = [
+    a.link_flyer ? `📱 Feed: ${a.link_flyer}` : "",
+    a.link_flyer_historia ? `📲 Historias: ${a.link_flyer_historia}` : "",
+  ].filter(Boolean);
+  const texto = links.length
+    ? `Hola ${u.nombre} 👋 Ya está el flyer de *${a.nombre}* (${cuando}, ${zonaLabel(a.zona)}):\n${links.join("\n")}`
     : `Hola ${u.nombre} 👋 Te cuento cómo va el flyer de *${a.nombre}* (${cuando}, ${zonaLabel(a.zona)}): ${a.estado_flyer.toLowerCase()}.`;
   return `https://wa.me/549${tel}?text=${encodeURIComponent(texto)}`;
 }
@@ -108,7 +112,7 @@ export default async function Flyers({ searchParams }: { searchParams: Promise<S
                           <p className="mt-1 whitespace-pre-line text-gris">{a.detalle}</p>
                         </details>
                       )}
-                      <FlyerImagen actividadId={a.id} url={a.link_flyer} editable={editable} nombre={a.nombre} compacto />
+                      <FlyersActividad actividadId={a.id} feed={a.link_flyer} historia={a.link_flyer_historia} editable={editable} nombre={a.nombre} compacto />
                       {a.link_flyer && !esFlyerSubido(a.link_flyer) && (
                         <a href={a.link_flyer} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm font-bold text-petroleo underline">
                           Ver flyer (link)

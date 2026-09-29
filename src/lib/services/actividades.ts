@@ -239,6 +239,7 @@ export async function crearActividad(input: ActividadInput, yo: Yo): Promise<Act
         inscripcion_abierta: !!slug,
         inscriptos: 0, presentes: 0, ausentes: 0, pct_asistencia: 0,
         resultados: "", incidencias: "", fotos: "",
+        link_flyer_historia: "",
         origen: "APP",
         creado_por: yo.email,
       },

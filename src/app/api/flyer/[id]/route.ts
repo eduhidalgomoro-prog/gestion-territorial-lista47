@@ -3,12 +3,13 @@ import { revalidatePath } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
 import { usuarioActual } from "@/lib/auth";
 import { snapshot, update } from "@/lib/db";
-import { esFlyerSubido, FLYER_MAX_BYTES, FLYER_TIPOS } from "@/lib/flyers";
+import { esFlyerSubido, FLYER_MAX_BYTES, FLYER_TIPOS, formatoDe } from "@/lib/flyers";
 import { puede } from "@/lib/permisos";
 import { slugify } from "@/lib/util";
 
 /**
- * Subir (POST) o quitar (DELETE) la imagen del flyer de una actividad.
+ * Subir (POST) o quitar (DELETE) una imagen del flyer de una actividad.
+ * ?formato=feed (por defecto) o ?formato=historia.
  * La imagen llega ya achicada desde el navegador; se guarda en Vercel Blob y en la planilla queda solo el link.
  */
 
@@ -29,6 +30,7 @@ async function borrarAnterior(url: string) {
 
 export async function POST(request: NextRequest, ctx: RouteContext<"/api/flyer/[id]">) {
   const { id } = await ctx.params;
+  const formato = formatoDe(request.nextUrl.searchParams.get("formato"));
   const r = await actividadConPermiso(id);
   if ("error" in r) return r.error;
   const fd = await request.formData().catch(() => null);
@@ -38,30 +40,31 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/flyer/[
   if (file.size > FLYER_MAX_BYTES) return NextResponse.json({ error: "La imagen es demasiado grande (máximo 4 MB)." }, { status: 400 });
 
   const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-  const blob = await put(`flyers/${r.a.anio || "sin-fecha"}/${slugify(r.a.nombre) || r.a.id}.${ext}`, file, {
+  const blob = await put(`flyers/${r.a.anio || "sin-fecha"}/${slugify(r.a.nombre) || r.a.id}-${formato.id}.${ext}`, file, {
     access: "public",
     addRandomSuffix: true,
     contentType: file.type,
   });
-  const anterior = r.a.link_flyer;
+  const anterior = r.a[formato.campo];
   await update(
     "actividades",
     id,
-    { requiere_flyer: true, estado_flyer: r.a.estado_flyer || "SOLICITADO", link_flyer: blob.url },
+    { requiere_flyer: true, estado_flyer: r.a.estado_flyer || "SOLICITADO", [formato.campo]: blob.url },
     r.yo.email,
-    { accion: "subir flyer" },
+    { accion: `subir flyer ${formato.label.toLowerCase()}` },
   );
   await borrarAnterior(anterior);
   revalidatePath("/", "layout");
   return NextResponse.json({ url: blob.url });
 }
 
-export async function DELETE(_request: NextRequest, ctx: RouteContext<"/api/flyer/[id]">) {
+export async function DELETE(request: NextRequest, ctx: RouteContext<"/api/flyer/[id]">) {
   const { id } = await ctx.params;
+  const formato = formatoDe(request.nextUrl.searchParams.get("formato"));
   const r = await actividadConPermiso(id);
   if ("error" in r) return r.error;
-  const anterior = r.a.link_flyer;
-  await update("actividades", id, { link_flyer: "" }, r.yo.email, { accion: "quitar flyer" });
+  const anterior = r.a[formato.campo];
+  await update("actividades", id, { [formato.campo]: "" }, r.yo.email, { accion: `quitar flyer ${formato.label.toLowerCase()}` });
   await borrarAnterior(anterior);
   revalidatePath("/", "layout");
   return NextResponse.json({ ok: true });
