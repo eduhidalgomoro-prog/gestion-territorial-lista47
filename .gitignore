@@ -35,5 +35,5 @@ next-env.d.ts
 # datos locales de prueba (pueden tener datos personales)
 .data/
 
-# configuración local del editor
+# configuraciÃ³n local del editor
 .claude/

@@ -210,12 +210,14 @@ export function parseFechaFlexible(v: unknown): string {
   if (/^\d{5}(\.\d+)?$/.test(s)) return parseFechaFlexible(Number(s));
   let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (m) {
-    const r = `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+    // Año mal tipeado como «0026» → 2026
+    const y = Number(m[1]) < 1000 ? String(2000 + (Number(m[1]) % 100)) : m[1];
+    const r = `${y}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
     return isValidDate(r) ? r : "";
   }
   m = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})/);
   if (m) {
-    const y = m[3].length === 2 ? `20${m[3]}` : m[3];
+    const y = m[3].length === 2 ? `20${m[3]}` : Number(m[3]) < 1000 ? String(2000 + (Number(m[3]) % 100)) : m[3];
     const r = `${y}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
     return isValidDate(r) ? r : "";
   }
