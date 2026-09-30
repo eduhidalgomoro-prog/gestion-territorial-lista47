@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { categoriaDe, emojisDe } from "@/lib/categorias";
 import { mensajeActividad } from "@/lib/compartir";
-import { invalidate, snapshot } from "@/lib/db";
-import { cumplimiento, indicadores } from "@/lib/domain/metricas";
+import { invalidate, setConfigValue, snapshot } from "@/lib/db";
+import { cumplimiento, filtrarActividades, indicadores } from "@/lib/domain/metricas";
+import { parseRegiones } from "@/lib/territorio";
 import { normalizeDni, normalizePhone, parseFechaFlexible, parseFechaNacimiento, parseHoraFlexible, phoneKey } from "@/lib/format";
 import { parsePreguntas } from "@/lib/preguntas";
 import type { Yo } from "@/lib/permisos";
@@ -18,7 +19,7 @@ const respEste: Yo = { email: "este@lista47.test", nombre: "Resp Este", rol: "RE
 
 function input(p: Partial<ActividadInput> = {}): ActividadInput {
   return {
-    nombre: "Taller de Fieltro", detalle: "", responsable: "noelia cabral", zona: "ESTE", tipo: "ESME", publico: "MUJERES", estado: "CONFIRMADA",
+    nombre: "Taller de Fieltro", detalle: "", responsable: "noelia cabral", zona: "ESTE", localidad: "", tipo: "ESME", publico: "MUJERES", estado: "CONFIRMADA",
     fecha: "2026-10-07", hora_inicio: "14:00", hora_fin: "16:00", fecha_alt: "", hora_alt: "", barrio: "pirayui", direccion: "", entre_calles: "", lugar: "",
     lat: -27.49, lng: -58.79, articula: false, tipo_articulacion: "", mesa: "", institucion_id: "", institucion_nueva: "", institucion_nueva_tipo: "",
     requiere_flyer: false, estado_flyer: "", link_flyer: "", gazebo: false, gazebo_cant: 0, mesas: false, mesas_cant: 0, sillas: true, sillas_cant: 30,
@@ -115,6 +116,26 @@ describe("participantes, importación y asistencia", () => {
     // Segunda importación del mismo archivo: nada nuevo
     const r2 = await confirmarImportacion(a.id, filas, admin);
     expect(r2).toMatchObject({ personasNuevas: 0, inscripcionesNuevas: 0, yaInscriptos: 3 });
+  });
+
+  it("interior: regiones configurables, localidad obligatoria y cada responsable ve solo su región", async () => {
+    expect(parseRegiones(["Región Bella Vista - Goya - Esquina = bella vista, GOYA, Esquina", "Norte = x"])).toEqual([
+      { nombre: "BELLA VISTA - GOYA - ESQUINA", localidades: ["Bella Vista", "Goya", "Esquina"] },
+    ]);
+    await setConfigValue("regiones_interior", "MERCEDES - CURUZÚ = Mercedes, Curuzú Cuatiá\nPASO DE LOS LIBRES - MONTE CASEROS = Paso De Los Libres, Monte Caseros", "", "test");
+    const respMercedes: Yo = { email: "m@lista47.test", nombre: "Resp M", rol: "RESPONSABLE", zona: "MERCEDES - CURUZÚ", usuarioId: "USR-M" };
+    await expect(crearActividad(input({ zona: "", localidad: "" }), respMercedes)).rejects.toMatchObject({ fields: { localidad: expect.any(String) } });
+    const a = await crearActividad(input({ zona: "NORTE", localidad: "mercedes", lat: -29.18, lng: -58.08 }), respMercedes);
+    expect(a).toMatchObject({ zona: "MERCEDES - CURUZÚ", localidad: "Mercedes", lat: -29.18 }); // la zona la fija su rol
+    await expect(crearActividad(input({ zona: "INVENTADA" }), admin)).rejects.toMatchObject({ fields: { zona: expect.any(String) } });
+    const general = await crearActividad(input({ zona: "GENERAL", nombre: "Acto central" }), admin);
+    const s = await snapshot({ fresh: true });
+    expect(puede.verActividad(respMercedes, general, [])).toBe(false); // lo general de Capital no le aparece
+    expect(puede.verActividad(respEste, general, [])).toBe(true);
+    expect(puede.verActividad(respEste, a, [])).toBe(false);
+    expect(filtrarActividades(s.actividades, { ambito: "interior" }).map((x) => x.id)).toEqual([a.id]);
+    expect(filtrarActividades(s.actividades, { ambito: "capital" }).map((x) => x.id)).toEqual([general.id]);
+    expect(mensajeActividad(a, { inscriptos: 0, presentes: 0 })).toContain("Mercedes · Región Mercedes - Curuzú");
   });
 
   it("importa listas sin DNI (por teléfono) y después completa el DNI sin duplicar", async () => {

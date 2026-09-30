@@ -8,7 +8,7 @@ export function CumplimientoZonas({ data, anio, mes }: { data: Cumplimiento[]; a
   return (
     <section className="rounded-2xl border border-linea bg-white p-4 sm:p-5" aria-labelledby="cumpl">
       <div className="mb-3 flex items-baseline justify-between gap-2">
-        <h2 id="cumpl" className="text-base font-bold">{data.length === 1 ? "Objetivo mensual de tu zona" : "Objetivo mensual por zona"}</h2>
+        <h2 id="cumpl" className="text-base font-bold">{data.length === 1 ? "Objetivo mensual de tu zona" : "Objetivo mensual por zona (Capital)"}</h2>
         <span className="text-xs font-semibold text-gris">mínimo {data[0]?.objetivo ?? 2} por zona</span>
       </div>
       <ul className="divide-y divide-linea">

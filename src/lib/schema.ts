@@ -58,7 +58,8 @@ export interface Actividad extends Meta {
   nombre: string;
   detalle: string;
   responsable: string;
-  zona: ZonaActividad | "";
+  zona: string; // zona de Capital (NORTE/ESTE/SUR/GENERAL) o región del interior (ver territorio.ts)
+  localidad: string; // "" = Corrientes Capital
   tipo: string;
   publico: string;
   estado: EstadoActividad;
@@ -160,7 +161,7 @@ export interface Usuario extends Meta {
   email: string;
   telefono: string; // para enviarle mensajes por WhatsApp (ej. flyers listos)
   rol: Rol;
-  zona: Zona | "";
+  zona: string; // zona de Capital o región del interior
   estado: (typeof ESTADOS_USUARIO)[number];
 }
 
@@ -242,6 +243,7 @@ export const TABLES: Record<TableName, TableDef> = {
       ["detalle", "Detalle actividad"],
       ["responsable", "Responsable"],
       ["zona", "Zona"],
+      ["localidad", "Localidad"],
       ["tipo", "Tipo actividad"],
       ["publico", "Público dirigido"],
       ["estado", "Estado actividad"],
@@ -301,7 +303,7 @@ export const TABLES: Record<TableName, TableDef> = {
       "inscriptos", "presentes", "ausentes", "pct_asistencia",
     ],
     boolean: ["articula", "requiere_flyer", "gazebo", "mesas", "sillas", "luz", "sonido", "inscripcion_abierta"],
-    enums: { zona: ZONAS_ACTIVIDAD, estado: ESTADOS_ACTIVIDAD, estado_flyer: ESTADOS_FLYER },
+    enums: { estado: ESTADOS_ACTIVIDAD, estado_flyer: ESTADOS_FLYER },
   },
   participantes: {
     sheet: "PARTICIPANTES",
@@ -383,7 +385,7 @@ export const TABLES: Record<TableName, TableDef> = {
       ["estado", "Estado"],
       ...META,
     ],
-    enums: { rol: ROLES, zona: ZONAS, estado: ESTADOS_USUARIO },
+    enums: { rol: ROLES, estado: ESTADOS_USUARIO },
   },
   asignaciones: {
     sheet: "ASIGNACIONES",

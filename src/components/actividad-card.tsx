@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ESTADO_COLOR, zonaLabel } from "@/lib/labels";
+import { ESTADO_COLOR, ubicacionLabel } from "@/lib/labels";
 import { formatDiaMes, titleCase } from "@/lib/format";
 import type { Actividad } from "@/lib/schema";
 import { Badge, cx } from "./ui";
@@ -27,7 +27,7 @@ export function ActividadCard({ a, conteo, compacta }: { a: Actividad; conteo?: 
           <p className="font-titulo leading-snug font-bold text-tinta group-hover:text-petroleo">{a.nombre}</p>
           <p className="mt-0.5 text-sm text-gris">
             {a.hora_inicio && `${a.hora_inicio}${a.hora_fin ? `–${a.hora_fin}` : ""} · `}
-            {zonaLabel(a.zona)}
+            {ubicacionLabel(a)}
             {a.barrio && ` · ${titleCase(a.barrio)}`}
           </p>
           {!compacta && (

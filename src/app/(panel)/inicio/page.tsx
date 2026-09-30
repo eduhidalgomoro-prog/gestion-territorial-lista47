@@ -85,7 +85,7 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<S
     <>
       <InstallBanner />
       <PageHeader
-        kicker={zona ? zonaLabel(zona) : "Todas las zonas"}
+        kicker={zona ? zonaLabel(zona) : "Toda la provincia"}
         title={`Hola, ${primerNombre}`}
         subtitle={`Resumen de ${nombreMes(mes).toLowerCase()} ${anio}`}
         actions={<SelectorPeriodo action="/inicio" anio={anio} mes={mes} />}
@@ -101,8 +101,9 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<S
       {/* Agenda: lo primero son las próximas actividades (es lo que usa para armar la agenda de los referentes). */}
       {agenda && proximasSeccion}
 
-      <div className={cx("grid gap-4", !agenda && "lg:grid-cols-[1fr_1.4fr]", agenda && "mt-6")}>
-        {!agenda && <CumplimientoZonas data={cumpl} anio={anio} mes={mes} />}
+      <div className={cx("grid gap-4", !agenda && cumpl.length > 0 && "lg:grid-cols-[1fr_1.4fr]", agenda && "mt-6")}>
+        {/* El interior no tiene objetivo mensual (por ahora): sus responsables no ven este cuadro. */}
+        {!agenda && cumpl.length > 0 && <CumplimientoZonas data={cumpl} anio={anio} mes={mes} />}
         <section aria-label="Indicadores del mes" className={cx("grid grid-cols-2 gap-3", agenda ? "sm:grid-cols-5" : "sm:grid-cols-3")}>
           {!agenda && (
             <>

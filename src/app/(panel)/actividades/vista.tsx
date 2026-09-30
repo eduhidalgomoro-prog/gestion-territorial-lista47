@@ -8,9 +8,10 @@ import { requireUser } from "@/lib/auth";
 import { CATEGORIAS, categoriaDe, emojisDe, labelCategoria, type CategoriaId } from "@/lib/categorias";
 import { snapshot } from "@/lib/db";
 import { conteosPorActividad, filtrarActividades } from "@/lib/domain/metricas";
-import { ESTADO_COLOR, ESTADO_HEX, zonaLabel } from "@/lib/labels";
-import { actividadesVisibles, esResponsable, puede } from "@/lib/permisos";
+import { ESTADO_COLOR, ESTADO_HEX, ubicacionLabel, zonaLabel } from "@/lib/labels";
+import { actividadesVisibles, esOperador, esResponsable, puede } from "@/lib/permisos";
 import { ESTADOS_ACTIVIDAD, ZONAS_ACTIVIDAD, type Actividad } from "@/lib/schema";
+import { ambitoDe, parseRegiones, regionLabel } from "@/lib/territorio";
 import { addMonths, formatDate, MESES, nombreMes, titleCase, today } from "@/lib/util";
 import { filtrosDe, qs, sp, type SP } from "@/lib/view";
 
@@ -30,15 +31,26 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
   if (vista === "calendario" && !f.mes) f.mes = Number(today().slice(5, 7));
   const s = await snapshot();
   const visibles = actividadesVisibles(yo, s.actividades, s.asignaciones);
+  // Capital / Interior / Toda la provincia: para quien ve más de una zona.
+  const conAmbito = !esResponsable(yo) && !esOperador(yo);
+  if (!conAmbito || (f.ambito !== "capital" && f.ambito !== "interior")) f.ambito = "";
+  const regiones = parseRegiones(s.config.regiones_interior);
+  const regionesUsadas = [...new Set([...regiones.map((r) => r.nombre), ...visibles.map((a) => a.zona).filter((z) => z && ambitoDe(z) === "interior")])];
   const lista = filtrarActividades(visibles, f).sort((a, b) =>
     vista === "listado" && (f.mes === 0 || !f.mes) ? b.fecha.localeCompare(a.fecha) : (a.fecha + a.hora_inicio).localeCompare(b.fecha + b.hora_inicio),
   );
   const conteos = conteosPorActividad(s);
-  const barrios = [...new Set(visibles.map((a) => a.barrio).filter(Boolean))].sort();
-  const responsables = [...new Set(visibles.map((a) => a.responsable).filter(Boolean))].sort();
+  const delAmbito = f.ambito ? visibles.filter((a) => ambitoDe(a.zona) === f.ambito) : visibles;
+  const barrios = [...new Set(delAmbito.map((a) => a.barrio).filter(Boolean))].sort();
+  const localidades = [...new Set(delAmbito.map((a) => a.localidad).filter(Boolean))].sort();
+  const responsables = [...new Set(delAmbito.map((a) => a.responsable).filter(Boolean))].sort();
   const tipos = [...new Set([...s.config.tipos_actividad, ...visibles.map((a) => a.tipo)].filter(Boolean))].sort();
-  const keep = { mes: f.mes, anio: f.anio, zona: f.zona, barrio: f.barrio, responsable: f.responsable, tipo: f.tipo, estado: f.estado, q: f.q };
-  const hayFiltros = !!(f.zona || f.barrio || f.responsable || f.tipo || f.estado || f.q);
+  const opcionesZona = [
+    ...(f.ambito !== "interior" ? [...ZONAS_ACTIVIDAD.map((z) => [z, zonaLabel(z)] as const), ["SIN", "Sin zona"] as const] : []),
+    ...(f.ambito !== "capital" ? regionesUsadas.sort().map((r) => [r, regionLabel(r)] as const) : []),
+  ];
+  const keep = { ambito: f.ambito, mes: f.mes, anio: f.anio, zona: f.zona, localidad: f.localidad, barrio: f.barrio, responsable: f.responsable, tipo: f.tipo, estado: f.estado, q: f.q };
+  const hayFiltros = !!(f.zona || f.localidad || f.barrio || f.responsable || f.tipo || f.estado || f.q);
   const anioActual = Number(today().slice(0, 4));
   const tabHref = TABS.find((t) => t.id === vista)!.href;
 
@@ -49,6 +61,24 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
         subtitle={`${lista.length} ${lista.length === 1 ? "actividad" : "actividades"}${f.mes ? ` en ${nombreMes(f.mes).toLowerCase()}` : ""} ${f.anio}`}
         actions={puede.crearActividad(yo) ? <div className="hidden lg:block"><LinkButton href="/actividades/nueva"><IconPlus size={20} /> Nueva actividad</LinkButton></div> : undefined}
       />
+
+      {conAmbito && (
+        <nav className="mb-2 flex gap-1 overflow-x-auto" aria-label="Capital o interior">
+          {([["", "Toda la provincia"], ["capital", "Capital"], ["interior", "Interior"]] as const).map(([id, label]) => (
+            <Link
+              key={id}
+              href={`${tabHref}${qs({ ambito: id, mes: f.mes, anio: f.anio, estado: f.estado, tipo: f.tipo, q: f.q })}`}
+              aria-current={f.ambito === id ? "page" : undefined}
+              className={cx(
+                "inline-flex min-h-10 items-center rounded-full border px-4 text-sm font-bold whitespace-nowrap",
+                f.ambito === id ? "border-marca bg-verde-50 text-marca-600" : "border-linea bg-white text-gris hover:border-petroleo",
+              )}
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
+      )}
 
       <nav className="mb-4 grid grid-cols-3 gap-1 rounded-2xl border border-linea bg-white p-1" aria-label="Cambiar vista">
         {TABS.map((t) => (
@@ -67,28 +97,32 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
       </nav>
 
       <FiltrosForm action={tabHref} className="mb-4 space-y-2">
-        {vista !== "calendario" && <Buscador value={f.q ?? ""} placeholder="Buscar por nombre, responsable, barrio o zona" />}
+        {f.ambito && <input type="hidden" name="ambito" value={f.ambito} />}
+        {vista !== "calendario" && <Buscador value={f.q ?? ""} placeholder="Buscar por nombre, responsable, barrio, localidad o zona" />}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <FiltroSelect name="mes" label="Mes" value={f.mes ?? 0} options={[...(vista === "calendario" ? [] : [[0, "Todo el año"] as const]), ...MESES.map((m, i) => [i + 1, m] as const)]} />
           <FiltroSelect name="anio" label="Año" value={f.anio ?? anioActual} options={[anioActual - 1, anioActual, anioActual + 1].map((a) => [a, String(a)] as const)} />
           {!esResponsable(yo) && (
-            <FiltroSelect name="zona" label="Zona" value={f.zona ?? ""} placeholder="Todas las zonas" options={[...ZONAS_ACTIVIDAD.map((z) => [z, zonaLabel(z)] as const), ["SIN", "Sin zona"] as const]} />
+            <FiltroSelect name="zona" label="Zona o región" value={f.zona ?? ""} placeholder={f.ambito === "interior" ? "Todas las regiones" : "Todas las zonas"} options={opcionesZona} />
           )}
           <FiltroSelect name="estado" label="Estado" value={f.estado ?? ""} placeholder="Todos los estados" options={ESTADOS_ACTIVIDAD.map((e) => [e, e] as const)} />
         </div>
-        <details className="group" open={!!(f.barrio || f.tipo || f.responsable)}>
+        <details className="group" open={!!(f.barrio || f.localidad || f.tipo || f.responsable)}>
           <summary className="cursor-pointer list-none text-sm font-bold text-petroleo">
-            <span className="group-open:hidden">+ Más filtros (barrio, tipo, responsable)</span>
+            <span className="group-open:hidden">+ Más filtros ({localidades.length ? "localidad, " : ""}barrio, tipo, responsable)</span>
             <span className="hidden group-open:inline">− Menos filtros</span>
           </summary>
-          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className={cx("mt-2 grid grid-cols-1 gap-2", localidades.length ? "sm:grid-cols-4" : "sm:grid-cols-3")}>
+            {localidades.length > 0 && (
+              <FiltroSelect name="localidad" label="Localidad" value={f.localidad ?? ""} placeholder="Todas las localidades" options={localidades.map((l) => [l, l] as const)} />
+            )}
             <FiltroSelect name="barrio" label="Barrio" value={f.barrio ?? ""} placeholder="Todos los barrios" options={barrios.map((b) => [b, titleCase(b)] as const)} />
             <FiltroSelect name="tipo" label="Tipo" value={f.tipo ?? ""} placeholder="Todos los tipos" options={tipos.map((t) => [t, t] as const)} />
             <FiltroSelect name="responsable" label="Responsable" value={f.responsable ?? ""} placeholder="Todos los responsables" options={responsables.map((r) => [r, r] as const)} />
           </div>
         </details>
         {hayFiltros && (
-          <Link href={`${tabHref}${qs({ mes: f.mes, anio: f.anio })}`} className="inline-block text-sm font-bold text-petroleo hover:underline">
+          <Link href={`${tabHref}${qs({ ambito: f.ambito, mes: f.mes, anio: f.anio })}`} className="inline-block text-sm font-bold text-petroleo hover:underline">
             Limpiar filtros
           </Link>
         )}
@@ -172,7 +206,7 @@ function Calendario({ lista, anio, mes, keep }: { lista: Actividad[]; anio: numb
                             href={`/actividades/${a.id}`}
                             className="block truncate rounded-md px-1.5 py-0.5 text-[11px] leading-tight font-semibold text-white hover:opacity-90"
                             style={{ background: ESTADO_HEX[a.estado] }}
-                            title={`${a.nombre} · ${zonaLabel(a.zona)} · ${a.estado}`}
+                            title={`${a.nombre} · ${ubicacionLabel(a)} · ${a.estado}`}
                           >
                             {a.hora_inicio && `${a.hora_inicio} `}
                             {a.nombre}
@@ -213,7 +247,7 @@ function Calendario({ lista, anio, mes, keep }: { lista: Actividad[]; anio: numb
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-bold">{a.nombre}</span>
                         <span className="block text-sm text-gris">
-                          {a.hora_inicio || "Sin horario"} · {zonaLabel(a.zona)}
+                          {a.hora_inicio || "Sin horario"} · {ubicacionLabel(a)}
                           {a.barrio && ` · ${titleCase(a.barrio)}`}
                         </span>
                       </span>
@@ -243,7 +277,7 @@ function Mapa({ lista, conteos, foco, emojis }: { lista: Actividad[]; conteos: R
     lng: a.lng,
     nombre: a.nombre,
     fecha: a.fecha ? `${formatDate(a.fecha)}${a.hora_inicio ? ` ${a.hora_inicio}` : ""}` : "",
-    zona: zonaLabel(a.zona),
+    zona: ubicacionLabel(a),
     barrio: titleCase(a.barrio),
     responsable: a.responsable,
     tipo: a.tipo,

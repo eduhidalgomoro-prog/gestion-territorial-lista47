@@ -15,6 +15,7 @@ export interface AppConfig {
   tipos_insumo: string[];
   lugares: string[];
   emojis_mapa: string[];
+  regiones_interior: string[]; // «REGIÓN = Localidad, Localidad…» (ver territorio.ts)
   mensaje_confirmacion: string;
   mensaje_grupo: string;
 }
@@ -33,6 +34,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   tipos_insumo: ["MATERIALES", "ALIMENTOS", "IMPRESIÓN", "TRANSPORTE", "PREMIOS", "EQUIPAMIENTO", "OTRO"],
   lugares: ["Casa partidaria", "Sede del partido", "Casa de vecino/a", "Plaza o parque", "Cancha", "Salón", "Club", "Capilla", "Escuela"],
   emojis_mapa: CATEGORIAS.map((c) => `${c.label} = ${c.emoji}`),
+  regiones_interior: [],
   mensaje_confirmacion: "Hola {nombre} 👋 Te escribimos por *{actividad}*, al que te inscribiste: {cuando}, en {lugar}.\n¿Nos confirmás si vas a venir? 🙌",
   mensaje_grupo: "¡Gracias por confirmar, {nombre}! 🙌 Sumate al grupo de *{actividad}* para recibir las novedades:\n{link_grupo}",
 };
@@ -49,6 +51,10 @@ export const CONFIG_LABELS: Record<keyof AppConfig, { titulo: string; descripcio
     titulo: "Emojis del mapa",
     descripcion: "Un emoji por categoría (Deportes, Talleres, Salud, Mascotas, Ferias, Capacitaciones, Comunidad, Otras). Formato: Categoría = emoji.",
   },
+  regiones_interior: {
+    titulo: "Regiones del interior",
+    descripcion: "Una región por línea, con sus localidades separadas por comas. Formato: Región = Localidad, Localidad…",
+  },
   mensaje_confirmacion: {
     titulo: "Mensaje para pedir confirmación (WhatsApp)",
     descripcion: `Lo que se envía a cada inscripta al tocar «Pedir confirmación». Podés usar: ${COMODINES_MENSAJE}. *texto* sale en negrita.`,
@@ -62,6 +68,8 @@ export const CONFIG_LABELS: Record<keyof AppConfig, { titulo: string; descripcio
 export const CONFIG_KEYS = Object.keys(DEFAULT_CONFIG) as (keyof AppConfig)[];
 /** Claves que son un texto libre (no una lista). */
 export const CONFIG_TEXTOS: (keyof AppConfig)[] = ["mensaje_confirmacion", "mensaje_grupo"];
+/** Claves que se editan en su propia sección (no en «Listas»). */
+export const CONFIG_APARTE: (keyof AppConfig)[] = ["regiones_interior"];
 
 export function parseConfig(rows: ConfigRow[]): AppConfig {
   const cfg: AppConfig = structuredClone(DEFAULT_CONFIG);
@@ -77,7 +85,8 @@ export function parseConfig(rows: ConfigRow[]): AppConfig {
       continue;
     }
     const list = v.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
-    if (list.length) (cfg[k] as string[]) = list;
+    // Las regiones pueden quedar vacías a propósito; las demás listas vuelven al valor por defecto.
+    if (list.length || k === "regiones_interior") (cfg[k] as string[]) = list;
   }
   return cfg;
 }

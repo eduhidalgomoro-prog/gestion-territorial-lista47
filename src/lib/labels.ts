@@ -1,5 +1,6 @@
 import type { BadgeColor } from "@/components/ui";
-import type { EstadoActividad, EstadoFlyer } from "./schema";
+import { ZONAS, ZONAS_ACTIVIDAD, type EstadoActividad, type EstadoFlyer } from "./schema";
+import { ambitoDe, esZonaCapital, nombrePropio, regionLabel } from "./territorio";
 
 export const ESTADO_COLOR: Record<EstadoActividad, BadgeColor> = {
   BORRADOR: "gris",
@@ -35,6 +36,17 @@ export const FLYER_COLOR: Record<EstadoFlyer, BadgeColor> = {
   PUBLICADO: "petroleo",
 };
 
-export const zonaLabel = (z: string) => (z === "GENERAL" ? "General (toda la ciudad)" : z ? `Zona ${z.charAt(0)}${z.slice(1).toLowerCase()}` : "Sin zona");
+export const zonaLabel = (z: string) =>
+  z === "GENERAL" ? "General (toda la ciudad)" : !z ? "Sin zona" : esZonaCapital(z) ? `Zona ${z.charAt(0)}${z.slice(1).toLowerCase()}` : regionLabel(z);
+
+/** Opciones de un desplegable de zona: las de Capital y después las regiones del interior. */
+export function opcionesZona(regiones: string[], { general = true, capital = true }: { general?: boolean; capital?: boolean } = {}) {
+  const cap = capital ? (general ? ZONAS_ACTIVIDAD : ZONAS).map((z) => [z, zonaLabel(z)] as const) : [];
+  return [...cap, ...[...new Set(regiones)].sort().map((r) => [r, regionLabel(r)] as const)];
+}
+
+/** Dónde es, en pocas palabras: la zona en Capital; la localidad y la región en el interior. */
+export const ubicacionLabel = (a: { zona: string; localidad: string }) =>
+  ambitoDe(a.zona) === "interior" ? [a.localidad && nombrePropio(a.localidad), zonaLabel(a.zona)].filter(Boolean).join(" · ") : zonaLabel(a.zona);
 
 export const titulo = (s: string) => (s ? s.charAt(0) + s.slice(1).toLowerCase() : s);

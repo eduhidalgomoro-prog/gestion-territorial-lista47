@@ -24,7 +24,9 @@ export function filtrosDe(q: SP): Filtros {
   return {
     anio,
     mes,
+    ambito: sp(q, "ambito"),
     zona: sp(q, "zona"),
+    localidad: sp(q, "localidad"),
     barrio: sp(q, "barrio"),
     responsable: sp(q, "responsable"),
     tipo: sp(q, "tipo"),

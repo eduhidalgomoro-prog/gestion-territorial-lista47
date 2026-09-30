@@ -7,9 +7,10 @@ import { IconWhatsApp } from "@/components/icons";
 import { Badge, btn, cx, Empty, Notice, PageHeader } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { snapshot } from "@/lib/db";
-import { FLYER_COLOR, zonaLabel } from "@/lib/labels";
+import { FLYER_COLOR, opcionesZona, ubicacionLabel, zonaLabel } from "@/lib/labels";
+import { ambitoDe, parseRegiones } from "@/lib/territorio";
 import { actividadesVisibles, esResponsable, puede } from "@/lib/permisos";
-import { ESTADOS_FLYER, ZONAS_ACTIVIDAD, type Actividad, type EstadoFlyer, type Usuario } from "@/lib/schema";
+import { ESTADOS_FLYER, type Actividad, type EstadoFlyer, type Usuario } from "@/lib/schema";
 import { formatDate, MESES, nombreMes, normalizePhone, titleCase, today } from "@/lib/util";
 import { periodo, sp, type SP } from "@/lib/view";
 import { flyerAction } from "../actions";
@@ -27,8 +28,8 @@ function whatsapp(u: Usuario, a: Actividad): string {
     a.link_flyer_historia ? `📲 Historias: ${a.link_flyer_historia}` : "",
   ].filter(Boolean);
   const texto = links.length
-    ? `Hola ${u.nombre} 👋 Ya está el flyer de *${a.nombre}* (${cuando}, ${zonaLabel(a.zona)}):\n${links.join("\n")}`
-    : `Hola ${u.nombre} 👋 Te cuento cómo va el flyer de *${a.nombre}* (${cuando}, ${zonaLabel(a.zona)}): ${a.estado_flyer.toLowerCase()}.`;
+    ? `Hola ${u.nombre} 👋 Ya está el flyer de *${a.nombre}* (${cuando}, ${ubicacionLabel(a)}):\n${links.join("\n")}`
+    : `Hola ${u.nombre} 👋 Te cuento cómo va el flyer de *${a.nombre}* (${cuando}, ${ubicacionLabel(a)}): ${a.estado_flyer.toLowerCase()}.`;
   return `https://wa.me/549${tel}?text=${encodeURIComponent(texto)}`;
 }
 
@@ -62,7 +63,7 @@ export default async function Flyers({ searchParams }: { searchParams: Promise<S
         <FiltroSelect name="mes" label="Mes" value={mes} options={[[0, "Todo el año"] as const, ...MESES.map((m, i) => [i + 1, m] as const)]} />
         <FiltroSelect name="anio" label="Año" value={anio} options={[anioActual - 1, anioActual, anioActual + 1].map((a) => [a, String(a)] as const)} />
         {!esResponsable(yo) && (
-          <FiltroSelect name="zona" label="Zona" value={zona} placeholder="Todas las zonas" options={ZONAS_ACTIVIDAD.map((z) => [z, zonaLabel(z)] as const)} />
+          <FiltroSelect name="zona" label="Zona" value={zona} placeholder="Todas las zonas" options={opcionesZona([...parseRegiones(s.config.regiones_interior).map((r) => r.nombre), ...s.actividades.map((a) => a.zona).filter((z) => z && ambitoDe(z) === "interior")])} />
         )}
       </FiltrosForm>
 
@@ -100,7 +101,7 @@ export default async function Flyers({ searchParams }: { searchParams: Promise<S
                       </Link>
                       <dl className="mt-2 grid gap-x-3 gap-y-1 text-sm sm:grid-cols-2">
                         <Dato k="Cuándo" v={a.fecha ? `${formatDate(a.fecha, { weekday: "short", day: "numeric", month: "short" })}${a.hora_inicio ? ` · ${a.hora_inicio}${a.hora_fin ? `–${a.hora_fin}` : ""}` : ""}` : "Sin fecha"} />
-                        <Dato k="Zona" v={`${zonaLabel(a.zona)}${a.barrio ? ` · ${titleCase(a.barrio)}` : ""}`} />
+                        <Dato k="Zona" v={`${ubicacionLabel(a)}${a.barrio ? ` · ${titleCase(a.barrio)}` : ""}`} />
                         <Dato k="Dónde" v={[a.lugar, a.direccion].filter(Boolean).join(" · ")} />
                         <Dato k="Público" v={titleCase(a.publico)} />
                         <Dato k="Responsable" v={a.responsable} />

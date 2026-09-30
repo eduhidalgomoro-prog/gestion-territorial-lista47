@@ -3,12 +3,13 @@ import { ActionForm, Field, Input, Select, SubmitButton, Textarea } from "@/comp
 import { InstallButton } from "@/components/install-button";
 import { Badge, Card, cx, Notice, PageHeader } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
-import { CONFIG_KEYS, CONFIG_LABELS, CONFIG_TEXTOS, configToValue } from "@/lib/config";
+import { CONFIG_APARTE, CONFIG_KEYS, CONFIG_LABELS, CONFIG_TEXTOS, configToValue } from "@/lib/config";
 import { snapshot } from "@/lib/db";
 import { env } from "@/lib/env";
-import { zonaLabel } from "@/lib/labels";
+import { opcionesZona, zonaLabel } from "@/lib/labels";
 import { puede, ROL_LABEL } from "@/lib/permisos";
 import { ROLES, ZONAS, type Usuario } from "@/lib/schema";
+import { ambitoDe, parseRegiones, regionLabel } from "@/lib/territorio";
 import { titleCase } from "@/lib/util";
 import { sp, type SP } from "@/lib/view";
 import { barrioAction, configAction, institucionAction, usuarioAction } from "../actions";
@@ -17,7 +18,7 @@ export const metadata = { title: "Configuración" };
 
 const TABS = [
   { id: "usuarios", label: "Usuarios" },
-  { id: "barrios", label: "Zonas y barrios" },
+  { id: "barrios", label: "Zonas y regiones" },
   { id: "listas", label: "Listas" },
   { id: "instituciones", label: "Instituciones" },
 ] as const;
@@ -47,10 +48,11 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
   const q = await searchParams;
   const tab = TABS.find((t) => t.id === sp(q, "tab"))?.id ?? "usuarios";
   const s = await snapshot();
+  const regiones = parseRegiones(s.config.regiones_interior).map((r) => r.nombre);
 
   return (
     <>
-      <PageHeader title="Configuración" subtitle="Usuarios, zonas, barrios y listas de la aplicación." />
+      <PageHeader title="Configuración" subtitle="Usuarios, zonas de Capital, regiones del interior y listas de la aplicación." />
       {env.dataBackend() !== "sheets" && (
         <Notice tone="alerta" className="mb-4">
           Modo de prueba: los datos se guardan en un archivo local, no en Google Sheets.
@@ -90,12 +92,12 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
                         </span>
                         <span className="flex flex-wrap gap-1">
                           <Badge color="petroleo">{u.rol}</Badge>
-                          {u.zona && <Badge color="verde">{u.zona}</Badge>}
+                          {u.zona && <Badge color="verde">{zonaLabel(u.zona)}</Badge>}
                           {u.estado !== "ACTIVO" && <Badge color="rojo">INACTIVO</Badge>}
                         </span>
                       </summary>
                       <div className="mt-4 border-t border-linea pt-4">
-                        <UsuarioForm u={u} />
+                        <UsuarioForm u={u} regiones={regiones} />
                       </div>
                     </details>
                   </li>
@@ -105,12 +107,12 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
           <section>
             <Card className="p-4 sm:p-5">
               <h2 className="mb-3 text-lg font-bold">Agregar usuario</h2>
-              <UsuarioForm />
+              <UsuarioForm regiones={regiones} />
             </Card>
             <Card className="mt-4 p-4 text-sm text-gris">
               <p className="mb-1 font-bold text-tinta">Roles</p>
               <p><b>Administrador:</b> todo, incluidos datos personales, costos y configuración.</p>
-              <p className="mt-1"><b>Responsable de zona:</b> carga y edita actividades de su zona, toma asistencia, cierra y ve estadísticas de su zona.</p>
+              <p className="mt-1"><b>Responsable de zona:</b> carga y edita actividades de su zona de Capital o de su región del interior, toma asistencia, cierra y ve sus estadísticas.</p>
               <p className="mt-1"><b>Operador:</b> solo las actividades que le asignan: inscriptos, asistencia y agregar personas.</p>
               <p className="mt-1"><b>Agenda (solo lectura):</b> ve todas las actividades, el calendario, el mapa y la cantidad de inscriptos. No ve datos de personas ni costos, y no puede modificar nada.</p>
               <p className="mt-1"><b>Comunicación / Diseño:</b> ve todas las actividades (sin datos de personas ni costos) y gestiona los flyers: estado, link y envío por WhatsApp.</p>
@@ -120,6 +122,49 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
       )}
 
       {tab === "barrios" && (
+        <>
+        <h2 className="mb-1 text-lg font-bold">Interior</h2>
+        <div className="mb-8 grid gap-5 lg:grid-cols-[1.6fr_1fr]">
+          <section>
+            {regiones.length === 0 ? (
+              <Card className="p-4 text-gris">Todavía no hay regiones del interior. Cargalas en el cuadro de al lado.</Card>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {parseRegiones(s.config.regiones_interior).map((r) => {
+                  const n = s.actividades.filter((a) => a.zona === r.nombre).length;
+                  const resp = s.usuarios.filter((u) => u.zona === r.nombre && u.rol === "RESPONSABLE" && u.estado === "ACTIVO");
+                  return (
+                    <Card key={r.nombre} className="p-4">
+                      <h3 className="font-bold">{regionLabel(r.nombre)}</h3>
+                      <p className="mb-2 text-sm text-gris">
+                        {n} {n === 1 ? "actividad" : "actividades"} · {resp.length ? `Responsable: ${resp.map((u) => `${u.nombre} ${u.apellido}`.trim()).join(", ")}` : "sin responsable asignado"}
+                      </p>
+                      <p className="text-[15px]">{r.localidades.join(", ") || <span className="text-gris">Sin localidades cargadas.</span>}</p>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+          <Card className="h-fit p-4 sm:p-5">
+            <h3 className="mb-1 text-lg font-bold">Regiones y localidades</h3>
+            <p className="mb-3 text-sm text-gris">
+              Una región por línea y sus localidades separadas por comas. Después, en Usuarios, asigná a cada responsable su región: va a ver y cargar solo las actividades de esa región.
+            </p>
+            <ActionForm action={configAction}>
+              <Field label="Regiones" name="regiones_interior">
+                <Textarea
+                  name="regiones_interior"
+                  rows={8}
+                  defaultValue={configToValue("regiones_interior", s.config.regiones_interior)}
+                  placeholder={"Río Uruguay = Paso de los Libres, Santo Tomé, Alvear\nCentro = Mercedes, Curuzú Cuatiá\nRío Paraná = Goya, Esquina, Bella Vista"}
+                />
+              </Field>
+              <SubmitButton>Guardar regiones</SubmitButton>
+            </ActionForm>
+          </Card>
+        </div>
+        <h2 className="mb-1 text-lg font-bold">Capital</h2>
         <div className="grid gap-5 lg:grid-cols-[1.6fr_1fr]">
           <section className="grid gap-4 md:grid-cols-3">
             {ZONAS.map((z) => {
@@ -159,13 +204,14 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
             </ActionForm>
           </Card>
         </div>
+        </>
       )}
 
       {tab === "listas" && (
         <Card className="p-4 sm:p-5">
           <ActionForm action={configAction}>
             <div className="grid gap-x-6 md:grid-cols-2">
-              {CONFIG_KEYS.map((k) => (
+              {CONFIG_KEYS.filter((k) => !CONFIG_APARTE.includes(k)).map((k) => (
                 <div key={k} className={CONFIG_TEXTOS.includes(k) ? "md:col-span-2" : ""}>
                 <Field label={CONFIG_LABELS[k].titulo} name={k} hint={CONFIG_LABELS[k].descripcion}>
                   {k === "objetivo_mensual" ? (
@@ -230,7 +276,9 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
   );
 }
 
-function UsuarioForm({ u }: { u?: Usuario }) {
+function UsuarioForm({ u, regiones }: { u?: Usuario; regiones: string[] }) {
+  // Si el usuario tiene una región que ya no está en Configuración, se sigue mostrando.
+  const opciones = opcionesZona([...regiones, ...(u?.zona && ambitoDe(u.zona) === "interior" ? [u.zona] : [])], { general: false });
   return (
     <ActionForm action={usuarioAction.bind(null, u?.id ?? null)} resetOnSuccess={!u}>
       <div className="grid gap-x-3 sm:grid-cols-2">
@@ -243,7 +291,7 @@ function UsuarioForm({ u }: { u?: Usuario }) {
       </Field>
       <div className="grid gap-x-3 sm:grid-cols-2">
         <Field label="Rol" name="rol"><Select name="rol" defaultValue={u?.rol ?? "RESPONSABLE"} options={ROLES.map((r) => [r, ROL_LABEL[r]] as const)} /></Field>
-        <Field label="Zona" name="zona" hint="Obligatoria para responsables."><Select name="zona" defaultValue={u?.zona ?? ""} placeholder="Sin zona" options={ZONAS.map((z) => [z, zonaLabel(z)] as const)} /></Field>
+        <Field label="Zona o región" name="zona" hint="Obligatoria para responsables."><Select name="zona" defaultValue={u?.zona ?? ""} placeholder="Sin zona" options={opciones} /></Field>
       </div>
       {u && <Field label="Estado" name="estado"><Select name="estado" defaultValue={u.estado} options={[["ACTIVO", "Activo"], ["INACTIVO", "Inactivo (no puede ingresar)"]]} /></Field>}
       <SubmitButton size="md">{u ? "Guardar cambios" : "Agregar usuario"}</SubmitButton>

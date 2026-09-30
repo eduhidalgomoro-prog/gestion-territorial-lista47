@@ -5,6 +5,7 @@ import { geocodeAction } from "@/app/(panel)/actions";
 import type { ActionResult } from "@/lib/errors";
 import { formatMoney, titleCase } from "@/lib/format";
 import { zonaLabel } from "@/lib/labels";
+import { ambitoDe } from "@/lib/territorio";
 import type { ActividadInput, InsumoInput } from "@/lib/services/actividades";
 import { PREGUNTAS_ESME } from "@/lib/preguntas";
 import { ESTADOS_FLYER } from "@/lib/schema";
@@ -14,6 +15,7 @@ import { btn, cx } from "./ui";
 
 export interface WizardOpciones {
   zonas: string[]; // si hay una sola, la zona queda fija (responsable)
+  regiones: { nombre: string; localidades: string[] }[]; // interior
   barrios: { barrio: string; zona: string }[];
   tipos: string[];
   publicos: string[];
@@ -31,7 +33,7 @@ const PASOS = ["Información general", "Fecha y ubicación", "Articulación y p�
 
 /** Campos que pertenecen a cada paso (para volver al paso con error). */
 const CAMPOS_PASO: Record<string, number> = {
-  nombre: 0, detalle: 0, responsable: 0, zona: 0, tipo: 0, estado: 0,
+  nombre: 0, detalle: 0, responsable: 0, zona: 0, localidad: 0, tipo: 0, estado: 0,
   fecha: 1, hora_inicio: 1, hora_fin: 1, fecha_alt: 1, hora_alt: 1, barrio: 1, direccion: 1,
 };
 
@@ -136,6 +138,18 @@ export function ActividadWizard({
   };
 
   const zonaFija = opciones.zonas.length === 1;
+  const interior = !!d.zona && ambitoDe(d.zona) === "interior";
+  const localidadesRegion = opciones.regiones.find((r) => r.nombre === d.zona)?.localidades ?? [];
+  const [localidadNueva, setLocalidadNueva] = useState(!!inicial.localidad && !localidadesRegion.includes(inicial.localidad));
+  const zonasCapital = opciones.zonas.filter((z) => ambitoDe(z) === "capital");
+  const zonasInterior = opciones.zonas.filter((z) => ambitoDe(z) === "interior");
+  function elegirZona(z: string) {
+    // Al pasar de Capital al interior (o de una región a otra) se limpian localidad y barrio.
+    setD((p) => (p.zona === z ? p : { ...p, zona: z, localidad: "", barrio: ambitoDe(z) === ambitoDe(p.zona) && ambitoDe(z) === "capital" ? p.barrio : "" }));
+    setLocalidadNueva(false);
+    setBarrioNuevo(false);
+    setErrores((e) => ({ ...e, zona: "", localidad: "" }));
+  }
   const barriosZona = useMemo(
     () => opciones.barrios.filter((b) => !d.zona || d.zona === "GENERAL" || b.zona === d.zona).map((b) => b.barrio).sort(),
     [opciones.barrios, d.zona],
@@ -149,7 +163,8 @@ export function ActividadWizard({
     if (p === 0) {
       if (!d.nombre.trim()) e.nombre = "Poné un nombre a la actividad.";
       if (!borrador && !d.responsable.trim()) e.responsable = "Indicá quién es responsable.";
-      if (!borrador && !d.zona) e.zona = "Elegí la zona.";
+      if (!borrador && !d.zona) e.zona = "Elegí la zona o región.";
+      if (!borrador && interior && !d.localidad.trim()) e.localidad = "Elegí la localidad.";
     }
     if (p === 1 && !borrador) {
       if (!d.fecha) e.fecha = "Elegí la fecha programada.";
@@ -175,14 +190,16 @@ export function ActividadWizard({
   function ubicar() {
     setGeo(null);
     startGeo(async () => {
-      const r = await geocodeAction([d.direccion, d.entre_calles && !/\d/.test(d.direccion) ? `y ${d.entre_calles.split(/\s+y\s+/i)[0]}` : ""].join(" ").trim(), d.barrio);
+      const r = await geocodeAction([d.direccion, d.entre_calles && !/\d/.test(d.direccion) ? `y ${d.entre_calles.split(/\s+y\s+/i)[0]}` : ""].join(" ").trim(), d.barrio, interior ? d.localidad : "");
       if (!r) {
         setGeo({ msg: "No encontramos la dirección. Mové el marcador o tocá el mapa en el lugar exacto.", tono: "alerta" });
         return;
       }
       setD((p) => ({ ...p, lat: r.lat, lng: r.lng }));
       setGeo({
-        msg: r.aproximado ? "Ubicación aproximada (centro del barrio o calle). Ajustá el marcador al lugar exacto." : "¡Listo! Revisá que el marcador esté en el lugar correcto.",
+        msg: r.aproximado
+          ? `Ubicación aproximada (${interior ? "centro de la localidad, del barrio o de la calle" : "centro del barrio o calle"}). Ajustá el marcador al lugar exacto.`
+          : "¡Listo! Revisá que el marcador esté en el lugar correcto.",
         tono: r.aproximado ? "alerta" : "ok",
       });
     });
@@ -240,13 +257,53 @@ export function ActividadWizard({
             <input id="responsable" list="responsables" className={inputCls} value={d.responsable} onChange={(e) => set("responsable", e.target.value)} aria-invalid={!!errores.responsable} autoComplete="off" />
             <datalist id="responsables">{opciones.responsables.map((r) => <option key={r} value={r} />)}</datalist>
           </Campo>
-          <Campo label="Zona" error={errores.zona}>
+          <Campo label={zonasInterior.length ? "Zona o región" : "Zona"} error={errores.zona}>
             {zonaFija ? (
               <p className="rounded-xl bg-fondo px-4 py-3 font-bold">{zonaLabel(opciones.zonas[0])}</p>
+            ) : zonasInterior.length ? (
+              <div className="space-y-3">
+                <div>
+                  <p className="mb-1.5 text-xs font-bold tracking-wide text-gris uppercase">Capital</p>
+                  <Chips label="Zona de Capital" value={d.zona} onChange={elegirZona} options={zonasCapital.map((z) => [z, zonaLabel(z)] as const)} />
+                </div>
+                <div>
+                  <p className="mb-1.5 text-xs font-bold tracking-wide text-gris uppercase">Interior</p>
+                  <Chips label="Región del interior" value={d.zona} onChange={elegirZona} options={zonasInterior.map((z) => [z, zonaLabel(z)] as const)} />
+                </div>
+              </div>
             ) : (
-              <Chips label="Zona" value={d.zona} onChange={(v) => set("zona", v)} options={opciones.zonas.map((z) => [z, zonaLabel(z)] as const)} />
+              <Chips label="Zona" value={d.zona} onChange={elegirZona} options={opciones.zonas.map((z) => [z, zonaLabel(z)] as const)} />
             )}
           </Campo>
+          {interior && (
+            <Campo label="Localidad" error={errores.localidad} htmlFor="localidad">
+              {localidadNueva || localidadesRegion.length === 0 ? (
+                <div className="flex gap-2">
+                  <input id="localidad" className={inputCls} value={d.localidad} onChange={(e) => set("localidad", e.target.value)} placeholder="Ej: Paso de los Libres" aria-invalid={!!errores.localidad} autoComplete="off" />
+                  {localidadesRegion.length > 0 && (
+                    <button type="button" onClick={() => { setLocalidadNueva(false); set("localidad", ""); }} className={btn("secundario")}>Lista</button>
+                  )}
+                </div>
+              ) : (
+                <select
+                  id="localidad"
+                  className={inputCls}
+                  value={d.localidad}
+                  aria-invalid={!!errores.localidad}
+                  onChange={(e) => {
+                    if (e.target.value === "__nueva") {
+                      setLocalidadNueva(true);
+                      set("localidad", "");
+                    } else set("localidad", e.target.value);
+                  }}
+                >
+                  <option value="">Elegí la localidad…</option>
+                  {[...new Set([...localidadesRegion, d.localidad].filter(Boolean))].map((l) => <option key={l} value={l}>{l}</option>)}
+                  <option value="__nueva">+ Otra localidad (no está en la lista)</option>
+                </select>
+              )}
+            </Campo>
+          )}
           <Campo label="Tipo / programa de actividad" optional htmlFor="tipo">
             <select id="tipo" className={inputCls} value={d.tipo} onChange={(e) => set("tipo", e.target.value)}>
               <option value="">Elegí…</option>
@@ -290,8 +347,10 @@ export function ActividadWizard({
 
           <div className="my-2 h-px bg-linea" />
 
-          <Campo label="Barrio" htmlFor="barrio" hint={d.zona && d.zona !== "GENERAL" ? `Barrios de la ${zonaLabel(d.zona)}` : undefined}>
-            {barrioNuevo ? (
+          <Campo label="Barrio" htmlFor="barrio" optional={interior} hint={interior ? (d.localidad ? `Barrio de ${d.localidad}` : undefined) : d.zona && d.zona !== "GENERAL" ? `Barrios de la ${zonaLabel(d.zona)}` : undefined}>
+            {interior ? (
+              <input id="barrio" className={inputCls} value={d.barrio} onChange={(e) => set("barrio", e.target.value.toUpperCase())} placeholder="Nombre del barrio" autoComplete="off" />
+            ) : barrioNuevo ? (
               <div className="flex gap-2">
                 <input id="barrio" className={inputCls} value={d.barrio} onChange={(e) => set("barrio", e.target.value.toUpperCase())} placeholder="Nombre del barrio" />
                 <button type="button" onClick={() => { setBarrioNuevo(false); set("barrio", ""); }} className={btn("secundario")}>Lista</button>
@@ -328,7 +387,7 @@ export function ActividadWizard({
           </div>
 
           <div className="mb-2 flex flex-wrap gap-2">
-            <button type="button" onClick={ubicar} disabled={buscando || (!d.direccion && !d.barrio)} className={btn("petroleo")}>
+            <button type="button" onClick={ubicar} disabled={buscando || (!d.direccion && !d.barrio && !(interior && d.localidad))} className={btn("petroleo")}>
               <IconPin size={20} /> {buscando ? "Buscando…" : "Ubicar en el mapa"}
             </button>
             <button type="button" onClick={miUbicacion} className={btn("secundario")}>
@@ -516,7 +575,8 @@ export function ActividadWizard({
           <Resumen titulo="Información general" onEdit={() => setPaso(0)}>
             <Dato k="Nombre" v={d.nombre} />
             <Dato k="Responsable" v={d.responsable} />
-            <Dato k="Zona" v={zonaLabel(d.zona)} />
+            <Dato k={interior ? "Región" : "Zona"} v={zonaLabel(d.zona)} />
+            {interior && <Dato k="Localidad" v={d.localidad} />}
             <Dato k="Tipo" v={d.tipo} />
             <Dato k="Estado" v={d.estado} />
           </Resumen>

@@ -119,6 +119,11 @@ async function main() {
         },
       });
     }
+    // «Zona» ya no tiene lista fija (incluye las regiones del interior): se quita el desplegable viejo.
+    if (t === "actividades" || t === "usuarios") {
+      const idx = header.indexOf(t === "actividades" ? "Zona" : "Zona asignada");
+      if (idx >= 0) requests.push({ setDataValidation: { range: { sheetId, startRowIndex: 1, startColumnIndex: idx, endColumnIndex: idx + 1 } } });
+    }
     const listas: Record<string, readonly string[]> = { ...(def.enums ?? {}) };
     for (const b of def.boolean ?? []) listas[b] = ["SI", "NO"];
     for (const [key, valores] of Object.entries(listas)) {

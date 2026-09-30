@@ -11,6 +11,7 @@ import { Badge, btn, Card, cx, Notice, PageHeader } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { snapshot } from "@/lib/db";
 import { ESTADO_COLOR, FLYER_COLOR, titulo, zonaLabel } from "@/lib/labels";
+import { ambitoDe } from "@/lib/territorio";
 import { esAgenda, puede } from "@/lib/permisos";
 import { ESTADOS_FLYER, type EstadoActividad } from "@/lib/schema";
 import { linkInscripcion, resumenAsistencia } from "@/lib/services/actividades";
@@ -75,8 +76,10 @@ export default async function FichaActividad({ params, searchParams }: { params:
         <div className="mb-3 flex flex-wrap gap-2">
           <Badge color={ESTADO_COLOR[a.estado]} className="text-sm">{a.estado}</Badge>
           <Badge color="petroleo" className="text-sm">{zonaLabel(a.zona)}</Badge>
+          {ambitoDe(a.zona) === "interior" && <Badge color="verde" className="text-sm">Interior</Badge>}
         </div>
         <dl className="grid gap-x-6 gap-y-2 text-[15px] sm:grid-cols-2">
+          {a.localidad && <Fila k="Localidad" v={a.localidad} />}
           <Fila k="Barrio" v={titleCase(a.barrio)} />
           <Fila k="Fecha" v={a.fecha ? <span className="first-letter:uppercase">{formatDateLong(a.fecha)}</span> : "Sin fecha"} />
           <Fila k="Horario" v={a.hora_inicio ? `${a.hora_inicio}${a.hora_fin ? ` – ${a.hora_fin}` : ""}` : ""} />
@@ -146,6 +149,7 @@ export default async function FichaActividad({ params, searchParams }: { params:
 
       <Seccion titulo="Ubicación">
         <dl className="space-y-2 text-[15px]">
+          {a.localidad && <Fila k="Localidad" v={a.localidad} />}
           <Fila k="Barrio" v={titleCase(a.barrio)} />
           <Fila k="Dirección" v={a.direccion} />
           <Fila k="Entre calles" v={a.entre_calles} />

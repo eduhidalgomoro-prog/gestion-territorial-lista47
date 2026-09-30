@@ -1,5 +1,6 @@
 import { env } from "./env";
-import type { Actividad, Asignacion, Rol, Usuario, Zona } from "./schema";
+import type { Actividad, Asignacion, Rol, Usuario } from "./schema";
+import { ambitoDe } from "./territorio";
 
 /**
  * Quién puede hacer qué. Todas las pantallas y acciones consultan estas funciones;
@@ -10,7 +11,7 @@ export interface Yo {
   email: string;
   nombre: string;
   rol: Rol;
-  zona: Zona | "";
+  zona: string; // zona de Capital o región del interior
   usuarioId: string; // "" si es administrador inicial (ADMIN_EMAILS) todavía no cargado en USUARIOS
 }
 
@@ -43,14 +44,17 @@ function asignada(yo: Yo, act: Actividad, asignaciones: Asignacion[]) {
   return asignaciones.some((a) => a.estado === "ACTIVA" && a.actividad_id === act.id && a.usuario_id === yo.usuarioId);
 }
 
-/** Responsable: su zona. Si la actividad es GENERAL o no tiene zona, también la ven (no pertenece a nadie). */
+/** Responsable: su zona de Capital o su región del interior. */
 function deSuZona(yo: Yo, act: Actividad) {
   return !!yo.zona && act.zona === yo.zona;
 }
 
+/** Actividades GENERAL (toda la ciudad) o sin zona: las ven los responsables de Capital (no pertenecen a nadie). */
+const generalDeCapital = (yo: Yo, act: Actividad) => (act.zona === "GENERAL" || !act.zona) && ambitoDe(yo.zona) === "capital";
+
 export const puede = {
   verActividad: (yo: Yo, act: Actividad, asig: Asignacion[]) =>
-    esAdmin(yo) || esDiseno(yo) || esAgenda(yo) || (esResponsable(yo) && (deSuZona(yo, act) || act.zona === "GENERAL" || !act.zona)) || (esOperador(yo) && asignada(yo, act, asig)),
+    esAdmin(yo) || esDiseno(yo) || esAgenda(yo) || (esResponsable(yo) && (deSuZona(yo, act) || generalDeCapital(yo, act))) || (esOperador(yo) && asignada(yo, act, asig)),
   crearActividad: (yo: Yo) => esAdmin(yo) || esResponsable(yo),
   editarActividad: (yo: Yo, act: Actividad) => esAdmin(yo) || (esResponsable(yo) && deSuZona(yo, act)),
   tomarAsistencia: (yo: Yo, act: Actividad, asig: Asignacion[]) =>
@@ -78,7 +82,7 @@ export function actividadesVisibles(yo: Yo, acts: Actividad[], asig: Asignacion[
 }
 
 /** Para estadísticas: el responsable ve solo su zona. */
-export function zonaForzada(yo: Yo): Zona | "" {
+export function zonaForzada(yo: Yo): string {
   return esResponsable(yo) ? yo.zona : "";
 }
 

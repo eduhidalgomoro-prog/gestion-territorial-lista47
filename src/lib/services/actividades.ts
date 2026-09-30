@@ -6,9 +6,10 @@ import { ForbiddenError, UserError } from "../errors";
 import { withLock } from "../lock";
 import { esResponsable, puede, type Yo } from "../permisos";
 import {
-  ESTADOS_ACTIVIDAD, ESTADOS_FLYER, ZONAS, ZONAS_ACTIVIDAD,
-  type Actividad, type EstadoActividad, type EstadoFlyer, type Requerimiento, type ZonaActividad,
+  ESTADOS_ACTIVIDAD, ESTADOS_FLYER, ZONAS,
+  type Actividad, type EstadoActividad, type EstadoFlyer, type Requerimiento,
 } from "../schema";
+import { ambitoDe, nombrePropio, parseRegiones, zonaValida, type Region } from "../territorio";
 import { cleanString, isValidDate, isValidTime, mesAnio, normalizeBarrio, nowIso, nowLocal, pct, slugify, titleCase } from "../util";
 
 
@@ -25,6 +26,7 @@ export interface ActividadInput {
   detalle: string;
   responsable: string;
   zona: string;
+  localidad: string;
   tipo: string;
   publico: string;
   estado: string;
@@ -66,16 +68,19 @@ export interface ActividadInput {
 }
 
 /** Valida y normaliza. Devuelve los datos listos para guardar (sin id/meta). */
-function validar(input: ActividadInput, yo: Yo) {
+function validar(input: ActividadInput, yo: Yo, regiones: Region[]) {
   const f: Record<string, string> = {};
   const estado = (ESTADOS_ACTIVIDAD as readonly string[]).includes(input.estado) ? (input.estado as EstadoActividad) : "PROGRAMADA";
   const borrador = estado === "BORRADOR";
   const nombre = cleanString(input.nombre, 150);
   if (!nombre) f.nombre = "Poné un nombre a la actividad.";
-  let zona: ZonaActividad | "" = (ZONAS_ACTIVIDAD as readonly string[]).includes(input.zona) ? (input.zona as ZonaActividad) : "";
-  // Un responsable solo carga actividades de su zona.
+  let zona = zonaValida(input.zona, regiones) ? input.zona : "";
+  // Un responsable solo carga actividades de su zona o región.
   if (esResponsable(yo)) zona = yo.zona;
-  if (!zona && !borrador) f.zona = "Elegí la zona.";
+  if (!zona && !borrador) f.zona = "Elegí la zona o región.";
+  const interior = !!zona && ambitoDe(zona) === "interior";
+  const localidad = interior ? nombrePropio(cleanString(input.localidad, 80)) : "";
+  if (interior && !localidad && !borrador) f.localidad = "Elegí la localidad.";
   const fecha = cleanString(input.fecha, 10);
   if (!isValidDate(fecha) && !borrador) f.fecha = "Elegí la fecha programada.";
   const hi = cleanString(input.hora_inicio, 5);
@@ -120,6 +125,7 @@ function validar(input: ActividadInput, yo: Yo) {
       detalle: cleanString(input.detalle, 2000),
       responsable: titleCase(cleanString(input.responsable, 120)),
       zona,
+      localidad,
       tipo: cleanString(input.tipo, 80),
       publico: cleanString(input.publico, 80),
       estado,
@@ -222,7 +228,7 @@ async function guardarInsumos(actividadId: string, insumos: InsumoInput[], user:
 
 export async function crearActividad(input: ActividadInput, yo: Yo): Promise<Actividad> {
   if (!puede.crearActividad(yo)) throw new ForbiddenError();
-  const v = validar(input, yo);
+  const v = validar(input, yo, parseRegiones((await snapshot()).config.regiones_interior));
   const inst = v.data.articula ? await resolverInstitucion(v.institucion_nueva, v.institucion_nueva_tipo, v.data.institucion_id, yo.email) : { institucion_id: "", institucion_nombre: "" };
   const act = await withLock("seq:actividades", async () => {
     const [id] = await nextSeq("actividades", 1, v.data.anio || undefined);
@@ -260,7 +266,10 @@ export async function editarActividad(id: string, input: ActividadInput, yo: Yo,
   const actual = s.actividades.find((a) => a.id === id);
   if (!actual) throw new NotFoundError("La actividad");
   if (!puede.editarActividad(yo, actual)) throw new ForbiddenError("Solo podés modificar actividades de tu zona.");
-  const v = validar(input, yo);
+  const regiones = parseRegiones(s.config.regiones_interior);
+  // Si la actividad ya tenía una zona o región que después se quitó de Configuración, se conserva.
+  if (actual.zona === input.zona && !zonaValida(input.zona, regiones)) regiones.push({ nombre: input.zona, localidades: [] });
+  const v = validar(input, yo, regiones);
   if (!puede.editarFlyer(yo) && v.data.requiere_flyer) {
     // Al editar, el responsable no toca el estado ni la imagen del flyer que ya cargó diseño.
     v.data.estado_flyer = actual.estado_flyer || "SOLICITADO";

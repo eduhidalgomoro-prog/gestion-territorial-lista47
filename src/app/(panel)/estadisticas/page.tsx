@@ -4,7 +4,8 @@ import { Notice, PageHeader, Stat, cx } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { snapshot } from "@/lib/db";
 import { agrupar, evolucion, indicadores, inscriptosVsAsistentes, participantesPor, porZona, variacion, type Indicadores } from "@/lib/domain/metricas";
-import { ZONA_HEX, zonaLabel } from "@/lib/labels";
+import { opcionesZona, ZONA_HEX, zonaLabel } from "@/lib/labels";
+import { ambitoDe, parseRegiones } from "@/lib/territorio";
 import { actividadesVisibles, puede, zonaForzada } from "@/lib/permisos";
 import { addMonths, formatMoney, formatNumber, MESES, nombreMes, titleCase, today } from "@/lib/util";
 import { periodo, sp, type SP } from "@/lib/view";
@@ -24,7 +25,10 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
   const compAnio = Number(sp(q, "canio")) || prev.anio;
 
   const s = await snapshot();
-  const visibles = actividadesVisibles(yo, s.actividades, s.asignaciones).filter((a) => !zona || a.zona === zona);
+  const ambito = zonaForzada(yo) ? "" : sp(q, "ambito");
+  const visibles = actividadesVisibles(yo, s.actividades, s.asignaciones)
+    .filter((a) => !zona || a.zona === zona)
+    .filter((a) => (ambito !== "capital" && ambito !== "interior") || ambitoDe(a.zona) === ambito);
   const delPeriodo = visibles.filter((a) => a.anio === anio && (!mes || a.mes === mes));
   const delComp = visibles.filter((a) => a.anio === compAnio && a.mes === compMes);
   const A = indicadores(delPeriodo, s, { anio, mes });
@@ -39,13 +43,16 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      <PageHeader title="Estadísticas" subtitle={`${etiqueta}${zona ? ` · ${zonaLabel(zona)}` : " · todas las zonas"}`} />
+      <PageHeader title="Estadísticas" subtitle={`${etiqueta}${zona ? ` · ${zonaLabel(zona)}` : ambito === "capital" ? " · Capital" : ambito === "interior" ? " · Interior" : " · toda la provincia"}`} />
 
       <FiltrosForm action="/estadisticas" className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
         <FiltroSelect name="mes" label="Mes" value={mes} options={[[0, "Todo el año"] as const, ...MESES.map((m, i) => [i + 1, m] as const)]} />
         <FiltroSelect name="anio" label="Año" value={anio} options={anios} />
         {!zonaForzada(yo) && (
-          <FiltroSelect name="zona" label="Zona" value={zona} placeholder="Todas las zonas" options={["NORTE", "ESTE", "SUR", "GENERAL"].map((z) => [z, zonaLabel(z)] as const)} />
+          <FiltroSelect name="ambito" label="Capital o interior" value={ambito} placeholder="Toda la provincia" options={[["capital", "Capital"], ["interior", "Interior"]]} />
+        )}
+        {!zonaForzada(yo) && (
+          <FiltroSelect name="zona" label="Zona" value={zona} placeholder="Todas las zonas" options={opcionesZona([...parseRegiones(s.config.regiones_interior).map((r) => r.nombre), ...s.actividades.map((a) => a.zona).filter((z) => z && ambitoDe(z) === "interior")])} />
         )}
         <FiltroSelect name="cmes" label="Comparar con mes" value={compMes} options={MESES.map((m, i) => [i + 1, `vs. ${m}`] as const)} />
         <FiltroSelect name="canio" label="Comparar con año" value={compAnio} options={anios} />

@@ -104,9 +104,9 @@ export async function bajaInscripcionAction(inscripcionId: string): Promise<Acti
   return act((yo) => darDeBaja(inscripcionId, yo), { ok: "Inscripción dada de baja." });
 }
 
-export async function geocodeAction(direccion: string, barrio: string): Promise<Ubicacion | null> {
+export async function geocodeAction(direccion: string, barrio: string, localidad = ""): Promise<Ubicacion | null> {
   await requireUser();
-  return geocodificar(String(direccion ?? "").slice(0, 200), String(barrio ?? "").slice(0, 80));
+  return geocodificar(String(direccion ?? "").slice(0, 200), String(barrio ?? "").slice(0, 80), String(localidad ?? "").slice(0, 80));
 }
 
 // ---------------------------------------------------------------------------

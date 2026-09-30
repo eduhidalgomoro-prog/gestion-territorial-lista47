@@ -30,6 +30,7 @@ async function main() {
     ["Resp.", "Norte", "norte@prueba.local", "RESPONSABLE", "NORTE"],
     ["Resp.", "Este", "este@prueba.local", "RESPONSABLE", "ESTE"],
     ["Resp.", "Sur", "sur@prueba.local", "RESPONSABLE", "SUR"],
+    ["Resp.", "Río Paraná", "parana@prueba.local", "RESPONSABLE", "RÍO PARANÁ"],
     ["Operador", "Prueba", "operador@prueba.local", "OPERADOR", ""],
     ["Diseño", "Prueba", "diseno@prueba.local", "DISENO", ""],
     ["Agenda", "Prueba", "agenda@prueba.local", "AGENDA", ""],
@@ -42,7 +43,7 @@ async function main() {
   const prev = addMonths(anio, mes, -1);
   const f = (a: number, m: number, d: number) => `${a}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   const base = {
-    detalle: "", publico: "FAMILIAS EN GENERAL", fecha_alt: "", hora_alt: "", entre_calles: "", lugar: "Salón", articula: false,
+    detalle: "", localidad: "", publico: "FAMILIAS EN GENERAL", fecha_alt: "", hora_alt: "", entre_calles: "", lugar: "Salón", articula: false,
     tipo_articulacion: "", mesa: "", institucion_id: "", institucion_nombre: "", requiere_flyer: true, estado_flyer: "PUBLICADO" as const, link_flyer: "", link_flyer_historia: "", link_grupo: "", mensaje_confirmacion: "", mensaje_grupo: "",
     gazebo: false, gazebo_cant: 0, mesas: true, mesas_cant: 2, sillas: true, sillas_cant: 30, luz: false, sonido: false, otros_insumos: "",
     costo_real: 0, obs_logistica: "", slug: "", link_inscripcion: "", inscripcion_abierta: false, preguntas_extra: "",
@@ -54,7 +55,10 @@ async function main() {
     { nombre: "Operativo de Salud Visual", tipo: "OPERATIVO DE SALUD", zona: "SUR" as const, barrio: "PROGRESO", direccion: "Ntra. Sra. de la Asunción 2500", lat: -27.5028, lng: -58.8163, fecha: f(anio, mes, 16), estado: "PROGRAMADA" as const, costo_estimado: 0 },
     { nombre: "Clínica deportiva", tipo: "MESA DE DEPORTES", zona: "NORTE" as const, barrio: "ANAHI", direccion: "Canal 12 200", lat: -27.4721, lng: -58.7822, fecha: f(prev.anio, prev.mes, 6), estado: "REALIZADA" as const, costo_estimado: 50000 },
     { nombre: "Costura Creativa", tipo: "ESME", zona: "ESTE" as const, barrio: "QUINTANA", direccion: "Pasaje Cuba 5322", lat: -27.4856, lng: -58.7952, fecha: f(prev.anio, prev.mes, 10), estado: "REALIZADA" as const, costo_estimado: 12000 },
+    // Interior
+    { nombre: "Feria de Emprendedoras", tipo: "FERIAS DE ESME", zona: "RÍO PARANÁ", localidad: "Goya", barrio: "", direccion: "Plaza Mitre", lat: -29.1437, lng: -59.2643, fecha: f(anio, mes, 20), estado: "PROGRAMADA" as const, costo_estimado: 0 },
   ];
+  await setConfigValue("regiones_interior", "RÍO PARANÁ = Goya, Esquina, Bella Vista\nRÍO URUGUAY = Paso De Los Libres, Santo Tomé", "", U);
   const ids = await nextSeq("actividades", acts.length, anio);
   const creadas = await insertMany(
     "actividades",

@@ -1,5 +1,6 @@
 import { normalizeText, pct } from "../format";
 import { ESTADOS_QUE_CUENTAN, ZONAS, type Actividad, type Asistencia, type Inscripcion, type Participante } from "../schema";
+import { ambitoDe } from "../territorio";
 
 /** Funciones puras de cálculo (sin acceso a datos): se pueden probar y reutilizar en cualquier pantalla. */
 
@@ -13,7 +14,9 @@ export interface Datos {
 export interface Filtros {
   anio?: number;
   mes?: number; // 0 o undefined = todo el año
+  ambito?: string; // "capital" | "interior" | "" (toda la provincia)
   zona?: string;
+  localidad?: string;
   barrio?: string;
   responsable?: string;
   tipo?: string;
@@ -26,13 +29,15 @@ export function filtrarActividades(acts: Actividad[], f: Filtros): Actividad[] {
   return acts.filter((a) => {
     if (f.anio && a.anio !== f.anio) return false;
     if (f.mes && a.mes !== f.mes) return false;
+    if ((f.ambito === "capital" || f.ambito === "interior") && ambitoDe(a.zona) !== f.ambito) return false;
     if (f.zona === "SIN" ? !!a.zona : f.zona && a.zona !== f.zona) return false;
+    if (f.localidad && normalizeText(a.localidad) !== normalizeText(f.localidad)) return false;
     if (f.barrio && a.barrio !== f.barrio) return false;
     if (f.responsable && normalizeText(a.responsable) !== normalizeText(f.responsable)) return false;
     if (f.tipo && a.tipo !== f.tipo) return false;
     if (f.estado && a.estado !== f.estado) return false;
     if (q) {
-      const hay = normalizeText([a.nombre, a.responsable, a.barrio, a.zona, a.tipo, a.id].join(" "));
+      const hay = normalizeText([a.nombre, a.responsable, a.barrio, a.zona, a.localidad, a.tipo, a.id].join(" "));
       if (!q.split(" ").every((w) => hay.includes(w))) return false;
     }
     return true;
@@ -173,8 +178,10 @@ export function agrupar(acts: Actividad[], key: (a: Actividad) => string, value:
 
 export function porZona(acts: Actividad[]): Barra[] {
   const base = agrupar(acts.filter((a) => a.estado !== "BORRADOR"), (a) => a.zona || "Sin zona");
-  const orden = ["NORTE", "ESTE", "SUR", "GENERAL", "Sin zona"];
-  return base.sort((a, b) => orden.indexOf(a.label) - orden.indexOf(b.label));
+  // Primero Capital, después las regiones del interior (alfabético) y al final «Sin zona».
+  const orden = ["NORTE", "ESTE", "SUR", "GENERAL"];
+  const rango = (l: string) => (l === "Sin zona" ? 99 : orden.includes(l) ? orden.indexOf(l) : 10);
+  return base.sort((a, b) => rango(a.label) - rango(b.label) || a.label.localeCompare(b.label));
 }
 
 export function inscriptosVsAsistentes(acts: Actividad[], d: Datos): Barra[] {

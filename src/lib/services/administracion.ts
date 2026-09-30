@@ -4,6 +4,7 @@ import { insert, readFresh, setConfigValue, snapshot, update, upsertBarrio, NotF
 import { UserError } from "../errors";
 import { withLock } from "../lock";
 import { ROLES, ZONAS, type Rol, type Zona } from "../schema";
+import { parseRegiones, validarRegiones, zonaValida, type Region } from "../territorio";
 import { cleanString, normalizeBarrio, normalizePhone, titleCase } from "../util";
 
 export interface UsuarioInput {
@@ -16,7 +17,7 @@ export interface UsuarioInput {
   activo: boolean;
 }
 
-function validarUsuario(u: UsuarioInput) {
+function validarUsuario(u: UsuarioInput, regiones: Region[]) {
   const f: Record<string, string> = {};
   const email = cleanString(u.email, 120).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) f.email = "Email inválido (tiene que ser la cuenta de Google con la que va a ingresar).";
@@ -24,8 +25,8 @@ function validarUsuario(u: UsuarioInput) {
   if (!nombre) f.nombre = "Falta el nombre.";
   const rol = (ROLES as readonly string[]).includes(u.rol) ? (u.rol as Rol) : null;
   if (!rol) f.rol = "Elegí el rol.";
-  const zona: Zona | "" = (ZONAS as readonly string[]).includes(u.zona) ? (u.zona as Zona) : "";
-  if (rol === "RESPONSABLE" && !zona) f.zona = "Un responsable necesita una zona.";
+  const zona = zonaValida(u.zona, regiones, false) ? u.zona : "";
+  if (rol === "RESPONSABLE" && !zona) f.zona = "Un responsable necesita una zona o región.";
   if (Object.keys(f).length) throw new UserError("Revisá los datos del usuario.", f);
   const telefono = normalizePhone(cleanString(u.telefono, 40));
   if (u.telefono && telefono.length < 10) f.telefono = "Teléfono inválido (con característica, ej. 379 4123456).";
@@ -33,8 +34,12 @@ function validarUsuario(u: UsuarioInput) {
   return { nombre, apellido: titleCase(cleanString(u.apellido, 80)), email, telefono, rol: rol!, zona, estado: u.activo ? ("ACTIVO" as const) : ("INACTIVO" as const) };
 }
 
+async function regionesActuales() {
+  return parseRegiones((await snapshot()).config.regiones_interior);
+}
+
 export async function crearUsuario(input: UsuarioInput, user: string) {
-  const data = validarUsuario(input);
+  const data = validarUsuario(input, await regionesActuales());
   return withLock("usuarios", async () => {
     const existentes = await readFresh("usuarios");
     if (existentes.some((u) => u.email.toLowerCase() === data.email)) throw new UserError("Ya hay un usuario con ese email.", { email: "Ya existe." });
@@ -43,7 +48,7 @@ export async function crearUsuario(input: UsuarioInput, user: string) {
 }
 
 export async function editarUsuario(id: string, input: UsuarioInput, user: string) {
-  const data = validarUsuario(input);
+  const data = validarUsuario(input, await regionesActuales());
   const existentes = await readFresh("usuarios");
   if (!existentes.some((u) => u.id === id)) throw new NotFoundError("El usuario");
   if (existentes.some((u) => u.id !== id && u.email.toLowerCase() === data.email)) throw new UserError("Ya hay otro usuario con ese email.", { email: "Ya existe." });
@@ -82,6 +87,12 @@ export async function guardarConfig(values: Record<string, string>, user: string
         throw new UserError("El mensaje de invitación al grupo tiene que incluir {link_grupo}.", { mensaje_grupo: "Falta {link_grupo}." });
       }
       v = t || DEFAULT_CONFIG[k];
+    } else if (k === "regiones_interior") {
+      const lineas = String(values[k] ?? "").split(/\r?\n/).map((s) => cleanString(s, 1000)).filter(Boolean);
+      const error = validarRegiones(lineas);
+      if (error) throw new UserError(error, { regiones_interior: error });
+      // Se guarda ya normalizado: «RÍO URUGUAY = Paso De Los Libres, Santo Tomé».
+      v = parseRegiones(lineas).map((r) => `${r.nombre} = ${r.localidades.join(", ")}`);
     } else {
       v = String(values[k] ?? "").split(/\r?\n/).map((s) => cleanString(s, 100)).filter(Boolean);
     }

@@ -1,5 +1,5 @@
 import { formatDate, normalizePhone, titleCase } from "./format";
-import { zonaLabel } from "./labels";
+import { ubicacionLabel } from "./labels";
 import type { Actividad } from "./schema";
 
 /**
@@ -10,7 +10,7 @@ export function mensajeActividad(a: Actividad, n: { inscriptos: number; presente
   const cuando = a.fecha
     ? `${formatDate(a.fecha, { weekday: "long", day: "numeric", month: "long" })}${a.hora_inicio ? `, ${a.hora_inicio}${a.hora_fin ? ` a ${a.hora_fin}` : ""} h` : ""}`
     : "Fecha a confirmar";
-  const donde = [zonaLabel(a.zona), a.barrio ? `B° ${titleCase(a.barrio)}` : "", a.lugar, a.direccion].filter(Boolean).join(" · ");
+  const donde = [ubicacionLabel(a), a.barrio ? `B° ${titleCase(a.barrio)}` : "", a.lugar, a.direccion].filter(Boolean).join(" · ");
   const lineas = [
     `📅 *${a.nombre}*`,
     cuando.charAt(0).toUpperCase() + cuando.slice(1),
@@ -31,7 +31,7 @@ export function mensajeActividad(a: Actividad, n: { inscriptos: number; presente
 export function completarMensaje(plantilla: string, nombre: string, a: Actividad): string {
   const fecha = a.fecha ? formatDate(a.fecha, { weekday: "long", day: "numeric", month: "long" }) : "fecha a confirmar";
   const hora = a.hora_inicio ? `${a.hora_inicio} h` : "";
-  const lugar = [a.lugar, a.direccion, a.barrio ? `B° ${titleCase(a.barrio)}` : ""].filter(Boolean).join(", ") || "lugar a confirmar";
+  const lugar = [a.lugar, a.direccion, a.barrio ? `B° ${titleCase(a.barrio)}` : "", a.localidad].filter(Boolean).join(", ") || "lugar a confirmar";
   const valores: Record<string, string> = {
     nombre,
     actividad: a.nombre,

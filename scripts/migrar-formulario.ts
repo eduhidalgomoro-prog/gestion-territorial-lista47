@@ -190,6 +190,7 @@ async function main() {
       detalle: col(r, I.detalle),
       responsable: titleCase(col(r, I.responsable)),
       zona,
+      localidad: "",
       tipo: tipoDe(mesa, nombre),
       publico: col(r, I.publico).toUpperCase(),
       estado,
