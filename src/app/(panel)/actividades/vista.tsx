@@ -198,40 +198,40 @@ function Calendario({ lista, anio, mes, keep }: { lista: Actividad[]; anio: numb
             const acts = valido ? porDia.get(d) ?? [] : [];
             const esHoy = valido && fechaDe(d) === hoy;
             return (
-              <div key={i} className={cx("min-h-14 border-r border-b border-linea p-1 sm:min-h-28 sm:p-1.5", (i + 1) % 7 === 0 && "border-r-0", !valido && "bg-fondo/60")}>
+              <div key={i} className={cx("min-h-14 border-r border-b border-linea p-0.5 sm:min-h-28 sm:p-1.5", (i + 1) % 7 === 0 && "border-r-0", !valido && "bg-fondo/60")}>
                 {valido && (
                   <>
                     <span className={cx("inline-flex size-6 items-center justify-center rounded-full text-xs font-bold", esHoy ? "bg-petroleo text-white" : "text-gris")}>{d}</span>
-                    {/* Celular: puntos de color. Computadora: nombre de la actividad. */}
-                    <div className="mt-0.5 flex flex-wrap gap-0.5 sm:hidden">
-                      {acts.map((a) =>
-                        esInterior(a) ? (
-                          <a key={a.id} href={`#dia-${d}`} className="size-2.5 rounded-full border-2 bg-white" style={{ borderColor: ESTADO_HEX[a.estado] }} aria-label={`${a.nombre} (interior)`} />
-                        ) : (
-                          <a key={a.id} href={`#dia-${d}`} className="size-2.5 rounded-full" style={{ background: ESTADO_HEX[a.estado] }} aria-label={a.nombre} />
-                        ),
-                      )}
-                    </div>
-                    <ul className="mt-1 hidden space-y-1 sm:block">
-                      {acts.slice(0, 3).map((a) => (
-                        <li key={a.id}>
+                    {/* Celular: el nombre en letra chica (hasta 2 por día; el resto en la agenda de abajo).
+                        Computadora: hora y nombre (hasta 3 por día). El nombre ocupa varias líneas en lugar de cortarse. */}
+                    <ul className="mt-0.5 space-y-0.5 sm:mt-1 sm:space-y-1">
+                      {acts.map((a, j) => (
+                        <li key={a.id} className={cx(j >= 3 && "hidden", j >= 2 && "max-sm:hidden")}>
                           {/* Capital: fondo del color del estado. Interior: borde del color del estado y la localidad adelante. */}
                           <Link
                             href={`/actividades/${a.id}`}
                             className={cx(
-                              "block truncate rounded-md px-1.5 py-0.5 text-[11px] leading-tight font-semibold hover:opacity-90",
-                              esInterior(a) ? "border-[1.5px] bg-white" : "text-white",
+                              "block rounded px-0.5 py-px text-[9px] leading-[1.15] font-semibold break-words hyphens-auto hover:opacity-90 sm:rounded-md sm:px-1.5 sm:py-0.5 sm:text-[11px] sm:leading-tight",
+                              "line-clamp-3 sm:line-clamp-2",
+                              esInterior(a) ? "border bg-white sm:border-[1.5px]" : "text-white",
                             )}
                             style={esInterior(a) ? { borderColor: ESTADO_HEX[a.estado], color: ESTADO_HEX[a.estado] } : { background: ESTADO_HEX[a.estado] }}
                             title={`${a.nombre} · ${ubicacionLabel(a)} · ${a.estado}`}
                           >
                             {esInterior(a) && <b className="uppercase">{a.localidad || "Interior"} · </b>}
-                            {a.hora_inicio && `${a.hora_inicio} `}
+                            {a.hora_inicio && <span className="max-sm:hidden">{a.hora_inicio} </span>}
                             {a.nombre}
                           </Link>
                         </li>
                       ))}
-                      {acts.length > 3 && <li className="px-1 text-[11px] font-bold text-gris"><a href={`#dia-${d}`}>+{acts.length - 3} más</a></li>}
+                      {acts.length > 2 && (
+                        <li className={cx("px-0.5 text-[9px] font-bold text-gris sm:px-1 sm:text-[11px]", acts.length <= 3 && "sm:hidden")}>
+                          <a href={`#dia-${d}`}>
+                            <span className="sm:hidden">+{acts.length - 2}</span>
+                            <span className="max-sm:hidden">+{acts.length - 3} más</span>
+                          </a>
+                        </li>
+                      )}
                     </ul>
                   </>
                 )}
