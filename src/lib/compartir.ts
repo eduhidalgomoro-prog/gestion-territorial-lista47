@@ -24,21 +24,24 @@ export function mensajeActividad(a: Actividad, n: { inscriptos: number; presente
   return lineas.filter(Boolean).join("\n");
 }
 
-function cuandoDonde(a: Actividad): string {
-  const cuando = a.fecha ? formatDate(a.fecha, { weekday: "long", day: "numeric", month: "long" }) : "";
+/**
+ * Completa una plantilla de mensaje (configurable en Configuración → Listas) con los datos de la persona y la actividad.
+ * Comodines: {nombre} {actividad} {cuando} {fecha} {hora} {lugar} {link_grupo}
+ */
+export function completarMensaje(plantilla: string, nombre: string, a: Actividad): string {
+  const fecha = a.fecha ? formatDate(a.fecha, { weekday: "long", day: "numeric", month: "long" }) : "fecha a confirmar";
   const hora = a.hora_inicio ? `${a.hora_inicio} h` : "";
-  const donde = [a.lugar, a.direccion, a.barrio ? `B° ${titleCase(a.barrio)}` : ""].filter(Boolean).join(", ");
-  return [cuando, hora].filter(Boolean).join(", ") + (donde ? `, en ${donde}` : "");
-}
-
-/** Mensaje para pedirle a una persona inscripta que confirme si va a ir. */
-export function mensajeConfirmacion(nombre: string, a: Actividad): string {
-  return `Hola ${nombre} 👋 Te escribimos por *${a.nombre}*, al que te inscribiste: ${cuandoDonde(a)}.\n¿Nos confirmás si vas a venir? 🙌`;
-}
-
-/** Mensaje con el link de invitación al grupo de WhatsApp de la actividad. */
-export function mensajeGrupo(nombre: string, a: Actividad): string {
-  return `¡Gracias por confirmar, ${nombre}! 🙌 Sumate al grupo de *${a.nombre}* para recibir las novedades:\n${a.link_grupo}`;
+  const lugar = [a.lugar, a.direccion, a.barrio ? `B° ${titleCase(a.barrio)}` : ""].filter(Boolean).join(", ") || "lugar a confirmar";
+  const valores: Record<string, string> = {
+    nombre,
+    actividad: a.nombre,
+    cuando: [fecha, hora].filter(Boolean).join(", "),
+    fecha,
+    hora: hora || "horario a confirmar",
+    lugar,
+    link_grupo: a.link_grupo,
+  };
+  return plantilla.replace(/\{(\w+)\}/g, (m, k: string) => (k in valores ? valores[k] : m));
 }
 
 /** Link de WhatsApp a un número argentino (10 dígitos) con el mensaje ya escrito. "" si el teléfono no sirve. */

@@ -3,7 +3,7 @@ import { ActionForm, Field, Input, Select, SubmitButton, Textarea } from "@/comp
 import { InstallButton } from "@/components/install-button";
 import { Badge, Card, cx, Notice, PageHeader } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
-import { CONFIG_KEYS, CONFIG_LABELS, configToValue } from "@/lib/config";
+import { CONFIG_KEYS, CONFIG_LABELS, CONFIG_TEXTOS, configToValue } from "@/lib/config";
 import { snapshot } from "@/lib/db";
 import { env } from "@/lib/env";
 import { zonaLabel } from "@/lib/labels";
@@ -166,13 +166,15 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
           <ActionForm action={configAction}>
             <div className="grid gap-x-6 md:grid-cols-2">
               {CONFIG_KEYS.map((k) => (
-                <Field key={k} label={CONFIG_LABELS[k].titulo} name={k} hint={CONFIG_LABELS[k].descripcion}>
+                <div key={k} className={CONFIG_TEXTOS.includes(k) ? "md:col-span-2" : ""}>
+                <Field label={CONFIG_LABELS[k].titulo} name={k} hint={CONFIG_LABELS[k].descripcion}>
                   {k === "objetivo_mensual" ? (
                     <Input name={k} type="number" min={0} max={50} defaultValue={String(s.config[k])} />
                   ) : (
-                    <Textarea name={k} rows={6} defaultValue={configToValue(k, s.config[k])} />
+                    <Textarea name={k} rows={CONFIG_TEXTOS.includes(k) ? 4 : 6} defaultValue={configToValue(k, s.config[k])} />
                   )}
                 </Field>
+                </div>
               ))}
             </div>
             <SubmitButton>Guardar listas</SubmitButton>

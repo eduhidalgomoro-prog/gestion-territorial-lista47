@@ -89,6 +89,22 @@ export async function guardarLinkGrupo(actividadId: string, link: string, yo: Yo
   return update("actividades", actividadId, { link_grupo: l }, yo.email, { accion: l ? "guardar link del grupo" : "quitar link del grupo" });
 }
 
+/**
+ * Mensajes propios de una actividad (confirmación e invitación al grupo).
+ * Vacío = se usa el mensaje por defecto de Configuración.
+ */
+export async function guardarMensajes(actividadId: string, confirmacion: string, grupo: string, yo: Yo) {
+  const { s } = await actividadDeContacto(actividadId, yo);
+  const limpiar = (t: string) => t.replace(/\r\n/g, "\n").replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, "").trim().slice(0, 1000);
+  let c = limpiar(confirmacion);
+  let g = limpiar(grupo);
+  if (g && !g.includes("{link_grupo}")) throw new UserError("El mensaje de invitación tiene que incluir {link_grupo}.", { mensaje_grupo: "Falta {link_grupo}." });
+  // Si queda igual al de Configuración, se guarda vacío (así sigue los cambios del mensaje general).
+  if (c === s.config.mensaje_confirmacion) c = "";
+  if (g === s.config.mensaje_grupo) g = "";
+  return update("actividades", actividadId, { mensaje_confirmacion: c, mensaje_grupo: g }, yo.email, { accion: "mensajes de WhatsApp" });
+}
+
 // ---------------------------------------------------------------------------
 // Importación desde Google Forms (Excel / CSV)
 // ---------------------------------------------------------------------------

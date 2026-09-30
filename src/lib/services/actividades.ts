@@ -242,6 +242,8 @@ export async function crearActividad(input: ActividadInput, yo: Yo): Promise<Act
         resultados: "", incidencias: "", fotos: "",
         link_flyer_historia: "",
         link_grupo: "",
+        mensaje_confirmacion: "",
+        mensaje_grupo: "",
         origen: "APP",
         creado_por: yo.email,
       },

@@ -214,6 +214,8 @@ async function main() {
       link_flyer: "",
       link_flyer_historia: "",
       link_grupo: "",
+      mensaje_confirmacion: "",
+      mensaje_grupo: "",
       gazebo: si(col(r, I.gazebo)),
       gazebo_cant: si(col(r, I.gazebo)) ? q(I.gazebo) : 0,
       mesas: si(col(r, I.mesas)),

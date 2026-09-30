@@ -83,6 +83,8 @@ export interface Actividad extends Meta {
   link_flyer: string; // versión feed (o link externo)
   link_flyer_historia: string; // versión historias
   link_grupo: string; // link de invitación al grupo de WhatsApp de la actividad
+  mensaje_confirmacion: string; // mensaje propio de esta actividad ("" = el de Configuración)
+  mensaje_grupo: string;
   gazebo: boolean;
   gazebo_cant: number;
   mesas: boolean;
@@ -264,6 +266,8 @@ export const TABLES: Record<TableName, TableDef> = {
       ["link_flyer", "Link flyer"],
       ["link_flyer_historia", "Link flyer historias"],
       ["link_grupo", "Link grupo WhatsApp"],
+      ["mensaje_confirmacion", "Mensaje confirmación"],
+      ["mensaje_grupo", "Mensaje grupo"],
       ["gazebo", "Requiere gazebo"],
       ["gazebo_cant", "Cantidad gazebos"],
       ["mesas", "Requiere mesas"],

@@ -1,5 +1,5 @@
 import "server-only";
-import { configToValue, CONFIG_KEYS, CONFIG_LABELS, type AppConfig } from "../config";
+import { configToValue, CONFIG_KEYS, CONFIG_LABELS, CONFIG_TEXTOS, DEFAULT_CONFIG, type AppConfig } from "../config";
 import { insert, readFresh, setConfigValue, snapshot, update, upsertBarrio, NotFoundError } from "../db";
 import { UserError } from "../errors";
 import { withLock } from "../lock";
@@ -75,6 +75,13 @@ export async function guardarConfig(values: Record<string, string>, user: string
       const n = Number(values[k]);
       if (!Number.isInteger(n) || n < 0 || n > 50) throw new UserError("El objetivo mensual tiene que ser un número entre 0 y 50.", { objetivo_mensual: "Número inválido." });
       v = n;
+    } else if (CONFIG_TEXTOS.includes(k)) {
+      // Mensajes: texto libre con saltos de línea. Vacío = volver al mensaje por defecto.
+      const t = String(values[k] ?? "").replace(/\r\n/g, "\n").replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, "").trim().slice(0, 1000);
+      if (k === "mensaje_grupo" && t && !t.includes("{link_grupo}")) {
+        throw new UserError("El mensaje de invitación al grupo tiene que incluir {link_grupo}.", { mensaje_grupo: "Falta {link_grupo}." });
+      }
+      v = t || DEFAULT_CONFIG[k];
     } else {
       v = String(values[k] ?? "").split(/\r?\n/).map((s) => cleanString(s, 100)).filter(Boolean);
     }

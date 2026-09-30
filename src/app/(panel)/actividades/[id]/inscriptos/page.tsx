@@ -1,16 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Buscador, FiltrosForm } from "@/components/filtros";
-import { ActionForm, Input, SubmitButton } from "@/components/forms";
+import { ActionForm, Input, SubmitButton, Textarea } from "@/components/forms";
 import { IconWhatsApp } from "@/components/icons";
 import { Badge, btn, cx, Empty, PageHeader } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
-import { mensajeConfirmacion, mensajeGrupo, whatsappA } from "@/lib/compartir";
+import { completarMensaje, whatsappA } from "@/lib/compartir";
 import { snapshot } from "@/lib/db";
 import { puede } from "@/lib/permisos";
 import { formatDate, formatDni, formatPhone, fullName, maskDni, maskPhone, normalizeText, titleCase } from "@/lib/util";
 import { qs, sp, type SP } from "@/lib/view";
-import { bajaInscripcionAction, confirmacionAction, linkGrupoAction } from "../../../actions";
+import { bajaInscripcionAction, confirmacionAction, linkGrupoAction, mensajesAction } from "../../../actions";
 
 export const metadata = { title: "Inscriptos" };
 
@@ -48,6 +48,11 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
   const editar = puede.editarActividad(yo, a);
   // Contactar por WhatsApp: quienes toman asistencia (operador asignado, responsable de la zona, administración).
   const contactar = puede.tomarAsistencia(yo, a, s.asignaciones) && a.estado !== "REALIZADA" && a.estado !== "CANCELADA";
+  // Mensaje propio de esta actividad o, si no tiene, el de Configuración.
+  const plantillaConfirmacion = a.mensaje_confirmacion || s.config.mensaje_confirmacion;
+  const plantillaGrupo = a.mensaje_grupo || s.config.mensaje_grupo;
+  const personalizado = !!(a.mensaje_confirmacion || a.mensaje_grupo);
+  const ejemplo = todos.map((i) => personas.get(i.participante_id)).find(Boolean);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -71,6 +76,38 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
             <li>Cuando responda, marcá <b>✓ Confirmó</b> o <b>✗ No va</b>.</li>
             <li>Pegá acá el link de invitación del grupo y usá <b>«Invitar al grupo»</b> con quienes confirmaron.</li>
           </ol>
+          <details className="mb-3 rounded-xl bg-fondo p-3">
+            <summary className="cursor-pointer text-sm font-bold text-petroleo">
+              ✏️ Cambiar los mensajes {personalizado ? "(esta actividad tiene mensajes propios)" : ""}
+            </summary>
+            <p className="mt-2 text-xs text-gris">
+              Se aplican solo a esta actividad. Podés usar {"{nombre}"}, {"{actividad}"}, {"{cuando}"}, {"{lugar}"} y {"{link_grupo}"}: la app los completa para cada persona. *texto* sale en negrita en WhatsApp.
+              {puede.configurar(yo) && (
+                <> El mensaje por defecto de todas las actividades se cambia en <Link href="/configuracion?tab=listas" className="font-bold text-petroleo underline">Configuración → Listas</Link>.</>
+              )}
+            </p>
+            <ActionForm action={mensajesAction.bind(null, id)} className="mt-3">
+              <label className="mb-1 block text-sm font-bold" htmlFor="mensaje_confirmacion">Mensaje para pedir confirmación</label>
+              <Textarea name="mensaje_confirmacion" rows={4} defaultValue={plantillaConfirmacion} />
+              {ejemplo && (
+                <p className="mt-1 mb-3 rounded-lg bg-white p-2 text-xs whitespace-pre-line text-gris">
+                  <b>Así le llega a {ejemplo.nombre}:</b>
+                  {"\n"}
+                  {completarMensaje(plantillaConfirmacion, ejemplo.nombre, a)}
+                </p>
+              )}
+              <label className="mb-1 block text-sm font-bold" htmlFor="mensaje_grupo">Mensaje de invitación al grupo</label>
+              <Textarea name="mensaje_grupo" rows={3} defaultValue={plantillaGrupo} />
+              <div className="mt-3 flex flex-wrap gap-2">
+                <SubmitButton size="sm" pendingText="Guardando…">Guardar mensajes</SubmitButton>
+                {personalizado && (
+                  <SubmitButton size="sm" variant="secundario" name="restaurar" value="1" pendingText="…">
+                    Volver al mensaje por defecto
+                  </SubmitButton>
+                )}
+              </div>
+            </ActionForm>
+          </details>
           <ActionForm action={linkGrupoAction.bind(null, id)} className="flex flex-col gap-2 sm:flex-row">
             <Input name="link_grupo" type="url" defaultValue={a.link_grupo} placeholder="https://chat.whatsapp.com/…" aria-label="Link de invitación al grupo de WhatsApp" className="h-11" />
             <SubmitButton size="md" pendingText="…">{a.link_grupo ? "Actualizar link" : "Guardar link"}</SubmitButton>
@@ -109,8 +146,9 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
         <ul className="space-y-2">
           {lista.map(({ i, p }) => {
             const estado = asis.get(i.participante_id);
-            const waConfirmar = contactar && p ? whatsappA(p.telefono, mensajeConfirmacion(p.nombre, a)) : "";
-            const waGrupo = contactar && p && a.link_grupo && i.confirmacion === "CONFIRMÓ" ? whatsappA(p.telefono, mensajeGrupo(p.nombre, a)) : "";
+            const waConfirmar = contactar && p ? whatsappA(p.telefono, completarMensaje(plantillaConfirmacion, p.nombre, a)) : "";
+            const waGrupo =
+              contactar && p && a.link_grupo && i.confirmacion === "CONFIRMÓ" ? whatsappA(p.telefono, completarMensaje(plantillaGrupo, p.nombre, a)) : "";
             return (
               <li key={i.id} className="rounded-2xl border border-linea bg-white p-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">

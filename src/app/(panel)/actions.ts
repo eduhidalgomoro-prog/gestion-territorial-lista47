@@ -12,7 +12,7 @@ import {
 import { crearUsuario, editarUsuario, guardarBarrio, guardarConfig, guardarInstitucion } from "@/lib/services/administracion";
 import { agregarPresente, buscarPorDni, guardarAsistencia, type Marca } from "@/lib/services/asistencia";
 import { geocodificar, type Ubicacion } from "@/lib/services/geocode";
-import { confirmarImportacion, darDeBaja, guardarLinkGrupo, marcarConfirmacion, vistaPreviaImportacion, type FilaImportada, type VistaPrevia } from "@/lib/services/inscripciones";
+import { confirmarImportacion, darDeBaja, guardarLinkGrupo, guardarMensajes, marcarConfirmacion, vistaPreviaImportacion, type FilaImportada, type VistaPrevia } from "@/lib/services/inscripciones";
 import type { Yo } from "@/lib/permisos";
 
 const str = (fd: FormData, k: string) => {
@@ -90,6 +90,14 @@ export async function confirmacionAction(inscripcionId: string, valor: string): 
 
 export async function linkGrupoAction(actividadId: string, _: ActionResult, fd: FormData): Promise<ActionResult> {
   return act((yo) => guardarLinkGrupo(actividadId, str(fd, "link_grupo"), yo), { ok: "Link del grupo guardado." });
+}
+
+export async function mensajesAction(actividadId: string, _: ActionResult, fd: FormData): Promise<ActionResult> {
+  const restaurar = str(fd, "restaurar") === "1";
+  return act(
+    (yo) => guardarMensajes(actividadId, restaurar ? "" : str(fd, "mensaje_confirmacion"), restaurar ? "" : str(fd, "mensaje_grupo"), yo),
+    { ok: restaurar ? "Se volvió a los mensajes por defecto." : "Mensajes guardados para esta actividad." },
+  );
 }
 
 export async function bajaInscripcionAction(inscripcionId: string): Promise<ActionResult> {
