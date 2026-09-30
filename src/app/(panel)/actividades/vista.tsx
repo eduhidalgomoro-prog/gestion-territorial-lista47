@@ -29,6 +29,15 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
   const f = filtrosDe(q);
   // El calendario siempre muestra un mes.
   if (vista === "calendario" && !f.mes) f.mes = Number(today().slice(5, 7));
+  // «Próximas»: de hoy en adelante, de cualquier mes. Es lo que muestra el mapa si no se elige un mes
+  // (así, a fin de mes ya se ve lo que viene).
+  const mesQ = sp(q, "mes");
+  const proximas = vista !== "calendario" && (mesQ === "prox" || (vista === "mapa" && mesQ === ""));
+  if (proximas) {
+    f.mes = 0;
+    f.anio = 0;
+  }
+  const hoyISO = today();
   const s = await snapshot();
   const visibles = actividadesVisibles(yo, s.actividades, s.asignaciones);
   // Capital / Interior / Toda la provincia: para quien ve más de una zona.
@@ -36,8 +45,10 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
   if (!conAmbito || (f.ambito !== "capital" && f.ambito !== "interior")) f.ambito = "";
   const regiones = parseRegiones(s.config.regiones_interior);
   const regionesUsadas = [...new Set([...regiones.map((r) => r.nombre), ...visibles.map((a) => a.zona).filter((z) => z && ambitoDe(z) === "interior")])];
-  const lista = filtrarActividades(visibles, f).sort((a, b) =>
-    vista === "listado" && (f.mes === 0 || !f.mes) ? b.fecha.localeCompare(a.fecha) : (a.fecha + a.hora_inicio).localeCompare(b.fecha + b.hora_inicio),
+  const lista = filtrarActividades(visibles, f)
+    .filter((a) => !proximas || (a.fecha >= hoyISO && a.estado !== "CANCELADA" && a.estado !== "REALIZADA"))
+    .sort((a, b) =>
+    vista === "listado" && !proximas && (f.mes === 0 || !f.mes) ? b.fecha.localeCompare(a.fecha) : (a.fecha + a.hora_inicio).localeCompare(b.fecha + b.hora_inicio),
   );
   const conteos = conteosPorActividad(s);
   const delAmbito = f.ambito ? visibles.filter((a) => ambitoDe(a.zona) === f.ambito) : visibles;
@@ -49,7 +60,7 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
     ...(f.ambito !== "interior" ? [...ZONAS_ACTIVIDAD.map((z) => [z, zonaLabel(z)] as const), ["SIN", "Sin zona"] as const] : []),
     ...(f.ambito !== "capital" ? regionesUsadas.sort().map((r) => [r, regionLabel(r)] as const) : []),
   ];
-  const keep = { ambito: f.ambito, mes: f.mes, anio: f.anio, zona: f.zona, localidad: f.localidad, barrio: f.barrio, responsable: f.responsable, tipo: f.tipo, estado: f.estado, q: f.q };
+  const keep = { ambito: f.ambito, mes: proximas ? "prox" : f.mes, anio: proximas ? undefined : f.anio, zona: f.zona, localidad: f.localidad, barrio: f.barrio, responsable: f.responsable, tipo: f.tipo, estado: f.estado, q: f.q };
   const hayFiltros = !!(f.zona || f.localidad || f.barrio || f.responsable || f.tipo || f.estado || f.q);
   const anioActual = Number(today().slice(0, 4));
   const tabHref = TABS.find((t) => t.id === vista)!.href;
@@ -65,7 +76,11 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
     <>
       <PageHeader
         title="Actividades"
-        subtitle={`${lista.length} ${lista.length === 1 ? "actividad" : "actividades"}${f.mes ? ` en ${nombreMes(f.mes).toLowerCase()}` : ""} ${f.anio}`}
+        subtitle={
+          proximas
+            ? `${lista.length} ${lista.length === 1 ? "actividad próxima" : "actividades próximas"}`
+            : `${lista.length} ${lista.length === 1 ? "actividad" : "actividades"}${f.mes ? ` en ${nombreMes(f.mes).toLowerCase()}` : ""} ${f.anio}`
+        }
         actions={puede.crearActividad(yo) ? <div className="hidden lg:block"><LinkButton href="/actividades/nueva"><IconPlus size={20} /> Nueva actividad</LinkButton></div> : undefined}
       />
 
@@ -74,7 +89,7 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
           {([["", "Toda la provincia"], ["capital", "Capital"], ["interior", "Interior"]] as const).map(([id, label]) => (
             <Link
               key={id}
-              href={`${tabHref}${qs({ ambito: id, mes: f.mes, anio: f.anio, estado: f.estado, tipo: f.tipo, q: f.q })}`}
+              href={`${tabHref}${qs({ ambito: id, mes: keep.mes, anio: keep.anio, estado: f.estado, tipo: f.tipo, q: f.q })}`}
               aria-current={f.ambito === id ? "page" : undefined}
               className={cx(
                 "inline-flex min-h-10 items-center rounded-full border px-4 text-sm font-bold whitespace-nowrap",
@@ -107,8 +122,15 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
         {f.ambito && <input type="hidden" name="ambito" value={f.ambito} />}
         {vista !== "calendario" && <Buscador value={f.q ?? ""} placeholder="Buscar por nombre, responsable, barrio, localidad o zona" />}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <FiltroSelect name="mes" label="Mes" value={f.mes ?? 0} options={[...(vista === "calendario" ? [] : [[0, "Todo el año"] as const]), ...MESES.map((m, i) => [i + 1, m] as const)]} />
-          <FiltroSelect name="anio" label="Año" value={f.anio ?? anioActual} options={[anioActual - 1, anioActual, anioActual + 1].map((a) => [a, String(a)] as const)} />
+          <FiltroSelect
+            name="mes"
+            label="Mes"
+            value={proximas ? "prox" : f.mes ?? 0}
+            options={[...(vista === "calendario" ? [] : [["prox", "Próximas (todos los meses)"] as const, [0, "Todo el año"] as const]), ...MESES.map((m, i) => [i + 1, m] as const)]}
+          />
+          {!proximas && (
+            <FiltroSelect name="anio" label="Año" value={f.anio || anioActual} options={[anioActual - 1, anioActual, anioActual + 1].map((a) => [a, String(a)] as const)} />
+          )}
           {!esResponsable(yo) && (
             <FiltroSelect name="zona" label="Zona o región" value={f.zona ?? ""} placeholder={f.ambito === "interior" ? "Todas las regiones" : "Todas las zonas"} options={opcionesZona} />
           )}
@@ -129,7 +151,7 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
           </div>
         </details>
         {hayFiltros && (
-          <Link href={`${tabHref}${qs({ ambito: f.ambito, mes: f.mes, anio: f.anio })}`} className="inline-block text-sm font-bold text-petroleo hover:underline">
+          <Link href={`${tabHref}${qs({ ambito: f.ambito, mes: keep.mes, anio: keep.anio })}`} className="inline-block text-sm font-bold text-petroleo hover:underline">
             Limpiar filtros
           </Link>
         )}
