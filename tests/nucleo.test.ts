@@ -4,6 +4,7 @@ import { mensajeActividad } from "@/lib/compartir";
 import { invalidate, setConfigValue, snapshot } from "@/lib/db";
 import { cumplimiento, filtrarActividades, indicadores } from "@/lib/domain/metricas";
 import { parseRegiones } from "@/lib/territorio";
+import { ubicacionLabel } from "@/lib/labels";
 import { normalizeDni, normalizePhone, parseFechaFlexible, parseFechaNacimiento, parseHoraFlexible, phoneKey } from "@/lib/format";
 import { parsePreguntas } from "@/lib/preguntas";
 import type { Yo } from "@/lib/permisos";
@@ -128,12 +129,18 @@ describe("participantes, importación y asistencia", () => {
     const a = await crearActividad(input({ zona: "NORTE", localidad: "mercedes", lat: -29.18, lng: -58.08 }), respMercedes);
     expect(a).toMatchObject({ zona: "MERCEDES - CURUZÚ", localidad: "Mercedes", lat: -29.18 }); // la zona la fija su rol
     await expect(crearActividad(input({ zona: "INVENTADA" }), admin)).rejects.toMatchObject({ fields: { zona: expect.any(String) } });
+    // Cargando por localidad: si es de una región se asigna sola; si no, queda «Interior (sin región)».
+    const porLocalidad = await crearActividad(input({ zona: "INTERIOR", localidad: "curuzu cuatia", nombre: "Charla" }), admin);
+    expect(porLocalidad).toMatchObject({ zona: "MERCEDES - CURUZÚ", localidad: "Curuzú Cuatiá" });
+    const sinRegion = await crearActividad(input({ zona: "INTERIOR", localidad: "santa lucía", nombre: "Operativo" }), admin);
+    expect(sinRegion).toMatchObject({ zona: "INTERIOR", localidad: "Santa Lucía" });
+    expect(ubicacionLabel(sinRegion)).toBe("Santa Lucía · Interior (sin región)");
     const general = await crearActividad(input({ zona: "GENERAL", nombre: "Acto central" }), admin);
     const s = await snapshot({ fresh: true });
     expect(puede.verActividad(respMercedes, general, [])).toBe(false); // lo general de Capital no le aparece
     expect(puede.verActividad(respEste, general, [])).toBe(true);
     expect(puede.verActividad(respEste, a, [])).toBe(false);
-    expect(filtrarActividades(s.actividades, { ambito: "interior" }).map((x) => x.id)).toEqual([a.id]);
+    expect(filtrarActividades(s.actividades, { ambito: "interior" }).map((x) => x.id)).toEqual([a.id, porLocalidad.id, sinRegion.id]);
     expect(filtrarActividades(s.actividades, { ambito: "capital" }).map((x) => x.id)).toEqual([general.id]);
     expect(mensajeActividad(a, { inscriptos: 0, presentes: 0 })).toContain("Mercedes · Región Mercedes - Curuzú");
   });

@@ -22,7 +22,10 @@ export const esZonaResponsableCapital = (z: string) => (ZONAS as readonly string
 /** Una actividad sin zona se considera de Capital (vienen del formulario anterior). */
 export const ambitoDe = (zona: string): Ambito => (!zona || esZonaCapital(zona) ? "capital" : "interior");
 
-const RESERVADAS = [...ZONAS_ACTIVIDAD, "CAPITAL", "INTERIOR", "SIN"];
+/** Actividad del interior en una localidad que no pertenece a ninguna región. */
+export const SIN_REGION = "INTERIOR";
+
+const RESERVADAS = [...ZONAS_ACTIVIDAD, "CAPITAL", SIN_REGION, "SIN"];
 
 export function normalizarRegion(s: string): string {
   return s.trim().replace(/\s+/g, " ").replace(/^regi[oó]n\s+/i, "").toUpperCase().slice(0, 60);
@@ -56,16 +59,23 @@ export function nombrePropio(s: string): string {
   return titleCase(s).replace(/(?<=\s)(De|Del|La|Las|Los|Y)(?=\s)/g, (w) => w.toLowerCase());
 }
 
-export const regionLabel = (r: string) => `Región ${nombrePropio(r)}`;
+export const regionLabel = (r: string) => (r === SIN_REGION ? "Interior (sin región)" : `Región ${nombrePropio(r)}`);
 
-/** Región a la que pertenece una localidad (para completar la zona sola). */
-export function regionDeLocalidad(regiones: Region[], localidad: string): string {
+/** Busca una localidad en las regiones (sin importar mayúsculas ni tildes): su región y cómo está escrita en la lista. */
+export function buscarLocalidad(regiones: Region[], localidad: string): { region: string; nombre: string } | null {
   const n = normalizeText(localidad);
-  return regiones.find((r) => r.localidades.some((l) => normalizeText(l) === n))?.nombre ?? "";
+  for (const r of regiones) {
+    const l = r.localidades.find((x) => normalizeText(x) === n);
+    if (n && l) return { region: r.nombre, nombre: l };
+  }
+  return null;
 }
 
-/** Zonas válidas para asignar: las de Capital y las regiones configuradas. */
+/**
+ * Zonas válidas: las de Capital y las regiones configuradas.
+ * Las actividades (conGeneral) también aceptan GENERAL y «interior sin región»; los usuarios no.
+ */
 export function zonaValida(z: string, regiones: Region[], conGeneral = true): boolean {
-  if (conGeneral ? esZonaCapital(z) : esZonaResponsableCapital(z)) return true;
+  if (conGeneral ? esZonaCapital(z) || z === SIN_REGION : esZonaResponsableCapital(z)) return true;
   return regiones.some((r) => r.nombre === z);
 }

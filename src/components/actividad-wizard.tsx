@@ -5,7 +5,9 @@ import { geocodeAction } from "@/app/(panel)/actions";
 import type { ActionResult } from "@/lib/errors";
 import { formatMoney, titleCase } from "@/lib/format";
 import { zonaLabel } from "@/lib/labels";
-import { ambitoDe } from "@/lib/territorio";
+import { ambitoDe, SIN_REGION } from "@/lib/territorio";
+
+const normalizar = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 import type { ActividadInput, InsumoInput } from "@/lib/services/actividades";
 import { PREGUNTAS_ESME } from "@/lib/preguntas";
 import { ESTADOS_FLYER } from "@/lib/schema";
@@ -139,16 +141,34 @@ export function ActividadWizard({
 
   const zonaFija = opciones.zonas.length === 1;
   const interior = !!d.zona && ambitoDe(d.zona) === "interior";
-  const localidadesRegion = opciones.regiones.find((r) => r.nombre === d.zona)?.localidades ?? [];
-  const [localidadNueva, setLocalidadNueva] = useState(!!inicial.localidad && !localidadesRegion.includes(inicial.localidad));
   const zonasCapital = opciones.zonas.filter((z) => ambitoDe(z) === "capital");
   const zonasInterior = opciones.zonas.filter((z) => ambitoDe(z) === "interior");
+  // Sugerencias de localidad: todas las de la provincia (o las de su región, si la zona es fija).
+  const sugerencias = [...new Set(opciones.regiones.filter((r) => !zonaFija || r.nombre === d.zona).flatMap((r) => r.localidades))].sort();
+  const regionDe = (loc: string) => {
+    const n = normalizar(loc);
+    return n ? opciones.regiones.find((r) => r.nombre !== SIN_REGION && r.localidades.some((l) => normalizar(l) === n))?.nombre ?? "" : "";
+  };
   function elegirZona(z: string) {
-    // Al pasar de Capital al interior (o de una región a otra) se limpian localidad y barrio.
-    setD((p) => (p.zona === z ? p : { ...p, zona: z, localidad: "", barrio: ambitoDe(z) === ambitoDe(p.zona) && ambitoDe(z) === "capital" ? p.barrio : "" }));
-    setLocalidadNueva(false);
+    // Entre Capital e interior se limpian localidad y barrio; entre regiones del interior se conserva la localidad.
+    setD((p) => {
+      if (p.zona === z) return p;
+      const mismoAmbito = ambitoDe(z) === ambitoDe(p.zona) && !!p.zona;
+      return { ...p, zona: z, localidad: mismoAmbito ? p.localidad : "", barrio: mismoAmbito ? p.barrio : "" };
+    });
     setBarrioNuevo(false);
+    setRegionAuto(false);
     setErrores((e) => ({ ...e, zona: "", localidad: "" }));
+  }
+  // true si la región la puso la app según la localidad (y no la eligió la persona).
+  const [regionAuto, setRegionAuto] = useState(false);
+  function elegirLocalidad(v: string) {
+    // Si la localidad es de una región, la región se elige sola.
+    const r = zonaFija ? "" : regionDe(v);
+    const sinZona = !d.zona || (regionAuto && !r);
+    setD((p) => ({ ...p, localidad: v, zona: r || (sinZona && v.trim() ? SIN_REGION : sinZona ? "" : p.zona) }));
+    setRegionAuto(!!r || (regionAuto && !r && sinZona));
+    setErrores((e) => ({ ...e, localidad: "" }));
   }
   const barriosZona = useMemo(
     () => opciones.barrios.filter((b) => !d.zona || d.zona === "GENERAL" || b.zona === d.zona).map((b) => b.barrio).sort(),
@@ -275,33 +295,32 @@ export function ActividadWizard({
               <Chips label="Zona" value={d.zona} onChange={elegirZona} options={opciones.zonas.map((z) => [z, zonaLabel(z)] as const)} />
             )}
           </Campo>
-          {interior && (
-            <Campo label="Localidad" error={errores.localidad} htmlFor="localidad">
-              {localidadNueva || localidadesRegion.length === 0 ? (
-                <div className="flex gap-2">
-                  <input id="localidad" className={inputCls} value={d.localidad} onChange={(e) => set("localidad", e.target.value)} placeholder="Ej: Paso de los Libres" aria-invalid={!!errores.localidad} autoComplete="off" />
-                  {localidadesRegion.length > 0 && (
-                    <button type="button" onClick={() => { setLocalidadNueva(false); set("localidad", ""); }} className={btn("secundario")}>Lista</button>
-                  )}
-                </div>
-              ) : (
-                <select
-                  id="localidad"
-                  className={inputCls}
-                  value={d.localidad}
-                  aria-invalid={!!errores.localidad}
-                  onChange={(e) => {
-                    if (e.target.value === "__nueva") {
-                      setLocalidadNueva(true);
-                      set("localidad", "");
-                    } else set("localidad", e.target.value);
-                  }}
-                >
-                  <option value="">Elegí la localidad…</option>
-                  {[...new Set([...localidadesRegion, d.localidad].filter(Boolean))].map((l) => <option key={l} value={l}>{l}</option>)}
-                  <option value="__nueva">+ Otra localidad (no está en la lista)</option>
-                </select>
-              )}
+          {/* Sin zona elegida todavía, también se puede empezar por la localidad: la región se completa sola. */}
+          {(interior || (!d.zona && !zonaFija && zonasInterior.length > 0)) && (
+            <Campo
+              label={interior ? "Localidad" : "Localidad (si es en el interior)"}
+              optional={!interior}
+              error={errores.localidad}
+              htmlFor="localidad"
+              hint={
+                !d.localidad.trim()
+                  ? "Escribila o elegila de la lista. Puede ser cualquier localidad de la provincia."
+                  : zonaFija || d.zona !== SIN_REGION
+                    ? `${zonaLabel(d.zona)}.`
+                    : "No está en ninguna región: queda como «Interior (sin región)». Si corresponde a una, elegila arriba."
+              }
+            >
+              <input
+                id="localidad"
+                list="localidades"
+                className={inputCls}
+                value={d.localidad}
+                onChange={(e) => elegirLocalidad(e.target.value)}
+                placeholder="Ej: Santa Lucía"
+                aria-invalid={!!errores.localidad}
+                autoComplete="off"
+              />
+              <datalist id="localidades">{sugerencias.map((l) => <option key={l} value={l} />)}</datalist>
             </Campo>
           )}
           <Campo label="Tipo / programa de actividad" optional htmlFor="tipo">

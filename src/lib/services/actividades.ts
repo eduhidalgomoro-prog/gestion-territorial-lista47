@@ -9,7 +9,7 @@ import {
   ESTADOS_ACTIVIDAD, ESTADOS_FLYER, ZONAS,
   type Actividad, type EstadoActividad, type EstadoFlyer, type Requerimiento,
 } from "../schema";
-import { ambitoDe, nombrePropio, parseRegiones, zonaValida, type Region } from "../territorio";
+import { ambitoDe, buscarLocalidad, nombrePropio, parseRegiones, SIN_REGION, zonaValida, type Region } from "../territorio";
 import { cleanString, isValidDate, isValidTime, mesAnio, normalizeBarrio, nowIso, nowLocal, pct, slugify, titleCase } from "../util";
 
 
@@ -79,8 +79,14 @@ function validar(input: ActividadInput, yo: Yo, regiones: Region[]) {
   if (esResponsable(yo)) zona = yo.zona;
   if (!zona && !borrador) f.zona = "Elegí la zona o región.";
   const interior = !!zona && ambitoDe(zona) === "interior";
-  const localidad = interior ? nombrePropio(cleanString(input.localidad, 80)) : "";
+  let localidad = interior ? nombrePropio(cleanString(input.localidad, 80)) : "";
   if (interior && !localidad && !borrador) f.localidad = "Elegí la localidad.";
+  const conocida = localidad ? buscarLocalidad(regiones, localidad) : null;
+  if (conocida) {
+    localidad = conocida.nombre; // como está escrita en Configuración
+    // «Interior sin región», pero la localidad sí es de una región: se asigna esa región.
+    if (zona === SIN_REGION) zona = conocida.region;
+  }
   const fecha = cleanString(input.fecha, 10);
   if (!isValidDate(fecha) && !borrador) f.fecha = "Elegí la fecha programada.";
   const hi = cleanString(input.hora_inicio, 5);

@@ -4,7 +4,7 @@ import type { Snapshot } from "@/lib/db";
 import { esResponsable, puede, type Yo } from "@/lib/permisos";
 import type { ActividadInput } from "@/lib/services/actividades";
 import { ZONAS_ACTIVIDAD, type Actividad } from "@/lib/schema";
-import { ambitoDe, parseRegiones } from "@/lib/territorio";
+import { ambitoDe, parseRegiones, SIN_REGION } from "@/lib/territorio";
 
 export function opcionesWizard(s: Snapshot, yo: Yo, actual?: Actividad): WizardOpciones {
   const estados = ["BORRADOR", "PROGRAMADA", "CONFIRMADA"];
@@ -12,14 +12,14 @@ export function opcionesWizard(s: Snapshot, yo: Yo, actual?: Actividad): WizardO
   if (actual?.estado === "REALIZADA") estados.push("REALIZADA");
   const regiones = parseRegiones(s.config.regiones_interior);
   // Si la actividad tiene una región que ya no está en Configuración, se sigue mostrando.
-  if (actual?.zona && ambitoDe(actual.zona) === "interior" && !regiones.some((r) => r.nombre === actual.zona)) regiones.push({ nombre: actual.zona, localidades: [] });
+  if (actual?.zona && actual.zona !== SIN_REGION && ambitoDe(actual.zona) === "interior" && !regiones.some((r) => r.nombre === actual.zona)) regiones.push({ nombre: actual.zona, localidades: [] });
   // Localidades sugeridas: las de Configuración y las que ya se usaron en cada región.
-  const regionesConUsadas = regiones.map((r) => ({
+  const regionesConUsadas = [...regiones, { nombre: SIN_REGION, localidades: [] }].map((r) => ({
     nombre: r.nombre,
     localidades: [...new Set([...r.localidades, ...s.actividades.filter((a) => a.zona === r.nombre && a.localidad).map((a) => a.localidad)])].sort(),
   }));
   return {
-    zonas: esResponsable(yo) && yo.zona ? [yo.zona] : [...ZONAS_ACTIVIDAD, ...regiones.map((r) => r.nombre)],
+    zonas: esResponsable(yo) && yo.zona ? [yo.zona] : [...ZONAS_ACTIVIDAD, ...regiones.map((r) => r.nombre), SIN_REGION],
     regiones: regionesConUsadas,
     barrios: s.barrios.filter((b) => b.activo).map((b) => ({ barrio: b.barrio, zona: b.zona })),
     tipos: s.config.tipos_actividad,
