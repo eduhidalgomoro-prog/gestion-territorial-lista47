@@ -395,7 +395,7 @@ export function ActividadWizard({
             </button>
           </div>
           {geo && <p className={cx("mb-2 rounded-xl px-3 py-2 text-sm font-semibold", geo.tono === "ok" ? "bg-ok-50 text-ok" : "bg-alerta-50 text-alerta")}>{geo.msg}</p>}
-          <SelectorUbicacion lat={d.lat} lng={d.lng} onChange={(lat, lng) => setD((p) => ({ ...p, lat, lng }))} />
+          <SelectorUbicacion lat={d.lat} lng={d.lng} provincia={interior} onChange={(lat, lng) => setD((p) => ({ ...p, lat, lng }))} />
           <p className="mt-1.5 text-sm text-gris">
             {d.lat && d.lng ? `Ubicación guardada: ${d.lat.toFixed(5)}, ${d.lng.toFixed(5)}. ` : "Todavía sin ubicación. "}
             Podés mover el marcador o tocar el mapa para corregirla.

@@ -5,6 +5,16 @@ import type { LatLngExpression, LayerGroup, Map as LMap, Marker } from "leaflet"
 import { useEffect, useRef, useState } from "react";
 
 export const CENTRO_CORRIENTES: [number, number] = [-27.4806, -58.8341];
+/** Provincia de Corrientes completa (esquinas suroeste y noreste). */
+const PROVINCIA: [[number, number], [number, number]] = [[-30.75, -59.65], [-27.25, -55.7]];
+
+/**
+ * Encuadre inicial del mapa:
+ * - capital: la ciudad (y se acerca a las actividades cargadas).
+ * - provincia: toda la provincia, siempre (cronograma de Capital + interior).
+ * - region: se acerca a las actividades de la región; si no hay, muestra la provincia.
+ */
+export type Encuadre = "capital" | "provincia" | "region";
 
 const TILES = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 const ATTRIB = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
@@ -31,7 +41,7 @@ export interface PuntoMapa {
 }
 
 /** Mapa territorial: cada actividad es un punto; al tocarlo se ve el resumen y el link a la ficha. */
-export function MapaActividades({ puntos, focoId, alto = "min(70dvh, 640px)" }: { puntos: PuntoMapa[]; focoId?: string; alto?: string }) {
+export function MapaActividades({ puntos, focoId, alto = "min(70dvh, 640px)", encuadre = "capital" }: { puntos: PuntoMapa[]; focoId?: string; alto?: string; encuadre?: Encuadre }) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LMap | null>(null);
   const grupoRef = useRef<LayerGroup | null>(null);
@@ -86,26 +96,35 @@ export function MapaActividades({ puntos, focoId, alto = "min(70dvh, 640px)" }: 
       }
       // El contenedor puede haber cambiado de tamaño al terminar de cargar la página.
       map.invalidateSize();
+      const maxZoom = encuadre === "region" ? 12 : 15;
       if (foco) {
         map.setView((foco as ReturnType<typeof L.marker>).getLatLng(), 16);
         (foco as ReturnType<typeof L.marker>).openPopup();
+      } else if (encuadre === "provincia" || (encuadre === "region" && bounds.length === 0)) {
+        const b = L.latLngBounds(PROVINCIA);
+        map.fitBounds(b, { padding: [10, 10] });
+        setTimeout(() => {
+          if (mapRef.current !== map) return;
+          map.invalidateSize();
+          map.fitBounds(b, { padding: [10, 10] });
+        }, 300);
       } else if (bounds.length > 1) {
         const b = L.latLngBounds(bounds as [number, number][]);
-        map.fitBounds(b, { padding: [30, 30], maxZoom: 15 });
+        map.fitBounds(b, { padding: [30, 30], maxZoom });
         // Si la página todavía se estaba acomodando, reencuadrar un instante después.
         setTimeout(() => {
           if (mapRef.current !== map) return;
           map.invalidateSize();
-          map.fitBounds(b, { padding: [30, 30], maxZoom: 15 });
+          map.fitBounds(b, { padding: [30, 30], maxZoom });
         }, 300);
       } else if (bounds.length === 1) {
-        map.setView(bounds[0], 15);
+        map.setView(bounds[0], maxZoom);
       }
     })();
     return () => {
       cancel = true;
     };
-  }, [clave, focoId]);
+  }, [clave, focoId, encuadre]);
 
   useEffect(
     () => () => {
@@ -123,7 +142,7 @@ export function MapaActividades({ puntos, focoId, alto = "min(70dvh, 640px)" }: 
  * Selector de ubicación para la carga de actividades: marcador arrastrable.
  * Tocar el mapa también mueve el marcador.
  */
-export function SelectorUbicacion({ lat, lng, onChange }: { lat: number; lng: number; onChange: (lat: number, lng: number) => void }) {
+export function SelectorUbicacion({ lat, lng, onChange, provincia = false }: { lat: number; lng: number; onChange: (lat: number, lng: number) => void; provincia?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LMap | null>(null);
   const markerRef = useRef<Marker | null>(null);
@@ -140,7 +159,10 @@ export function SelectorUbicacion({ lat, lng, onChange }: { lat: number; lng: nu
       const L = (await import("leaflet")).default;
       if (cancel || !ref.current || mapRef.current) return;
       const tiene = !!(lat && lng);
-      const map = L.map(ref.current, { scrollWheelZoom: false }).setView(tiene ? [lat, lng] : CENTRO_CORRIENTES, tiene ? 16 : 13);
+      const map = L.map(ref.current, { scrollWheelZoom: false });
+      // Actividad del interior todavía sin ubicar: se ve toda la provincia.
+      if (!tiene && provincia) map.fitBounds(PROVINCIA);
+      else map.setView(tiene ? [lat, lng] : CENTRO_CORRIENTES, tiene ? 16 : 13);
       L.tileLayer(TILES, { maxZoom: 19, attribution: ATTRIB }).addTo(map);
       const icon = L.divIcon({
         className: "",
@@ -148,7 +170,7 @@ export function SelectorUbicacion({ lat, lng, onChange }: { lat: number; lng: nu
         iconSize: [30, 30],
         iconAnchor: [15, 30],
       });
-      const marker = L.marker(tiene ? [lat, lng] : CENTRO_CORRIENTES, { draggable: true, icon, opacity: tiene ? 1 : 0.45 }).addTo(map);
+      const marker = L.marker(tiene ? [lat, lng] : provincia ? map.getCenter() : CENTRO_CORRIENTES, { draggable: true, icon, opacity: tiene ? 1 : 0.45 }).addTo(map);
       marker.on("dragend", () => {
         const p = marker.getLatLng();
         marker.setOpacity(1);

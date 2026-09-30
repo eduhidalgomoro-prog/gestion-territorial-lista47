@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ActividadCard } from "@/components/actividad-card";
 import { Buscador, FiltroSelect, FiltrosForm } from "@/components/filtros";
 import { IconCalendar, IconList, IconMap, IconPlus } from "@/components/icons";
-import { MapaActividades, type PuntoMapa } from "@/components/mapa";
+import { MapaActividades, type Encuadre, type PuntoMapa } from "@/components/mapa";
 import { Badge, cx, Empty, LinkButton, Notice, PageHeader } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { CATEGORIAS, categoriaDe, emojisDe, labelCategoria, type CategoriaId } from "@/lib/categorias";
@@ -53,6 +53,13 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
   const hayFiltros = !!(f.zona || f.localidad || f.barrio || f.responsable || f.tipo || f.estado || f.q);
   const anioActual = Number(today().slice(0, 4));
   const tabHref = TABS.find((t) => t.id === vista)!.href;
+  // Mapa: toda la provincia en «Toda la provincia» e «Interior»; la ciudad en Capital; la región elegida si se filtra una.
+  const zonaDeCapital = (z: string) => z === "SIN" || ambitoDe(z) === "capital";
+  const encuadre: Encuadre = conAmbito
+    ? f.zona
+      ? zonaDeCapital(f.zona) ? "capital" : "region"
+      : f.ambito === "capital" ? "capital" : "provincia"
+    : ambitoDe(yo.zona) === "interior" || lista.some((a) => ambitoDe(a.zona) === "interior") ? "region" : "capital";
 
   return (
     <>
@@ -130,7 +137,7 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
 
       {vista === "listado" && <Listado lista={lista} conteos={conteos} />}
       {vista === "calendario" && <Calendario lista={lista} anio={f.anio!} mes={f.mes!} keep={keep} />}
-      {vista === "mapa" && <Mapa lista={lista} conteos={conteos} foco={sp(q, "foco")} emojis={emojisDe(s.config.emojis_mapa)} />}
+      {vista === "mapa" && <Mapa lista={lista} conteos={conteos} foco={sp(q, "foco")} emojis={emojisDe(s.config.emojis_mapa)} encuadre={encuadre} />}
     </>
   );
 }
@@ -265,7 +272,7 @@ function Calendario({ lista, anio, mes, keep }: { lista: Actividad[]; anio: numb
   );
 }
 
-function Mapa({ lista, conteos, foco, emojis }: { lista: Actividad[]; conteos: ReturnType<typeof conteosPorActividad>; foco: string; emojis: Record<CategoriaId, string> }) {
+function Mapa({ lista, conteos, foco, emojis, encuadre }: { lista: Actividad[]; conteos: ReturnType<typeof conteosPorActividad>; foco: string; emojis: Record<CategoriaId, string>; encuadre: Encuadre }) {
   const con = lista.filter((a) => a.lat && a.lng);
   const sin = lista.filter((a) => !a.lat || !a.lng);
   const presentes = new Set(con.map((a) => categoriaDe(a)));
@@ -287,7 +294,7 @@ function Mapa({ lista, conteos, foco, emojis }: { lista: Actividad[]; conteos: R
   }));
   return (
     <div>
-      <MapaActividades puntos={puntos} focoId={foco || undefined} />
+      <MapaActividades puntos={puntos} focoId={foco || undefined} encuadre={encuadre} />
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm font-semibold text-tinta">
         {CATEGORIAS.filter((c) => presentes.has(c.id)).map((c) => (
           <span key={c.id} className="inline-flex items-center gap-1.5">
