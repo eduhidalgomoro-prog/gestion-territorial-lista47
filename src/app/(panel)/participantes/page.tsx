@@ -71,7 +71,7 @@ export default async function Participantes({ searchParams }: { searchParams: Pr
                     {p.posible_duplicado_de && <Badge color="naranja">¿Duplicado?</Badge>}
                   </div>
                   <p className="text-sm text-gris">
-                    DNI {dniCompleto ? formatDni(p.dni) : maskDni(p.dni)}
+                    {p.dni ? `DNI ${dniCompleto ? formatDni(p.dni) : maskDni(p.dni)}` : "Sin DNI"}
                     {p.telefono && ` · ${formatPhone(p.telefono)}`}
                     {p.barrio && ` · ${titleCase(p.barrio)}`}
                   </p>

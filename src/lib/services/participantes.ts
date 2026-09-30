@@ -3,7 +3,7 @@ import { insertMany, nextSeq, readFresh, updateMany } from "../db";
 import { UserError } from "../errors";
 import { withLock } from "../lock";
 import type { OrigenInscripcion, Participante } from "../schema";
-import { cleanString, normalizeBarrio, normalizeDni, normalizePhone, parseFechaNacimiento, phoneKey, titleCase, today } from "../util";
+import { cleanString, normalizeBarrio, normalizeDni, normalizePhone, normalizeText, parseFechaNacimiento, phoneKey, titleCase, today } from "../util";
 
 export interface PersonaInput {
   nombre: string;
@@ -25,17 +25,31 @@ export interface PersonaLimpia {
   fecha_nacimiento: string;
 }
 
-/** Valida los datos mínimos de una persona. Lanza UserError con el detalle por campo. */
-export function limpiarPersona(p: PersonaInput, opts: { telefonoObligatorio?: boolean; barrioObligatorio?: boolean } = {}): PersonaLimpia {
+/** Nombres tal como la gente los escribe: sin puntos ni comas sueltos al final («Alegre.» → «Alegre»). */
+function limpiarNombre(s: string): string {
+  return titleCase(cleanString(s, 80).replace(/[.,;:]+$/g, "").trim());
+}
+
+/**
+ * Valida los datos mínimos de una persona. Lanza UserError con el detalle por campo.
+ * `dniOpcional`: se acepta sin DNI si hay teléfono (ej. listas viejas de Google Forms).
+ */
+export function limpiarPersona(
+  p: PersonaInput,
+  opts: { telefonoObligatorio?: boolean; barrioObligatorio?: boolean; dniOpcional?: boolean } = {},
+): PersonaLimpia {
   const f: Record<string, string> = {};
-  const nombre = titleCase(cleanString(p.nombre, 80));
-  const apellido = titleCase(cleanString(p.apellido, 80));
-  const dni = normalizeDni(p.dni);
+  const nombre = limpiarNombre(p.nombre);
+  const apellido = limpiarNombre(p.apellido);
+  const dniCrudo = String(p.dni ?? "").trim();
+  const dni = normalizeDni(dniCrudo);
   const telefono = normalizePhone(cleanString(p.telefono, 40));
   const barrio = normalizeBarrio(cleanString(p.barrio, 80));
   if (!nombre) f.nombre = "Falta el nombre.";
   if (!apellido) f.apellido = "Falta el apellido.";
-  if (!dni) f.dni = p.dni ? "El DNI no parece válido (solo números, 7 u 8 dígitos)." : "Falta el DNI.";
+  if (dniCrudo && !dni) f.dni = "El DNI no parece válido (solo números, 7 u 8 dígitos).";
+  else if (!dni && !opts.dniOpcional) f.dni = "Falta el DNI.";
+  else if (!dni && telefono.length < 8) f.dni = "Sin DNI hace falta al menos un teléfono.";
   if (opts.telefonoObligatorio && telefono.length < 8) f.telefono = "Poné un teléfono válido (con característica).";
   if (opts.barrioObligatorio && !barrio) f.barrio = "Indicá el barrio.";
   if (Object.keys(f).length) throw new UserError("Revisá los datos de la persona.", f);
@@ -44,14 +58,24 @@ export function limpiarPersona(p: PersonaInput, opts: { telefonoObligatorio?: bo
   return { nombre, apellido, dni, telefono, barrio, direccion, fecha_nacimiento };
 }
 
+/** Clave para reconocer a una persona dentro de un lote: DNI, o si no tiene, su teléfono. */
+export function clavePersona(p: { dni: string; telefono: string; nombre?: string; apellido?: string }): string {
+  if (p.dni) return `dni:${p.dni}`;
+  const k = phoneKey(p.telefono);
+  if (k) return `tel:${k}`;
+  return `nom:${normalizeText(`${p.nombre ?? ""} ${p.apellido ?? ""}`)}`;
+}
+
 export interface UpsertResultado {
   participante: Participante;
   nuevo: boolean;
 }
 
 /**
- * Crea o recupera personas por DNI, SIN duplicar (la base de participantes es única).
- * - Si el DNI ya existe: se recupera y solo se completan datos que estaban vacíos (nunca se pisan).
+ * Crea o recupera personas SIN duplicar (la base de participantes es única).
+ * - Con DNI: se busca por DNI. Si no existe pero hay alguien SIN DNI con el mismo teléfono, es esa persona: se le completa el DNI.
+ * - Sin DNI: se busca por teléfono.
+ * - Si ya existe: solo se completan datos que estaban vacíos (nunca se pisan).
  * - Si el teléfono coincide con otra persona de distinto DNI: se marca «Posible duplicado de» para revisar.
  * Todo dentro de un bloqueo, así dos inscripciones simultáneas no crean la misma persona dos veces.
  */
@@ -63,19 +87,28 @@ export async function upsertParticipantes(
 ): Promise<UpsertResultado[]> {
   return withLock("participantes", async () => {
     const existentes = await readFresh("participantes");
-    const porDni = new Map(existentes.map((p) => [p.dni, p]));
+    const porDni = new Map(existentes.filter((p) => p.dni).map((p) => [p.dni, p]));
     const porTel = new Map<string, Participante>();
+    const sinDniPorTel = new Map<string, Participante>();
     for (const p of existentes) {
       const k = phoneKey(p.telefono);
-      if (k && !porTel.has(k)) porTel.set(k, p);
+      if (!k) continue;
+      if (!porTel.has(k)) porTel.set(k, p);
+      if (!p.dni && !sinDniPorTel.has(k)) sinDniPorTel.set(k, p);
     }
-    const resultado: (UpsertResultado | { pendiente: PersonaLimpia })[] = [];
+    const buscar = (p: PersonaLimpia): Participante | undefined => {
+      const k = phoneKey(p.telefono);
+      if (p.dni) return porDni.get(p.dni) ?? (k ? sinDniPorTel.get(k) : undefined);
+      return k ? porTel.get(k) : undefined;
+    };
+    const resultado: (UpsertResultado | { pendiente: PersonaLimpia; clave: string })[] = [];
     const completar = new Map<string, Partial<Participante>>();
-    const nuevosPorDni = new Map<string, number>(); // DNI repetido dentro del mismo lote
+    const nuevosPorClave = new Map<string, number>(); // la misma persona repetida dentro del lote
     for (const p of personas) {
-      const ex = porDni.get(p.dni);
+      const ex = buscar(p);
       if (ex) {
         const patch: Partial<Participante> = {};
+        if (!ex.dni && p.dni) patch.dni = p.dni;
         if (!ex.telefono && p.telefono) patch.telefono = p.telefono;
         if (!ex.barrio && p.barrio) patch.barrio = p.barrio;
         if (!ex.direccion && p.direccion) patch.direccion = p.direccion;
@@ -83,18 +116,23 @@ export async function upsertParticipantes(
         if (Object.keys(patch).length) {
           completar.set(ex.id, { ...completar.get(ex.id), ...patch });
           Object.assign(ex, patch);
+          if (patch.dni) {
+            porDni.set(patch.dni, ex);
+            const k = phoneKey(ex.telefono);
+            if (k) sinDniPorTel.delete(k);
+          }
         }
         resultado.push({ participante: ex, nuevo: false });
-      } else if (nuevosPorDni.has(p.dni)) {
-        resultado.push({ pendiente: p });
-      } else {
-        nuevosPorDni.set(p.dni, resultado.length);
-        resultado.push({ pendiente: p });
+        continue;
       }
+      const clave = clavePersona(p);
+      if (!nuevosPorClave.has(clave)) nuevosPorClave.set(clave, resultado.length);
+      resultado.push({ pendiente: p, clave });
     }
     await updateMany("participantes", [...completar].map(([id, patch]) => ({ id, patch })), user, "completar datos");
 
-    const aCrear = [...nuevosPorDni.keys()].map((dni) => (resultado[nuevosPorDni.get(dni)!] as { pendiente: PersonaLimpia }).pendiente);
+    const claves = [...nuevosPorClave.keys()];
+    const aCrear = claves.map((c) => (resultado[nuevosPorClave.get(c)!] as { pendiente: PersonaLimpia }).pendiente);
     const ids = aCrear.length ? await nextSeq("participantes", aCrear.length) : [];
     const fecha = extra.fecha || today();
     const creados = await insertMany(
@@ -116,10 +154,10 @@ export async function upsertParticipantes(
       user,
       origen,
     );
-    const creadoPorDni = new Map(creados.map((c) => [c.dni, c]));
-    // El primero del lote es «nuevo»; si el mismo DNI vino repetido, las demás filas lo recuperan.
+    const creadoPorClave = new Map(claves.map((c, i) => [c, creados[i]]));
+    // El primero del lote es «nuevo»; si la misma persona vino repetida, las demás filas la recuperan.
     return resultado.map((r, idx) =>
-      "participante" in r ? r : { participante: creadoPorDni.get(r.pendiente.dni)!, nuevo: nuevosPorDni.get(r.pendiente.dni) === idx },
+      "participante" in r ? r : { participante: creadoPorClave.get(r.clave)!, nuevo: nuevosPorClave.get(r.clave) === idx },
     );
   });
 }

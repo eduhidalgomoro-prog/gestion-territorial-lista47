@@ -6,7 +6,7 @@ import { puede, type Yo } from "../permisos";
 import { CONFIRMACIONES, type Actividad, type Confirmacion, type Inscripcion, type OrigenInscripcion } from "../schema";
 import { cleanString, normalizeDni, nowIso, parseFechaFlexible, phoneKey, today } from "../util";
 import { parsePreguntas } from "../preguntas";
-import { ajustarPrimeraFecha, limpiarPersona, upsertParticipantes, type PersonaInput, type PersonaLimpia } from "./participantes";
+import { ajustarPrimeraFecha, clavePersona, limpiarPersona, upsertParticipantes, type PersonaInput, type PersonaLimpia } from "./participantes";
 
 /**
  * Inscribe personas (ya creadas) a una actividad. Si ya estaban inscriptas no se duplica;
@@ -138,7 +138,7 @@ function prepararFilas(filas: FilaImportada[]) {
         nombre: String(f.nombre ?? ""), apellido: String(f.apellido ?? ""), dni: String(f.dni ?? ""),
         telefono: String(f.telefono ?? ""), barrio: String(f.barrio ?? ""),
         direccion: String(f.direccion ?? ""), fecha_nacimiento: String(f.fecha_nacimiento ?? ""),
-      });
+      }, { dniOpcional: true }); // listas viejas: alcanza con teléfono si no hay DNI
       ok.push({ fila: i + 2, persona, fecha: parseFechaFlexible(f.fecha), respuestas: cleanString(String(f.respuestas ?? ""), 2000) });
     } catch (e) {
       const fields = e instanceof UserError ? e.fields : undefined;
@@ -160,29 +160,38 @@ export async function vistaPreviaImportacion(actividadId: string, filas: FilaImp
   await actividadImportable(actividadId, yo);
   const { ok, errores } = prepararFilas(filas);
   const s = await snapshot({ fresh: true });
-  const porDni = new Map(s.participantes.map((p) => [p.dni, p]));
-  const telDe = new Map<string, string>();
+  const porDni = new Map(s.participantes.filter((p) => p.dni).map((p) => [p.dni, p]));
+  const porTel = new Map<string, (typeof s.participantes)[number]>();
   for (const p of s.participantes) {
     const k = phoneKey(p.telefono);
-    if (k) telDe.set(k, p.dni);
+    if (k && !porTel.has(k)) porTel.set(k, p);
   }
+  // Misma lógica que al guardar: por DNI; sin DNI (o DNI nuevo de alguien cargado sin DNI), por teléfono.
+  const buscar = (persona: PersonaLimpia) => {
+    const k = phoneKey(persona.telefono);
+    const t = k ? porTel.get(k) : undefined;
+    if (persona.dni) return porDni.get(persona.dni) ?? (t && !t.dni ? t : undefined);
+    return t;
+  };
   const inscriptos = new Set(s.inscripciones.filter((i) => i.actividad_id === actividadId && i.estado === "INSCRIPTO").map((i) => i.participante_id));
   const vistos = new Set<string>();
   let nuevos = 0, existentes = 0, yaInscriptos = 0, repetidos = 0, alertas = 0;
   for (const { persona } of ok) {
-    if (vistos.has(persona.dni)) {
+    const clave = clavePersona(persona);
+    if (vistos.has(clave)) {
       repetidos++;
       continue;
     }
-    vistos.add(persona.dni);
-    const ex = porDni.get(persona.dni);
+    vistos.add(clave);
+    const ex = buscar(persona);
     if (ex) {
       existentes++;
       if (inscriptos.has(ex.id)) yaInscriptos++;
     } else {
       nuevos++;
       const k = phoneKey(persona.telefono);
-      if (k && telDe.has(k) && telDe.get(k) !== persona.dni) alertas++;
+      const otro = k ? porTel.get(k) : undefined;
+      if (otro && otro.dni && persona.dni && otro.dni !== persona.dni) alertas++;
     }
   }
   return { total: filas.length, validas: ok.length, nuevos, existentes, yaInscriptos, repetidosEnArchivo: repetidos, alertasTelefono: alertas, errores: errores.slice(0, 200) };
@@ -191,7 +200,7 @@ export async function vistaPreviaImportacion(actividadId: string, filas: FilaImp
 export async function confirmarImportacion(actividadId: string, filas: FilaImportada[], yo: Yo) {
   await actividadImportable(actividadId, yo);
   const { ok, errores } = prepararFilas(filas);
-  if (!ok.length) throw new UserError("Ninguna fila tiene los datos mínimos (nombre, apellido y DNI).");
+  if (!ok.length) throw new UserError("Ninguna fila tiene los datos mínimos (nombre, apellido y DNI o teléfono).");
   const res = await upsertParticipantes(ok.map((o) => o.persona), "GOOGLE FORMS", yo.email);
   // Primera inscripción: si el formulario trae marca temporal, se usa esa fecha.
   const porFecha = new Map<string, string[]>();

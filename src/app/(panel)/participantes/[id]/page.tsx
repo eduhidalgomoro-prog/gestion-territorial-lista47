@@ -44,7 +44,7 @@ export default async function FichaParticipante({ params }: { params: Promise<{ 
         <dl className="grid gap-x-6 gap-y-2 text-[15px] sm:grid-cols-2">
           <Fila k="Nombre" v={p.nombre} />
           <Fila k="Apellido" v={p.apellido} />
-          <Fila k="DNI" v={puede.verDniCompleto(yo) ? formatDni(p.dni) : maskDni(p.dni)} />
+          <Fila k="DNI" v={!p.dni ? "Sin DNI (se completa cuando se inscriba con DNI)" : puede.verDniCompleto(yo) ? formatDni(p.dni) : maskDni(p.dni)} />
           <Fila k="Teléfono" v={p.telefono ? formatPhone(p.telefono) : "—"} />
           <Fila k="Barrio" v={titleCase(p.barrio) || "—"} />
           <Fila k="Dirección" v={p.direccion || "—"} />

@@ -128,7 +128,8 @@ export function Importador({ actividadId }: { actividadId: string }) {
   const usadas = new Set(Object.values(map).filter((i) => i >= 0));
   const otrasColumnas = headers.map((_, i) => i).filter((i) => !usadas.has(i) && headers[i] && !IGNORAR.test(normalizeText(headers[i])));
 
-  const faltanMinimos = map.dni < 0 || (map.nombre < 0 && map.completo < 0) || (map.apellido < 0 && map.completo < 0);
+  // Mínimo: nombre y apellido, y además DNI o teléfono (para reconocer a la persona y no duplicarla).
+  const faltanMinimos = (map.dni < 0 && map.telefono < 0) || (map.nombre < 0 && map.completo < 0) || (map.apellido < 0 && map.completo < 0);
 
   function verificar() {
     setError("");
@@ -203,7 +204,12 @@ export function Importador({ actividadId }: { actividadId: string }) {
               </label>
             ))}
           </div>
-          {faltanMinimos && <p className="mt-3 text-sm font-semibold text-alerta">Como mínimo hacen falta nombre, apellido y DNI.</p>}
+          {faltanMinimos && <p className="mt-3 text-sm font-semibold text-alerta">Como mínimo hacen falta nombre, apellido y DNI o teléfono.</p>}
+          {!faltanMinimos && map.dni < 0 && (
+            <p className="mt-3 text-sm text-gris">
+              El archivo no tiene DNI: cada persona se va a reconocer por su teléfono. Si después se inscribe con DNI, se completa su ficha (no se duplica).
+            </p>
+          )}
           {otrasColumnas.length > 0 && (
             <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl bg-fondo p-3 text-sm">
               <input type="checkbox" checked={guardarResto} onChange={(e) => { setGuardarResto(e.target.checked); setPrevia(null); }} className="mt-0.5 size-5 shrink-0 accent-[#3f742c]" />

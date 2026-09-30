@@ -159,7 +159,7 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
                       <p className="font-bold">{fullName(p)}</p>
                     )}
                     <p className="text-sm text-gris">
-                      DNI {dni ? formatDni(p?.dni ?? "") : maskDni(p?.dni ?? "")}
+                      {p?.dni ? `DNI ${dni ? formatDni(p.dni) : maskDni(p.dni)}` : "Sin DNI"}
                       {p?.telefono && ` · Tel. ${tel ? formatPhone(p.telefono) : maskPhone(p.telefono)}`}
                       {p?.barrio && ` · ${titleCase(p.barrio)}`}
                     </p>
