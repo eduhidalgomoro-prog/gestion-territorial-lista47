@@ -153,6 +153,8 @@ function Listado({ lista, conteos }: { lista: Actividad[]; conteos: ReturnType<t
   );
 }
 
+const esInterior = (a: Actividad) => ambitoDe(a.zona) === "interior";
+
 const DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
 function Calendario({ lista, anio, mes, keep }: { lista: Actividad[]; anio: number; mes: number; keep: Record<string, string | number | undefined> }) {
@@ -202,19 +204,28 @@ function Calendario({ lista, anio, mes, keep }: { lista: Actividad[]; anio: numb
                     <span className={cx("inline-flex size-6 items-center justify-center rounded-full text-xs font-bold", esHoy ? "bg-petroleo text-white" : "text-gris")}>{d}</span>
                     {/* Celular: puntos de color. Computadora: nombre de la actividad. */}
                     <div className="mt-0.5 flex flex-wrap gap-0.5 sm:hidden">
-                      {acts.map((a) => (
-                        <a key={a.id} href={`#dia-${d}`} className="size-2.5 rounded-full" style={{ background: ESTADO_HEX[a.estado] }} aria-label={a.nombre} />
-                      ))}
+                      {acts.map((a) =>
+                        esInterior(a) ? (
+                          <a key={a.id} href={`#dia-${d}`} className="size-2.5 rounded-full border-2 bg-white" style={{ borderColor: ESTADO_HEX[a.estado] }} aria-label={`${a.nombre} (interior)`} />
+                        ) : (
+                          <a key={a.id} href={`#dia-${d}`} className="size-2.5 rounded-full" style={{ background: ESTADO_HEX[a.estado] }} aria-label={a.nombre} />
+                        ),
+                      )}
                     </div>
                     <ul className="mt-1 hidden space-y-1 sm:block">
                       {acts.slice(0, 3).map((a) => (
                         <li key={a.id}>
+                          {/* Capital: fondo del color del estado. Interior: borde del color del estado y la localidad adelante. */}
                           <Link
                             href={`/actividades/${a.id}`}
-                            className="block truncate rounded-md px-1.5 py-0.5 text-[11px] leading-tight font-semibold text-white hover:opacity-90"
-                            style={{ background: ESTADO_HEX[a.estado] }}
+                            className={cx(
+                              "block truncate rounded-md px-1.5 py-0.5 text-[11px] leading-tight font-semibold hover:opacity-90",
+                              esInterior(a) ? "border-[1.5px] bg-white" : "text-white",
+                            )}
+                            style={esInterior(a) ? { borderColor: ESTADO_HEX[a.estado], color: ESTADO_HEX[a.estado] } : { background: ESTADO_HEX[a.estado] }}
                             title={`${a.nombre} · ${ubicacionLabel(a)} · ${a.estado}`}
                           >
+                            {esInterior(a) && <b className="uppercase">{a.localidad || "Interior"} · </b>}
                             {a.hora_inicio && `${a.hora_inicio} `}
                             {a.nombre}
                           </Link>
@@ -237,6 +248,16 @@ function Calendario({ lista, anio, mes, keep }: { lista: Actividad[]; anio: numb
           </span>
         ))}
       </div>
+      {lista.some(esInterior) && (
+        <div className="mt-2 flex flex-wrap gap-4 text-xs font-semibold text-gris">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="rounded bg-petroleo px-1.5 py-0.5 text-[10px] text-white">Taller</span> Capital (relleno)
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="rounded border-[1.5px] border-petroleo bg-white px-1.5 py-0.5 text-[10px] text-petroleo"><b>GOYA ·</b> Taller</span> Interior (con borde y localidad)
+          </span>
+        </div>
+      )}
 
       <section className="mt-6" aria-label="Agenda del mes">
         <h2 className="mb-2 text-lg font-bold">Agenda de {nombreMes(mes).toLowerCase()}</h2>
@@ -250,8 +271,14 @@ function Calendario({ lista, anio, mes, keep }: { lista: Actividad[]; anio: numb
                 <div className="space-y-2">
                   {porDia.get(d)!.map((a) => (
                     <Link key={a.id} href={`/actividades/${a.id}`} className="flex items-center gap-3 rounded-xl border border-linea bg-white p-3 hover:border-petroleo">
-                      <span className="h-10 w-1.5 shrink-0 rounded-full" style={{ background: ESTADO_HEX[a.estado] }} />
+                      <span
+                        className={cx("h-10 w-1.5 shrink-0 rounded-full", esInterior(a) && "border-2 bg-white")}
+                        style={esInterior(a) ? { borderColor: ESTADO_HEX[a.estado] } : { background: ESTADO_HEX[a.estado] }}
+                      />
                       <span className="min-w-0 flex-1">
+                        <span className="mb-0.5 block text-[11px] font-bold tracking-wide uppercase" style={{ color: esInterior(a) ? "#3f742c" : "#106985" }}>
+                          {esInterior(a) ? `Interior · ${a.localidad || "sin localidad"}` : "Capital"}
+                        </span>
                         <span className="block truncate font-bold">{a.nombre}</span>
                         <span className="block text-sm text-gris">
                           {a.hora_inicio || "Sin horario"} · {ubicacionLabel(a)}
