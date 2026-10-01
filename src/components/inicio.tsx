@@ -151,12 +151,13 @@ function Numero({ valor, label, tono = "normal", grande }: { valor: ReactNode; l
 }
 
 /** Indicadores agrupados: Actividad · Participación · Alcance (en un solo panel, no tarjetas iguales). */
-export function GruposIndicadores({ ind, conActividades = true }: { ind: Indicadores; conActividades?: boolean }) {
+export function GruposIndicadores({ ind, conActividades = true, conAlcance = true }: { ind: Indicadores; conActividades?: boolean; conAlcance?: boolean }) {
   const bajas = ind.suspendidas + ind.canceladas;
   const personas = personasDelMes(ind);
   const pctNuevas = personas ? Math.round((ind.personasNuevas / personas) * 100) : 0;
+  const columnas = 1 + (conActividades ? 1 : 0) + (conAlcance ? 1 : 0);
   return (
-    <div className={cx("grid overflow-hidden rounded-3xl bg-white ring-1 ring-linea divide-y divide-linea md:divide-x md:divide-y-0", conActividades ? "md:grid-cols-3" : "md:grid-cols-2")}>
+    <div className={cx("grid overflow-hidden rounded-3xl bg-white ring-1 ring-linea divide-y divide-linea md:divide-x md:divide-y-0", columnas === 3 ? "md:grid-cols-3" : columnas === 2 ? "md:grid-cols-2" : "")}>
       {conActividades && (
         <Grupo titulo="Actividad" Icon={IconCalendar}>
           <div className="grid grid-cols-3 gap-3">
@@ -178,7 +179,7 @@ export function GruposIndicadores({ ind, conActividades = true }: { ind: Indicad
         </div>
         <p className="mt-1 text-xs text-gris">% de asistencia en las actividades ya realizadas</p>
       </Grupo>
-      <Grupo titulo="Alcance" Icon={IconUserPlus}>
+      {conAlcance && <Grupo titulo="Alcance" Icon={IconUserPlus}>
         <div className="grid grid-cols-2 gap-3">
           <Numero valor={formatNumber(ind.personasNuevas)} label="Personas nuevas" tono={ind.personasNuevas ? "logro" : "normal"} grande />
           <Numero valor={formatNumber(ind.personasRecurrentes)} label="Personas recurrentes" grande />
@@ -191,7 +192,7 @@ export function GruposIndicadores({ ind, conActividades = true }: { ind: Indicad
             <p className="mt-1 text-xs text-gris">{pctNuevas}% participa por primera vez</p>
           </>
         )}
-      </Grupo>
+      </Grupo>}
     </div>
   );
 }

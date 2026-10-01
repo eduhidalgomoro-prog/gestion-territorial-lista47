@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { ActividadCard } from "@/components/actividad-card";
-import { BarrasDobles, ChartCard, Columnas } from "@/components/charts";
 import { AvanceZonas, BloqueCostos, Destacados, GruposIndicadores, ResumenMes } from "@/components/inicio";
 import { InstallBanner } from "@/components/install-button";
 import { SelectorPeriodo } from "@/components/periodo";
 import { cx, Empty, LinkButton, Notice, PageHeader } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { snapshot } from "@/lib/db";
-import { conteosPorActividad, cumplimiento, evolucion, indicadores, inscriptosVsAsistentes } from "@/lib/domain/metricas";
+import { conteosPorActividad, cumplimiento, indicadores } from "@/lib/domain/metricas";
 import { destacadosDelMes } from "@/lib/domain/resumen";
 import { zonaLabel } from "@/lib/labels";
 import { redirect } from "next/navigation";
@@ -59,7 +58,6 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<S
   const ind = indicadores(delMes, s, { anio, mes });
   // El responsable ve solo el objetivo de su zona.
   const cumpl = cumplimiento(s.actividades, anio, mes, s.config.objetivo_mensual).filter((c) => !zona || c.zona === zona);
-  const evo = evolucion({ ...s, actividades: visibles }, { anio, mes }, 6, zona || undefined);
   const costos = puede.verCostos(yo);
   const sinZona = s.actividades.filter((a) => !a.zona && a.estado !== "BORRADOR").length;
   const agenda = esAgenda(yo);
@@ -125,31 +123,21 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<S
           {conObjetivo && <AvanceZonas data={cumpl} anio={anio} mes={mes} />}
         </div>
 
-        <GruposIndicadores ind={ind} conActividades={!agenda} />
+        <GruposIndicadores ind={ind} conActividades={!agenda} conAlcance={false} />
 
         {costos && <BloqueCostos estimado={ind.costoEstimado} real={ind.costoReal} />}
       </div>
 
       {!agenda && proximasSeccion}
 
-      {/* Agenda no necesita gráficos: su inicio es la lista de próximas actividades. */}
-      {!agenda && <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Inscriptos vs. asistentes por zona">
-          <BarrasDobles data={inscriptosVsAsistentes(delMes, s)} leyenda={["Inscriptos", "Asistentes"]} />
-        </ChartCard>
-        <ChartCard
-          title="Evolución (últimos 6 meses)"
-          action={puede.verEstadisticas(yo) ? <Link href="/estadisticas" className="text-sm font-bold text-petroleo hover:underline">Más →</Link> : undefined}
-        >
-          <Columnas
-            data={evo.map((e) => ({ label: nombreMes(e.mes).slice(0, 3), value: e.inscriptos, value2: e.asistentes }))}
-            leyenda={["Inscriptos", "Asistentes"]}
-          />
-          <p className="mt-3 text-xs text-gris">
-            Actividades por mes: {evo.map((e) => `${nombreMes(e.mes).slice(0, 3)} ${e.actividades}`).join(" · ")}
-          </p>
-        </ChartCard>
-      </div>}
+      {/* El detalle (por zona, alcance, evolución) está en Estadísticas. */}
+      {!agenda && puede.verEstadisticas(yo) && (
+        <p className="mt-6 text-center">
+          <Link href={`/estadisticas?mes=${mes}&anio=${anio}`} className="text-sm font-bold text-petroleo hover:underline">
+            Ver más números en Estadísticas →
+          </Link>
+        </p>
+      )}
     </>
   );
 }
