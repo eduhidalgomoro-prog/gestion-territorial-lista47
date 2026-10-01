@@ -6,7 +6,7 @@ import { cumplimiento, filtrarActividades, indicadores } from "@/lib/domain/metr
 import { parseRegiones } from "@/lib/territorio";
 import { armarFilas, sectoresDe } from "@/lib/ferias";
 import type { TipoPuesto } from "@/lib/schema";
-import { asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, configurarFeria, generarPuestos, inscribirFeriaPublico, type FerianteInput } from "@/lib/services/ferias";
+import { asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, configurarFeria, crearFeria, generarPuestos, inscribirFeriaPublico, type FerianteInput } from "@/lib/services/ferias";
 import { ubicacionLabel } from "@/lib/labels";
 import { normalizeDni, normalizePhone, parseFechaFlexible, parseFechaNacimiento, parseHoraFlexible, phoneKey } from "@/lib/format";
 import { parsePreguntas } from "@/lib/preguntas";
@@ -193,6 +193,23 @@ describe("participantes, importación y asistencia", () => {
     expect(await generarPuestos(a.id, [{ tipo: "INDIVIDUAL", cantidad: 1 }, { tipo: "COMPARTIDO", cantidad: 1 }], admin)).toMatchObject({ total: 2, liberadas: 1 });
     s = await snapshot({ fresh: true });
     expect(puestoDe("Dora")).toBe(0);
+  });
+
+  it("responsable de ferias: solo ve y organiza ferias", async () => {
+    const ferias: Yo = { email: "ferias@lista47.test", nombre: "Resp Ferias", rol: "FERIAS", zona: "", usuarioId: "USR-F" };
+    await expect(crearActividad(input(), ferias)).rejects.toThrow(); // una actividad común, no
+    const comun = await crearActividad(input({ nombre: "Taller" }), admin);
+    const f = await crearFeria(
+      { nombre: "Feria", fecha: "2099-11-15", hora_inicio: "", hora_fin: "", lugar: "Parque Camba Cuá", barrio: "CAMBA CUA", zona: "NORTE", localidad: "", cupo: 50, sectores: [{ tipo: "INDIVIDUAL", cantidad: 2 }] },
+      ferias,
+    );
+    const s = await snapshot({ fresh: true });
+    const feria = s.actividades.find((a) => a.id === f.id)!;
+    expect(feria).toMatchObject({ es_feria: true, cupo: 50 });
+    expect(puede.verActividad(ferias, feria, [])).toBe(true);
+    expect(puede.editarActividad(ferias, feria)).toBe(true);
+    expect(puede.verActividad(ferias, comun, [])).toBe(false);
+    expect(puede.verParticipantes(ferias) || puede.verCostos(ferias) || puede.configurar(ferias)).toBe(false);
   });
 
   it("feria: sectores del croquis", () => {

@@ -115,6 +115,7 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
               <p className="mt-1"><b>Responsable de zona:</b> carga y edita actividades de su zona de Capital o de su región del interior, toma asistencia, cierra y ve sus estadísticas.</p>
               <p className="mt-1"><b>Operador:</b> solo las actividades que le asignan: inscriptos, asistencia y agregar personas.</p>
               <p className="mt-1"><b>Agenda (solo lectura):</b> ve todas las actividades, el calendario, el mapa y la cantidad de inscriptos. No ve datos de personas ni costos, y no puede modificar nada.</p>
+              <p className="mt-1"><b>Responsable de ferias:</b> crea y organiza todas las ferias (inscriptas, puestos, croquis, avisos por WhatsApp y asistencia). No ve el resto de las actividades, ni participantes, costos o configuración.</p>
               <p className="mt-1"><b>Comunicación / Diseño:</b> ve todas las actividades (sin datos de personas ni costos) y gestiona los flyers: estado, link y envío por WhatsApp.</p>
             </Card>
           </section>

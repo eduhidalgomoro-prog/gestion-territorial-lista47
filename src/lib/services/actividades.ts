@@ -232,8 +232,9 @@ async function guardarInsumos(actividadId: string, insumos: InsumoInput[], user:
   );
 }
 
-export async function crearActividad(input: ActividadInput, yo: Yo): Promise<Actividad> {
-  if (!puede.crearActividad(yo)) throw new ForbiddenError();
+export async function crearActividad(input: ActividadInput, yo: Yo, opts: { feria?: boolean } = {}): Promise<Actividad> {
+  // La responsable de ferias solo crea actividades a través del alta de ferias.
+  if (!puede.crearActividad(yo) && !(opts.feria && puede.crearFeria(yo))) throw new ForbiddenError();
   const v = validar(input, yo, parseRegiones((await snapshot()).config.regiones_interior));
   const inst = v.data.articula ? await resolverInstitucion(v.institucion_nueva, v.institucion_nueva_tipo, v.data.institucion_id, yo.email) : { institucion_id: "", institucion_nombre: "" };
   const act = await withLock("seq:actividades", async () => {
@@ -258,7 +259,7 @@ export async function crearActividad(input: ActividadInput, yo: Yo): Promise<Act
         mensaje_grupo: "",
         origen: "APP",
         creado_por: yo.email,
-        es_feria: false,
+        es_feria: !!opts.feria,
         cupo: 0,
         croquis: "",
       },

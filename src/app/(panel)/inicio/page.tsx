@@ -10,7 +10,7 @@ import { snapshot } from "@/lib/db";
 import { conteosPorActividad, cumplimiento, evolucion, indicadores, inscriptosVsAsistentes } from "@/lib/domain/metricas";
 import { zonaLabel } from "@/lib/labels";
 import { redirect } from "next/navigation";
-import { actividadesVisibles, esAgenda, esDiseno, esOperador, puede, zonaForzada } from "@/lib/permisos";
+import { actividadesVisibles, esAgenda, esDiseno, esFerias, esOperador, puede, zonaForzada } from "@/lib/permisos";
 import { formatMoney, formatNumber, nombreMes, today } from "@/lib/util";
 import { periodo, type SP } from "@/lib/view";
 
@@ -20,6 +20,8 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<S
   const yo = await requireUser();
   // Diseño trabaja desde la pantalla de flyers.
   if (esDiseno(yo)) redirect("/flyers");
+  // La responsable de ferias trabaja desde el menú Ferias.
+  if (esFerias(yo)) redirect("/ferias");
   const q = await searchParams;
   const { anio, mes: mesQ } = periodo(q);
   const mes = mesQ || Number(today().slice(5, 7));

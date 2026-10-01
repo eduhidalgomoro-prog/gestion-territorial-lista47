@@ -101,7 +101,7 @@ export default async function Ferias() {
           )}
         </div>
 
-        {puede.crearActividad(yo) && (
+        {puede.crearFeria(yo) && (
           <Card className="h-fit p-4 sm:p-5">
             <h2 className="mb-1 text-lg font-bold">Nueva feria</h2>
             <p className="mb-3 text-sm text-gris">Se crea la actividad con su formulario de inscripción (con cupo) y los puestos numerados. Los demás datos se completan después en la ficha.</p>

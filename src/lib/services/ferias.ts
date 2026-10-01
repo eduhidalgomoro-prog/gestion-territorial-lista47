@@ -63,6 +63,7 @@ export async function crearFeria(datos: NuevaFeriaInput, yo: Yo): Promise<Activi
       luz: false, sonido: false, insumos: [], costo_estimado: null, costo_real: 0, obs_logistica: "", generar_formulario: true, preguntas_extra: "", observaciones: "",
     },
     yo,
+    { feria: true },
   );
   await configurarFeria(a.id, input.cupo, yo);
   if (input.sectores.some((x) => x.cantidad > 0)) await generarPuestos(a.id, input.sectores, yo);

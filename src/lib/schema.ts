@@ -18,7 +18,7 @@ export const ESTADOS_ACTIVIDAD = ["BORRADOR", "PROGRAMADA", "CONFIRMADA", "REALI
 /** Estados que cuentan para el objetivo mensual de cada zona (decisión confirmada con la coordinación). */
 export const ESTADOS_QUE_CUENTAN = ["PROGRAMADA", "CONFIRMADA", "REALIZADA"] as const;
 export const ESTADOS_FLYER = ["SOLICITADO", "EN DISEÑO", "PARA APROBACIÓN", "APROBADO", "PUBLICADO"] as const;
-export const ROLES = ["ADMINISTRADOR", "RESPONSABLE", "OPERADOR", "DISENO", "AGENDA"] as const;
+export const ROLES = ["ADMINISTRADOR", "RESPONSABLE", "OPERADOR", "DISENO", "AGENDA", "FERIAS"] as const;
 export const ESTADOS_USUARIO = ["ACTIVO", "INACTIVO"] as const;
 export const ORIGENES_INSCRIPCION = ["FORMULARIO PROPIO", "GOOGLE FORMS", "CARGA MANUAL"] as const;
 export const ESTADOS_INSCRIPCION = ["INSCRIPTO", "DADO DE BAJA"] as const;
