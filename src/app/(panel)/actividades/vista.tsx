@@ -8,7 +8,7 @@ import { requireUser } from "@/lib/auth";
 import { CATEGORIAS, categoriaDe, emojisDe, labelCategoria, type CategoriaId } from "@/lib/categorias";
 import { snapshot } from "@/lib/db";
 import { conteosPorActividad, filtrarActividades } from "@/lib/domain/metricas";
-import { ESTADO_COLOR, ESTADO_HEX, ubicacionLabel, zonaLabel } from "@/lib/labels";
+import { ESTADO_COLOR, ESTADO_HEX, titulo, ubicacionLabel, zonaLabel } from "@/lib/labels";
 import { actividadesVisibles, esOperador, esResponsable, puede } from "@/lib/permisos";
 import { ESTADOS_ACTIVIDAD, ZONAS_ACTIVIDAD, type Actividad } from "@/lib/schema";
 import { ambitoDe, parseRegiones, regionLabel } from "@/lib/territorio";
@@ -16,6 +16,16 @@ import { addMonths, formatDate, MESES, nombreMes, titleCase, today } from "@/lib
 import { filtrosDe, qs, sp, type SP } from "@/lib/view";
 
 export type Vista = "listado" | "calendario" | "mapa";
+
+/** Criterios de orden del listado ("" = el de siempre). */
+const ORDENES = [
+  ["", "Por fecha"],
+  ["proximas", "Próximas primero"],
+  ["fecha", "Fecha (más antigua primero)"],
+  ["recientes", "Fecha (más reciente primero)"],
+  ["inscriptos", "Más inscriptos"],
+  ["nombre", "Nombre (A–Z)"],
+] as const;
 
 const TABS: { id: Vista; href: string; label: string; Icon: typeof IconList }[] = [
   { id: "calendario", href: "/calendario", label: "Calendario", Icon: IconCalendar },
@@ -45,12 +55,33 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
   if (!conAmbito || (f.ambito !== "capital" && f.ambito !== "interior")) f.ambito = "";
   const regiones = parseRegiones(s.config.regiones_interior);
   const regionesUsadas = [...new Set([...regiones.map((r) => r.nombre), ...visibles.map((a) => a.zona).filter((z) => z && ambitoDe(z) === "interior")])];
+  const conteos = conteosPorActividad(s);
+  // Orden del listado (solo presentación). Sin elegir, el de siempre: por fecha (todo el año: lo más reciente primero).
+  const orden = ORDENES.some(([id]) => id === sp(q, "orden")) ? sp(q, "orden") : "";
+  const porFecha = (a: Actividad, b: Actividad) => (a.fecha + a.hora_inicio).localeCompare(b.fecha + b.hora_inicio);
+  const inscriptosDe = (a: Actividad) => conteos.get(a.id)?.inscriptos ?? 0;
+  const comparar: Record<string, (a: Actividad, b: Actividad) => number> = {
+    proximas: (a, b) => {
+      const fa = !!a.fecha && a.fecha >= hoyISO;
+      const fb = !!b.fecha && b.fecha >= hoyISO;
+      if (fa !== fb) return fa ? -1 : 1;
+      return fa ? porFecha(a, b) : porFecha(b, a);
+    },
+    fecha: porFecha,
+    recientes: (a, b) => porFecha(b, a),
+    inscriptos: (a, b) => inscriptosDe(b) - inscriptosDe(a) || porFecha(a, b),
+    nombre: (a, b) => a.nombre.localeCompare(b.nombre, "es"),
+  };
   const lista = filtrarActividades(visibles, f)
     .filter((a) => !proximas || (a.fecha >= hoyISO && a.estado !== "CANCELADA" && a.estado !== "REALIZADA"))
-    .sort((a, b) =>
-    vista === "listado" && !proximas && (f.mes === 0 || !f.mes) ? b.fecha.localeCompare(a.fecha) : (a.fecha + a.hora_inicio).localeCompare(b.fecha + b.hora_inicio),
-  );
-  const conteos = conteosPorActividad(s);
+    .sort(
+      vista === "listado" && orden
+        ? comparar[orden]
+        : (a, b) => (vista === "listado" && !proximas && (f.mes === 0 || !f.mes) ? b.fecha.localeCompare(a.fecha) : porFecha(a, b)),
+    );
+  // Resumen sobre las tarjetas: cantidad, inscriptos y zonas distintas de lo que se está viendo.
+  const totalInscriptos = lista.reduce((n, a) => n + inscriptosDe(a), 0);
+  const zonasDistintas = new Set(lista.map((a) => a.zona).filter(Boolean)).size;
   const delAmbito = f.ambito ? visibles.filter((a) => ambitoDe(a.zona) === f.ambito) : visibles;
   const barrios = [...new Set(delAmbito.map((a) => a.barrio).filter(Boolean))].sort();
   const localidades = [...new Set(delAmbito.map((a) => a.localidad).filter(Boolean))].sort();
@@ -60,7 +91,8 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
     ...(f.ambito !== "interior" ? [...ZONAS_ACTIVIDAD.map((z) => [z, zonaLabel(z)] as const), ["SIN", "Sin zona"] as const] : []),
     ...(f.ambito !== "capital" ? regionesUsadas.sort().map((r) => [r, regionLabel(r)] as const) : []),
   ];
-  const keep = { ambito: f.ambito, mes: proximas ? "prox" : f.mes, anio: proximas ? undefined : f.anio, zona: f.zona, localidad: f.localidad, barrio: f.barrio, responsable: f.responsable, tipo: f.tipo, estado: f.estado, q: f.q };
+  const keep = { ambito: f.ambito, mes: proximas ? "prox" : f.mes, anio: proximas ? undefined : f.anio, zona: f.zona, localidad: f.localidad, barrio: f.barrio, responsable: f.responsable, tipo: f.tipo, estado: f.estado, q: f.q, orden };
+  const masFiltros = [f.localidad, f.barrio, f.tipo, f.responsable].filter(Boolean).length;
   const hayFiltros = !!(f.zona || f.localidad || f.barrio || f.responsable || f.tipo || f.estado || f.q);
   const anioActual = Number(today().slice(0, 4));
   const tabHref = TABS.find((t) => t.id === vista)!.href;
@@ -118,43 +150,70 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
         ))}
       </nav>
 
-      <FiltrosForm action={tabHref} className="mb-4 space-y-2">
+      <FiltrosForm action={tabHref} className="mb-4 space-y-2.5">
         {f.ambito && <input type="hidden" name="ambito" value={f.ambito} />}
-        {vista !== "calendario" && <Buscador value={f.q ?? ""} placeholder="Buscar por nombre, responsable, barrio, localidad o zona" />}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <FiltroSelect
-            name="mes"
-            label="Mes"
-            value={proximas ? "prox" : f.mes ?? 0}
-            options={[...(vista === "calendario" ? [] : [["prox", "Próximas (todos los meses)"] as const, [0, "Todo el año"] as const]), ...MESES.map((m, i) => [i + 1, m] as const)]}
-          />
-          {!proximas && (
-            <FiltroSelect name="anio" label="Año" value={f.anio || anioActual} options={[anioActual - 1, anioActual, anioActual + 1].map((a) => [a, String(a)] as const)} />
+        <div className="flex flex-wrap items-center gap-2">
+          {vista !== "calendario" && (
+            <div className="w-full lg:w-auto lg:min-w-56 lg:flex-1">
+              <Buscador value={f.q ?? ""} placeholder="Buscar actividad, responsable, barrio…" />
+            </div>
           )}
-          {!esResponsable(yo) && (
-            <FiltroSelect name="zona" label="Zona o región" value={f.zona ?? ""} placeholder={f.ambito === "interior" ? "Todas las regiones" : "Todas las zonas"} options={opcionesZona} />
-          )}
-          <FiltroSelect name="estado" label="Estado" value={f.estado ?? ""} placeholder="Todos los estados" options={ESTADOS_ACTIVIDAD.map((e) => [e, e] as const)} />
-        </div>
-        <details className="group" open={!!(f.barrio || f.localidad || f.tipo || f.responsable)}>
-          <summary className="cursor-pointer list-none text-sm font-bold text-petroleo">
-            <span className="group-open:hidden">+ Más filtros ({localidades.length ? "localidad, " : ""}barrio, tipo, responsable)</span>
-            <span className="hidden group-open:inline">− Menos filtros</span>
-          </summary>
-          <div className={cx("mt-2 grid grid-cols-1 gap-2", localidades.length ? "sm:grid-cols-4" : "sm:grid-cols-3")}>
-            {localidades.length > 0 && (
-              <FiltroSelect name="localidad" label="Localidad" value={f.localidad ?? ""} placeholder="Todas las localidades" options={localidades.map((l) => [l, l] as const)} />
+          <div className="contents">
+            <FiltroSelect
+              chip
+              name="mes"
+              label="Mes"
+              activo={false}
+              value={proximas ? "prox" : f.mes ?? 0}
+              options={[...(vista === "calendario" ? [] : [["prox", "Próximas"] as const, [0, "Todo el año"] as const]), ...MESES.map((m, i) => [i + 1, m] as const)]}
+            />
+            {!proximas && (
+              <FiltroSelect chip name="anio" label="Año" activo={false} value={f.anio || anioActual} options={[anioActual - 1, anioActual, anioActual + 1].map((a) => [a, String(a)] as const)} />
             )}
-            <FiltroSelect name="barrio" label="Barrio" value={f.barrio ?? ""} placeholder="Todos los barrios" options={barrios.map((b) => [b, titleCase(b)] as const)} />
-            <FiltroSelect name="tipo" label="Tipo" value={f.tipo ?? ""} placeholder="Todos los tipos" options={tipos.map((t) => [t, t] as const)} />
-            <FiltroSelect name="responsable" label="Responsable" value={f.responsable ?? ""} placeholder="Todos los responsables" options={responsables.map((r) => [r, r] as const)} />
+            {!esResponsable(yo) && (
+              <FiltroSelect chip name="zona" label="Zona o región" value={f.zona ?? ""} placeholder={f.ambito === "interior" ? "Región: todas" : "Zona: todas"} options={opcionesZona} />
+            )}
+            <FiltroSelect chip name="estado" label="Estado" value={f.estado ?? ""} placeholder="Estado: todos" options={ESTADOS_ACTIVIDAD.map((e) => [e, titulo(e)] as const)} />
+            <details className="group open:basis-full" open={masFiltros > 0}>
+              <summary
+                className={cx(
+                  "inline-flex h-10 cursor-pointer list-none items-center rounded-full border px-3.5 text-sm font-bold",
+                  masFiltros ? "border-petroleo bg-petroleo-50 text-petroleo-600" : "border-dashed border-linea bg-white text-petroleo hover:border-petroleo",
+                )}
+              >
+                <span className="group-open:hidden">+ Más filtros{masFiltros ? ` (${masFiltros})` : ""}</span>
+                <span className="hidden group-open:inline">− Menos filtros</span>
+              </summary>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {localidades.length > 0 && (
+                  <FiltroSelect chip name="localidad" label="Localidad" value={f.localidad ?? ""} placeholder="Localidad: todas" options={localidades.map((l) => [l, l] as const)} />
+                )}
+                <FiltroSelect chip name="barrio" label="Barrio" value={f.barrio ?? ""} placeholder="Barrio: todos" options={barrios.map((b) => [b, titleCase(b)] as const)} />
+                <FiltroSelect chip name="tipo" label="Tipo" value={f.tipo ?? ""} placeholder="Tipo: todos" options={tipos.map((t) => [t, t] as const)} />
+                <FiltroSelect chip name="responsable" label="Responsable" value={f.responsable ?? ""} placeholder="Responsable: todos" options={responsables.map((r) => [r, r] as const)} />
+              </div>
+            </details>
+            {hayFiltros && (
+              <Link href={`${tabHref}${qs({ ambito: f.ambito, mes: keep.mes, anio: keep.anio })}`} className="inline-flex h-10 items-center px-2 text-sm font-bold text-petroleo hover:underline">
+                Limpiar
+              </Link>
+            )}
           </div>
-        </details>
-        {hayFiltros && (
-          <Link href={`${tabHref}${qs({ ambito: f.ambito, mes: keep.mes, anio: keep.anio })}`} className="inline-block text-sm font-bold text-petroleo hover:underline">
-            Limpiar filtros
-          </Link>
-        )}
+        </div>
+
+        {/* Resumen de lo que se está viendo + orden (solo en el listado). */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-linea pt-2.5">
+          <p className="text-[15px] text-gris">
+            <b className="text-tinta">{lista.length}</b> {lista.length === 1 ? "actividad" : "actividades"} · <b className="text-tinta">{totalInscriptos}</b>{" "}
+            {totalInscriptos === 1 ? "inscripto" : "inscriptos"} · <b className="text-tinta">{zonasDistintas}</b> {zonasDistintas === 1 ? "zona" : "zonas"}
+          </p>
+          {vista === "listado" && (
+            <label className="flex items-center gap-2 text-sm text-gris">
+              Ordenar
+              <FiltroSelect chip name="orden" label="Ordenar" activo={false} value={orden} placeholder="Por fecha" options={ORDENES.filter(([id]) => id !== "")} />
+            </label>
+          )}
+        </div>
       </FiltrosForm>
 
       {vista === "listado" && <Listado lista={lista} conteos={conteos} />}
@@ -167,7 +226,7 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
 function Listado({ lista, conteos }: { lista: Actividad[]; conteos: ReturnType<typeof conteosPorActividad> }) {
   if (!lista.length) return <Empty>No hay actividades con estos filtros.</Empty>;
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid auto-rows-fr gap-3 md:grid-cols-2 xl:grid-cols-3">
       {lista.map((a) => (
         <ActividadCard key={a.id} a={a} conteo={conteos.get(a.id)} />
       ))}
