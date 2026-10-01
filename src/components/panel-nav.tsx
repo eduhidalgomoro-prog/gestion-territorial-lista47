@@ -34,7 +34,10 @@ function items(p: NavPermisos) {
 
 function useActive() {
   const path = usePathname();
-  return (href: string) => path === href || (path.startsWith(href + "/") && !path.startsWith("/actividades/nueva"));
+  // La pantalla de una feria (/actividades/ACT-…/feria) pertenece al menú Ferias.
+  const enFeria = /^\/actividades\/[^/]+\/feria/.test(path);
+  return (href: string) =>
+    href === "/ferias" ? enFeria || path === href : !(enFeria && href === "/actividades") && (path === href || (path.startsWith(href + "/") && !path.startsWith("/actividades/nueva")));
 }
 
 function LogoutButton({ className }: { className?: string }) {

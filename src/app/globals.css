@@ -28,8 +28,42 @@
   --color-peligro: #b3261e;
   --color-peligro-50: #fbe9e8;
 
+  /* Ferias de emprendedoras (ESME / Lista 47): identidad propia del módulo Feria */
+  --color-feria-lima: #8cc63f;
+  --color-feria-verde: #4f9a1f; /* verde intenso con contraste sobre blanco */
+  --color-feria-fucsia: #d6127f;
+  --color-feria-fucsia-600: #b00d68;
+  --color-feria-violeta: #6b33c9;
+  --color-feria-marino: #1c1f4f;
+
   --font-sans: var(--font-nunito), system-ui, sans-serif;
   --font-titulo: var(--font-montserrat), system-ui, sans-serif;
+}
+
+/*
+ * Tema Feria: dentro de .tema-feria se redefinen los colores de la app, así botones, pestañas,
+ * chips y destacados toman la paleta de la feria sin tocar los componentes:
+ * fucsia = acción principal · violeta = navegación/selección · lima = indicadores · marino = textos.
+ */
+.tema-feria {
+  --color-marca: var(--color-feria-fucsia);
+  --color-marca-600: var(--color-feria-fucsia-600);
+  --color-verde: var(--color-feria-lima);
+  --color-verde-50: #f3f9e9;
+  --color-verde-100: #e3f2cc;
+  --color-petroleo: var(--color-feria-violeta);
+  --color-petroleo-600: #5626a6;
+  --color-petroleo-50: #f1eafb;
+  --color-tinta: var(--color-feria-marino);
+  --color-linea: #e4def0;
+}
+
+/* Degradado de los flyers de feria: verde → violeta → fucsia */
+.feria-degradado {
+  background: linear-gradient(118deg, var(--color-feria-verde) 0%, #3f8f3a 18%, var(--color-feria-violeta) 58%, var(--color-feria-fucsia) 100%);
+}
+.feria-degradado-suave {
+  background: linear-gradient(118deg, #f3f9e9 0%, #f1eafb 55%, #fde7f2 100%);
 }
 
 :root {

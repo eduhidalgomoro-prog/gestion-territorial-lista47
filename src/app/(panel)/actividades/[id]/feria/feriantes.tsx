@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { asignarPuestoAction, estadoFerianteAction } from "@/app/(panel)/actions";
+import { IconoRubro } from "@/components/feria-ui";
 import { IconWhatsApp } from "@/components/icons";
 import { Badge, cx } from "@/components/ui";
 import { CAPACIDAD, llevaGazebo, TIPO_PUESTO_HEX, TIPO_PUESTO_LABEL } from "@/lib/ferias";
@@ -45,9 +46,14 @@ export function ListaFeriantes({ filas, puestos, editable }: { filas: FilaFerian
       {filas.map((f) => {
         const tipo = tipoDe.get(f.puesto);
         return (
-          <li key={f.id} className={cx("rounded-2xl border bg-white p-3 sm:p-4", f.activa ? "border-linea" : "border-dashed border-linea opacity-60")}>
+          <li key={f.id} className={cx("rounded-3xl border bg-white p-3 sm:p-4", f.activa ? "border-linea" : "border-dashed border-linea opacity-60")}>
             <div className="flex flex-wrap items-start gap-3">
-              <span className="mt-0.5 w-7 shrink-0 text-right text-sm font-bold text-gris">{f.orden}.</span>
+              <span className="flex w-10 shrink-0 flex-col items-center gap-1">
+                <span className="text-sm font-bold text-gris">{f.orden}</span>
+                <span className="flex size-9 items-center justify-center rounded-full bg-petroleo-50 text-petroleo" title={f.rubro}>
+                  <IconoRubro rubro={f.rubro} size={19} />
+                </span>
+              </span>
               <div className="min-w-0 flex-1">
                 <p className="font-bold">
                   {f.nombre} {!f.activa && <Badge color="rojo">BAJA</Badge>}

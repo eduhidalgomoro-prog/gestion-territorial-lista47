@@ -5,7 +5,8 @@ import { CroquisEditor, CroquisVista } from "@/components/croquis";
 import { CroquisAuto } from "@/components/croquis-auto";
 import { ActionForm, Field, Input, SubmitButton } from "@/components/forms";
 import { IconWhatsApp } from "@/components/icons";
-import { Card, cx, Notice, PageHeader, Stat } from "@/components/ui";
+import { FeriaHero } from "@/components/feria-ui";
+import { Card, cx, Notice } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { whatsappA, whatsappCompartir } from "@/lib/compartir";
 import { snapshot } from "@/lib/db";
@@ -45,8 +46,8 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
 
   if (!a.es_feria) {
     return (
-      <div className="mx-auto max-w-xl">
-        <PageHeader back={volver} kicker="Feria" title="Convertir en feria" subtitle="Inscripción con cupo, puestos numerados y croquis del lugar." />
+      <div className="tema-feria mx-auto max-w-xl">
+        <FeriaHero volver={volver} subtitulo={`Organizar «${a.nombre}» como feria`} datos={[{ label: "Incluye", valor: "Cupo, puestos, croquis y listado" }]} />
         {editable ? (
           <Card className="p-4 sm:p-5">
             <ActionForm action={feriaConfigAction.bind(null, a.id)}>
@@ -111,15 +112,19 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
   ].filter(Boolean).join("\n");
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <PageHeader back={volver} kicker="Feria" title={a.nombre} subtitle={[fecha, a.lugar].filter(Boolean).join(" · ")} />
-
-      <section className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Cupo" value={a.cupo} />
-        <Stat label="Inscriptas" value={activas.length} tone={activas.length >= a.cupo ? "alerta" : "normal"} hint={activas.length >= a.cupo ? "Cupo completo" : `Quedan ${a.cupo - activas.length}`} />
-        <Stat label="Con puesto" value={`${conPuesto}/${activas.length}`} tone={conPuesto === activas.length && activas.length ? "verde" : "normal"} />
-        <Stat label="Lugares en puestos" value={capacidadTotal} hint={`${puestos.length} puestos`} />
-      </section>
+    <div className="tema-feria mx-auto max-w-6xl">
+      <FeriaHero
+        volver={volver}
+        subtitulo={a.nombre}
+        datos={[
+          { label: "Fecha", valor: fecha || "A definir" },
+          ...(a.hora_inicio ? [{ label: "Horario", valor: `${a.hora_inicio}${a.hora_fin ? ` a ${a.hora_fin}` : ""} h` }] : []),
+          { label: "Lugar", valor: a.lugar || "A definir" },
+          { label: "Stands", valor: `${puestos.length} (${capacidadTotal} lugares)` },
+          { label: "Inscriptas", valor: <>{activas.length} de {a.cupo}{activas.length >= a.cupo && <span className="ml-1.5 rounded-full bg-white px-2 py-0.5 text-[11px] font-extrabold text-feria-fucsia uppercase">Completo</span>}</> },
+          { label: "Con puesto", valor: `${conPuesto} de ${activas.length}` },
+        ]}
+      />
 
       <Card className="mb-4 p-4">
         <p className="mb-1 text-sm font-bold text-gris uppercase">Formulario de inscripción</p>

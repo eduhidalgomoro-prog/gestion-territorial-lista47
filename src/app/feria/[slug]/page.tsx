@@ -35,22 +35,22 @@ export default async function CroquisPublico({ params, searchParams }: { params:
   const mio = destacado ? puestos.find((x) => x.numero === destacado) : undefined;
 
   return (
-    <div className="min-h-dvh bg-fondo">
-      <header className="bg-institucional px-4 pt-8 pb-16 text-white">
+    <div className="tema-feria min-h-dvh bg-fondo">
+      <header className="feria-degradado px-4 pt-8 pb-16 text-white">
         <div className="mx-auto flex max-w-3xl items-center gap-3">
           <SelloLista47 size={52} />
           <div>
-            <p className="text-xs font-bold tracking-[0.2em] text-white/80 uppercase">Croquis de la feria</p>
-            <h1 className="font-titulo text-xl leading-tight font-extrabold">{a.nombre}</h1>
+            <p className="font-titulo text-4xl leading-none font-black tracking-tight uppercase italic">Feria</p>
+            <h1 className="mt-1 font-titulo text-xl leading-tight font-extrabold">{a.nombre}</h1>
             <p className="text-sm text-white/85 first-letter:uppercase">
               {[a.fecha && formatDate(a.fecha, { weekday: "long", day: "numeric", month: "long" }), a.hora_inicio && `${a.hora_inicio} h`, a.lugar].filter(Boolean).join(" · ")}
             </p>
           </div>
         </div>
       </header>
-      <main className="mx-auto -mt-10 max-w-6xl px-4 pb-12">
+      <main className="relative mx-auto -mt-10 max-w-6xl px-4 pb-12">
         {mio && (
-          <div className="mb-4 rounded-2xl bg-white p-4 text-center shadow-lg ring-2 ring-amber-300">
+          <div className="mb-4 rounded-3xl bg-white p-4 text-center shadow-lg ring-4 ring-feria-lima">
             <p className="text-sm font-bold text-gris uppercase">Tu puesto</p>
             <p className="font-titulo text-5xl font-extrabold" style={{ color: TIPO_PUESTO_HEX[mio.tipo] }}>N° {mio.numero}</p>
             <p className="text-[15px] text-gris">{TIPO_PUESTO_LABEL[mio.tipo]} · está marcado en amarillo en el croquis.</p>

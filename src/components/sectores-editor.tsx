@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { CAPACIDAD, letraSector, TIPO_PUESTO_FONDO, TIPO_PUESTO_HEX, TIPO_PUESTO_LABEL, type SectorFeria } from "@/lib/ferias";
+import { CAPACIDAD, letraSector, TIPO_PUESTO_FONDO, TIPO_PUESTO_HEX, type SectorFeria } from "@/lib/ferias";
 import { TIPOS_PUESTO, type TipoPuesto } from "@/lib/schema";
 import { IconPlus, IconX } from "./icons";
 import { btn, cx } from "./ui";
+
+const CORTO: Record<TipoPuesto, string> = { INDIVIDUAL: "Individual", COMPARTIDO: "Compartido (2)", PROPIO: "Gazebo propio" };
 
 /**
  * Sectores de la feria (una fila del croquis cada uno): tipo de gazebo y cantidad.
@@ -36,7 +38,7 @@ export function SectoresEditor({ inicial }: { inicial: SectorFeria[] }) {
                 onChange={(e) => set(i, { tipo: e.target.value as TipoPuesto })}
                 className="h-11 min-w-0 flex-1 rounded-lg border border-linea bg-white px-2 text-[15px] font-semibold"
               >
-                {TIPOS_PUESTO.map((t) => <option key={t} value={t}>{TIPO_PUESTO_LABEL[t]}{t === "COMPARTIDO" ? " (2 por gazebo)" : ""}</option>)}
+                {TIPOS_PUESTO.map((t) => <option key={t} value={t}>{CORTO[t]}</option>)}
               </select>
               <input
                 type="number"

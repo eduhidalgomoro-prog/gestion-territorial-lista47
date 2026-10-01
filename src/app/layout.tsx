@@ -4,7 +4,7 @@ import { ServiceWorker } from "@/components/service-worker";
 import "./globals.css";
 
 /** Montserrat: tipografía de cuquicalvano.com. Nunito Sans: equivalente libre de Avenir para textos. */
-const montserrat = Montserrat({ variable: "--font-montserrat", subsets: ["latin"], weight: ["500", "600", "700", "800"] });
+const montserrat = Montserrat({ variable: "--font-montserrat", subsets: ["latin"], weight: ["500", "600", "700", "800", "900"], style: ["normal", "italic"] });
 const nunito = Nunito_Sans({ variable: "--font-nunito", subsets: ["latin"], weight: ["400", "600", "700"] });
 
 export const metadata: Metadata = {

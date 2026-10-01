@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { CopyButton } from "@/components/copy-button";
 import { ActionForm, Field, Input, Select, SubmitButton } from "@/components/forms";
-import { Badge, Card, cx, Empty, Notice, PageHeader } from "@/components/ui";
+import { Badge, Card, cx, Empty, Notice } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { snapshot } from "@/lib/db";
+import { FeriaHero, IconStand } from "@/components/feria-ui";
 import { SectoresEditor } from "@/components/sectores-editor";
 import { CAPACIDAD, SECTORES_INICIALES } from "@/lib/ferias";
 import { opcionesZona, ubicacionLabel } from "@/lib/labels";
@@ -38,7 +39,8 @@ export default async function Ferias() {
     const pct = a.cupo ? Math.min(100, Math.round((inscriptas.length / a.cupo) * 100)) : 0;
     return (
       <li key={a.id}>
-        <Card className="p-4">
+        <Card className="relative overflow-hidden rounded-3xl p-4 pl-6">
+          <span className="feria-degradado absolute inset-y-0 left-0 w-2" aria-hidden />
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
               <Link href={`/actividades/${a.id}/feria`} className="font-titulo text-lg font-extrabold hover:text-petroleo hover:underline">{a.nombre}</Link>
@@ -53,8 +55,8 @@ export default async function Ferias() {
               <span>{inscriptas.length} de {a.cupo} inscriptas</span>
               <span className="text-gris">{puestos.length ? `${conPuesto} con puesto · ${puestos.length} puestos (${lugares} lugares)` : "Sin puestos armados"}</span>
             </div>
-            <div className="h-2.5 overflow-hidden rounded-full bg-fondo">
-              <div className={cx("h-full rounded-full", pct >= 100 ? "bg-alerta" : "bg-marca")} style={{ width: `${pct}%` }} />
+            <div className="h-3 overflow-hidden rounded-full bg-petroleo-50">
+              <div className={cx("h-full rounded-full", pct >= 100 ? "bg-feria-fucsia" : "feria-degradado")} style={{ width: `${pct}%` }} />
             </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -67,9 +69,19 @@ export default async function Ferias() {
     );
   };
 
+  const prox = proximas[0];
   return (
-    <>
-      <PageHeader title="Ferias" subtitle="Inscripción con cupo, puestos numerados, croquis y listado para las feriantes." />
+    <div className="tema-feria">
+      <FeriaHero
+        titulo="Ferias"
+        subtitulo="Emprendedoras ESME · Lista 47"
+        datos={[
+          { label: "Próxima", valor: prox ? `${prox.fecha ? formatDate(prox.fecha, { day: "numeric", month: "long" }) : "Sin fecha"}` : "A definir" },
+          ...(prox?.lugar ? [{ label: "Lugar", valor: prox.lugar }] : []),
+          { label: "Ferias próximas", valor: proximas.length },
+          { label: "Inscriptas", valor: proximas.reduce((n, a) => n + ferianteActivas(s, a.id).length, 0) },
+        ]}
+      />
 
       <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
         <div>
@@ -102,8 +114,10 @@ export default async function Ferias() {
         </div>
 
         {puede.crearFeria(yo) && (
-          <Card className="h-fit p-4 sm:p-5">
-            <h2 className="mb-1 text-lg font-bold">Nueva feria</h2>
+          <Card className="h-fit rounded-3xl p-4 ring-2 ring-feria-lima/40 sm:p-5">
+            <h2 className="mb-1 flex items-center gap-2 font-titulo text-xl font-extrabold">
+              <span className="flex size-9 items-center justify-center rounded-full bg-feria-fucsia text-white"><IconStand size={20} /></span> Nueva feria
+            </h2>
             <p className="mb-3 text-sm text-gris">Se crea la actividad con su formulario de inscripción (con cupo) y los puestos numerados. Los demás datos se completan después en la ficha.</p>
             <ActionForm action={crearFeriaAction}>
               <Field label="Nombre" name="nombre"><Input name="nombre" defaultValue="Feria de Mujeres Emprendedoras" /></Field>
@@ -131,6 +145,6 @@ export default async function Ferias() {
           </Card>
         )}
       </div>
-    </>
+    </div>
   );
 }

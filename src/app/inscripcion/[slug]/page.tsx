@@ -8,6 +8,7 @@ import { snapshot } from "@/lib/db";
 import { formatDate, titleCase } from "@/lib/util";
 import { inscripcionAbiertaPublica } from "@/lib/services/inscripciones";
 import { lugaresLibres } from "@/lib/services/ferias";
+import { IconosFeria } from "@/components/feria-ui";
 import { FeriaForm } from "./feria-form";
 import { InscripcionForm } from "./inscripcion-form";
 
@@ -48,8 +49,8 @@ export default async function FormularioPublico({ params }: { params: Promise<{ 
   const rubros = a.es_feria ? [...new Set(s.feriantes.map((f) => f.rubro).filter(Boolean))].sort().slice(0, 40) : [];
 
   return (
-    <div className="min-h-dvh bg-fondo">
-      <header className="bg-institucional px-4 pt-8 pb-20 text-white">
+    <div className={a.es_feria ? "tema-feria min-h-dvh bg-fondo" : "min-h-dvh bg-fondo"}>
+      <header className={a.es_feria ? "feria-degradado relative overflow-hidden px-4 pt-8 pb-24 text-white" : "bg-institucional px-4 pt-8 pb-20 text-white"}>
         <div className="mx-auto flex max-w-xl items-center gap-3">
           <SelloLista47 size={56} />
           <div>
@@ -57,9 +58,16 @@ export default async function FormularioPublico({ params }: { params: Promise<{ 
             <p className="font-titulo text-lg font-extrabold">Cuqui Calvano · Lista 47</p>
           </div>
         </div>
+        {a.es_feria && (
+          <div className="mx-auto mt-4 max-w-xl">
+            <p className="font-titulo text-5xl leading-none font-black tracking-tight uppercase italic drop-shadow-sm">Feria</p>
+            <p className="mt-1 font-titulo text-lg font-extrabold">Emprendedoras ESME</p>
+            <IconosFeria className="mt-3" size={20} />
+          </div>
+        )}
       </header>
 
-      <main className="mx-auto -mt-14 max-w-xl px-4 pb-12">
+      <main className="relative mx-auto -mt-14 max-w-xl px-4 pb-12">
         <article className="rounded-3xl bg-white p-5 shadow-lg ring-1 ring-linea sm:p-7">
           {a.tipo && <p className="mb-1 text-xs font-bold tracking-[0.2em] text-marca uppercase">{a.tipo}</p>}
           <h1 className="text-[26px] leading-tight font-extrabold">{a.nombre}</h1>
