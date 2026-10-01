@@ -46,6 +46,8 @@ export const IconWhatsApp = ({ size = 22, ...p }: P) => (
 );
 
 export const IconMap = (p: P) => (<svg {...base(p)}><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z" /><path d="M9 4v13.5M15 6.5V20" /></svg>);
+export const IconSube = (p: P) => (<svg {...base(p)}><path d="m4 16 6-6 4 4 6-7" /><path d="M15 7h5v5" /></svg>);
+export const IconBaja = (p: P) => (<svg {...base(p)}><path d="m4 8 6 6 4-4 6 7" /><path d="M15 17h5v-5" /></svg>);
 /** Gazebo de feria. */
 export const IconGazebo = (p: P) => (<svg {...base(p)}><path d="M12 3 3 9h18z" /><path d="M5 9v11M19 9v11M3 14h18" /></svg>);
 export const IconPin =(p: P) => (<svg {...base(p)}><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" /></svg>);

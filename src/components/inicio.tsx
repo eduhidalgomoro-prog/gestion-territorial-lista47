@@ -4,7 +4,7 @@ import type { Cumplimiento, Indicadores } from "@/lib/domain/metricas";
 import { estadoZona, personasDelMes, type Destacado } from "@/lib/domain/resumen";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { zonaLabel } from "@/lib/labels";
-import { IconAlert, IconCalendar, IconCash, IconCheck, IconTarget, IconUserPlus, IconUsers } from "./icons";
+import { IconAlert, IconBaja, IconCalendar, IconCash, IconCheck, IconPin, IconSube, IconTarget, IconUserPlus, IconUsers } from "./icons";
 import { cx } from "./ui";
 
 /**
@@ -70,17 +70,20 @@ const TONO: Record<Destacado["tono"], { caja: string; icono: string; Icon: typeo
 };
 
 /** «Lo más importante del mes»: 2 o 3 frases generadas con reglas. */
-export function Destacados({ items, enColumna }: { items: Destacado[]; enColumna?: boolean }) {
+const ICONO_EXTRA = { sube: IconSube, baja: IconBaja, personas: IconUsers, lugar: IconPin } as const;
+
+export function Destacados({ items, enColumna, titulo = "Lo más importante del mes", columnas = 3 }: { items: Destacado[]; enColumna?: boolean; titulo?: string; columnas?: 2 | 3 }) {
   if (!items.length) return null;
   return (
     <section aria-labelledby="destacados">
-      <h2 id="destacados" className="mb-2 text-lg font-bold">Lo más importante del mes</h2>
-      <ul className={cx("grid gap-2", !enColumna && "md:grid-cols-3")}>
+      <h2 id="destacados" className="mb-2 text-lg font-bold">{titulo}</h2>
+      <ul className={cx("grid gap-2", !enColumna && (columnas === 2 ? "md:grid-cols-2" : "md:grid-cols-3"))}>
         {items.map((d, i) => {
           const t = TONO[d.tono];
+          const Icono = d.icono ? ICONO_EXTRA[d.icono] : t.Icon;
           return (
             <li key={i} className={cx("flex items-start gap-3 rounded-2xl p-3.5", t.caja)}>
-              <span className={cx("mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full", t.icono)}><t.Icon size={16} /></span>
+              <span className={cx("mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full", t.icono)}><Icono size={16} /></span>
               <p className="text-[15px] leading-snug font-semibold">{d.texto}</p>
             </li>
           );

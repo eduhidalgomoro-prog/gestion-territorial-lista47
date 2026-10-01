@@ -5,7 +5,7 @@ import { invalidate, setConfigValue, snapshot } from "@/lib/db";
 import { cumplimiento, filtrarActividades, indicadores } from "@/lib/domain/metricas";
 import { parseRegiones } from "@/lib/territorio";
 import { armarFilas, sectoresDe } from "@/lib/ferias";
-import { destacadosDelMes, estadoZona } from "@/lib/domain/resumen";
+import { compararIndicador, conclusionesEstadisticas, destacadosDelMes, estadoZona } from "@/lib/domain/resumen";
 import type { TipoPuesto } from "@/lib/schema";
 import { asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, configurarFeria, crearFeria, generarPuestos, inscribirFeriaPublico, type FerianteInput } from "@/lib/services/ferias";
 import { ubicacionLabel } from "@/lib/labels";
@@ -235,6 +235,26 @@ describe("participantes, importación y asistencia", () => {
     expect(estadoZona({ cantidad: 1, objetivo: 2 })).toEqual({ tono: "pendiente", texto: "Falta 1" });
     expect(estadoZona({ cantidad: 6, objetivo: 2 }).texto).toBe("Objetivo superado");
     expect(estadoZona({ cantidad: 2, objetivo: 2 }).texto).toBe("Objetivo cumplido");
+  });
+
+  it("estadísticas: conclusiones con reglas y comparación con sentido", () => {
+    const ind = { total: 29, programadas: 29, realizadas: 7, suspendidas: 0, canceladas: 0, borradores: 0, inscriptos: 70, asistentes: 7, pctAsistencia: 10, personasNuevas: 12, personasRecurrentes: 51, costoEstimado: 0, costoReal: 0, costoPromedio: 0 };
+    const anterior = { ...ind, total: 24, programadas: 24 };
+    const zonas = [{ nombre: "Zona Norte", cantidad: 1, objetivo: 2 }, { nombre: "Zona Este", cantidad: 6, objetivo: 2 }];
+    const barrios = [{ label: "San Roque", value: 7 }, { label: "Irupé", value: 5 }, { label: "Centro", value: 4 }];
+    expect(conclusionesEstadisticas({ ind, anterior, nombreAnterior: "septiembre", zonas, barrios }).map((d) => d.texto)).toEqual([
+      "Zona Norte necesita 1 actividad más para alcanzar el objetivo.",
+      "Zona Este ya alcanzó el objetivo mensual.",
+      "Se programaron 5 actividades más que en septiembre.",
+      "La mayoría de las personas ya habían participado antes (81% recurrentes).",
+    ]);
+    // Sin datos del mes anterior, no se compara; con pocas personas, no se habla de porcentajes.
+    const sinComparar = conclusionesEstadisticas({ ind: { ...ind, personasNuevas: 1, personasRecurrentes: 1 }, anterior: { ...anterior, total: 0 }, nombreAnterior: "septiembre", zonas: [], barrios });
+    expect(sinComparar.map((d) => d.texto)).toEqual(["La actividad se concentra en San Roque: 7 de 16 actividades."]);
+    // Más cancelaciones no es «bueno» aunque suba.
+    expect(compararIndicador(3, 1, false)).toMatchObject({ direccion: "sube", tono: "pendiente" });
+    expect(compararIndicador(29, 24, true)).toMatchObject({ diff: 5, tono: "logro" });
+    expect(compararIndicador(5, 5, true).tono).toBe("neutro");
   });
 
   it("feria: sectores del croquis", () => {

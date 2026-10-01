@@ -77,7 +77,7 @@ export function Columnas({ data, leyenda, colores = ["#106985", "#66ba47"] }: { 
   return (
     <div>
       <Leyenda items={[{ label: leyenda[0], color: colores[0] }, ...(leyenda[1] ? [{ label: leyenda[1], color: colores[1] }] : [])]} />
-      <div className="mt-3 flex h-40 items-end gap-2" role="img" aria-label={`Evolución: ${data.map((d) => `${d.label} ${d.value}`).join(", ")}`}>
+      <div className="mt-3 flex h-48 items-end gap-1.5 sm:gap-2" role="img" aria-label={`Evolución: ${data.map((d) => `${d.label} ${d.value}`).join(", ")}`}>
         {data.map((d) => (
           <div key={d.label} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end">
             <div className="flex h-full w-full items-end justify-center gap-0.5">
@@ -94,8 +94,8 @@ export function Columnas({ data, leyenda, colores = ["#106985", "#66ba47"] }: { 
 
 function Col({ value, max, color }: { value: number; max: number; color: string }) {
   return (
-    <div className="flex h-full w-full max-w-7 flex-col items-center justify-end">
-      <span className="mb-0.5 text-[10px] font-bold tabular-nums">{value || ""}</span>
+    <div className="flex h-full w-full max-w-8 flex-col items-center justify-end" title={String(value)}>
+      <span className="mb-0.5 text-[11px] font-bold tabular-nums">{value || ""}</span>
       <div className="w-full rounded-t-md" style={{ height: `${(value / max) * 85}%`, minHeight: value ? 3 : 0, background: color }} />
     </div>
   );
