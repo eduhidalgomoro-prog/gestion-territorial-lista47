@@ -115,7 +115,8 @@ export function Leyenda({ items }: { items: { label: string; color: string }[] }
 
 export function ChartCard({ title, children, className, action }: { title: string; children: ReactNode; className?: string; action?: ReactNode }) {
   return (
-    <section className={cx("rounded-2xl border border-linea bg-white p-4 sm:p-5", className)}>
+    // min-w-0: dentro de una grilla, que una tabla ancha se desplace adentro y no estire la página en el celular.
+    <section className={cx("min-w-0 rounded-2xl border border-linea bg-white p-4 sm:p-5", className)}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="text-base font-bold">{title}</h2>
         {action}

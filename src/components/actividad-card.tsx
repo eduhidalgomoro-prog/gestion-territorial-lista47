@@ -30,7 +30,7 @@ export function ActividadCard({ a, conteo, compacta }: { a: Actividad; conteo?: 
   return (
     <Link
       href={`/actividades/${a.id}`}
-      className="group flex h-full flex-col rounded-2xl border border-linea bg-white transition-[border-color,box-shadow] hover:border-petroleo hover:shadow-sm focus-visible:border-petroleo"
+      className="group flex h-full min-w-0 flex-col rounded-2xl border border-linea bg-white transition-[border-color,box-shadow] hover:border-petroleo hover:shadow-sm focus-visible:border-petroleo"
     >
       <div className="flex flex-1 items-start gap-3 p-4 pb-3">
         <div className={cx("flex w-14 shrink-0 flex-col items-center rounded-xl py-2", tachada ? "bg-fondo text-gris" : "bg-petroleo-50 text-petroleo-600")}>
@@ -50,10 +50,10 @@ export function ActividadCard({ a, conteo, compacta }: { a: Actividad; conteo?: 
             {a.nombre}
           </p>
           <p className="mt-1.5 flex items-center gap-1.5 text-sm text-gris">
-            <IconClock size={15} className="shrink-0" /> <span className="truncate">{horario}</span>
+            <IconClock size={15} className="shrink-0" /> <span className="min-w-0 truncate">{horario}</span>
           </p>
           <p className="mt-0.5 flex items-center gap-1.5 text-sm text-gris" title={lugar}>
-            <IconPin size={15} className="shrink-0" /> <span className="truncate">{lugar}</span>
+            <IconPin size={15} className="shrink-0" /> <span className="min-w-0 truncate">{lugar}</span>
           </p>
         </div>
       </div>
