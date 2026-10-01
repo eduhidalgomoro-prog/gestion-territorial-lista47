@@ -1,17 +1,18 @@
 import Link from "next/link";
 import { ActividadCard } from "@/components/actividad-card";
 import { BarrasDobles, ChartCard, Columnas } from "@/components/charts";
-import { CumplimientoZonas } from "@/components/cumplimiento";
+import { AvanceZonas, BloqueCostos, Destacados, GruposIndicadores, ResumenMes } from "@/components/inicio";
 import { InstallBanner } from "@/components/install-button";
 import { SelectorPeriodo } from "@/components/periodo";
-import { cx, Empty, LinkButton, Notice, PageHeader, Stat } from "@/components/ui";
+import { cx, Empty, LinkButton, Notice, PageHeader } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { snapshot } from "@/lib/db";
 import { conteosPorActividad, cumplimiento, evolucion, indicadores, inscriptosVsAsistentes } from "@/lib/domain/metricas";
+import { destacadosDelMes } from "@/lib/domain/resumen";
 import { zonaLabel } from "@/lib/labels";
 import { redirect } from "next/navigation";
 import { actividadesVisibles, esAgenda, esDiseno, esFerias, esOperador, puede, zonaForzada } from "@/lib/permisos";
-import { formatMoney, formatNumber, nombreMes, today } from "@/lib/util";
+import { nombreMes, today } from "@/lib/util";
 import { periodo, type SP } from "@/lib/view";
 
 export const metadata = { title: "Inicio" };
@@ -83,15 +84,28 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<S
     </section>
   );
 
+  const tituloMes = `${nombreMes(mes)} ${anio}`;
+  // El interior no tiene objetivo mensual (por ahora): sus responsables no ven el avance por zonas.
+  const conObjetivo = !agenda && cumpl.length > 0;
+  const destacados = destacadosDelMes(
+    ind,
+    agenda ? [] : cumpl.map((c) => ({ ...c, nombre: zonaLabel(c.zona) })),
+    nombreMes(mes),
+  ).filter((d) => !agenda || d.tono === "info" || /primera vez/.test(d.texto));
+
   return (
     <>
       <InstallBanner />
-      <PageHeader
-        kicker={zona ? zonaLabel(zona) : "Toda la provincia"}
-        title={`Hola, ${primerNombre}`}
-        subtitle={`Resumen de ${nombreMes(mes).toLowerCase()} ${anio}`}
-        actions={<SelectorPeriodo action="/inicio" anio={anio} mes={mes} />}
-      />
+      <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="mb-1.5 inline-flex items-center gap-1.5 rounded-full bg-petroleo-50 px-3 py-1 text-xs font-bold tracking-[0.12em] text-petroleo uppercase">
+            {zona ? zonaLabel(zona) : "Toda la provincia"}
+          </p>
+          <h1 className="font-titulo text-3xl font-extrabold tracking-tight sm:text-4xl">Hola, {primerNombre}</h1>
+          <p className="mt-0.5 text-[16px] text-gris">Así viene {nombreMes(mes).toLowerCase()} {anio}</p>
+        </div>
+        <SelectorPeriodo action="/inicio" anio={anio} mes={mes} />
+      </header>
 
       {sinZona > 0 && puede.configurar(yo) && (
         <Notice tone="alerta" className="mb-4">
@@ -103,25 +117,17 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<S
       {/* Agenda: lo primero son las próximas actividades (es lo que usa para armar la agenda de los referentes). */}
       {agenda && proximasSeccion}
 
-      <div className={cx("grid gap-4", !agenda && cumpl.length > 0 && "lg:grid-cols-[1fr_1.4fr]", agenda && "mt-6")}>
-        {/* El interior no tiene objetivo mensual (por ahora): sus responsables no ven este cuadro. */}
-        {!agenda && cumpl.length > 0 && <CumplimientoZonas data={cumpl} anio={anio} mes={mes} />}
-        <section aria-label="Indicadores del mes" className={cx("grid grid-cols-2 gap-3", agenda ? "sm:grid-cols-5" : "sm:grid-cols-3")}>
-          {!agenda && (
-            <>
-              <Stat label="Programadas" value={ind.programadas} hint={ind.borradores ? `${ind.borradores} en borrador` : undefined} />
-              <Stat label="Realizadas" value={ind.realizadas} tone="verde" />
-              <Stat label="Suspendidas / canceladas" value={ind.suspendidas + ind.canceladas} tone={ind.suspendidas + ind.canceladas ? "alerta" : "gris"} />
-            </>
-          )}
-          <Stat label="Inscriptos" value={formatNumber(ind.inscriptos)} />
-          <Stat label="Asistentes" value={formatNumber(ind.asistentes)} tone="verde" />
-          <Stat label="% asistencia" value={`${ind.pctAsistencia}%`} hint="en actividades realizadas" />
-          <Stat label="Personas nuevas" value={formatNumber(ind.personasNuevas)} />
-          <Stat label="Personas recurrentes" value={formatNumber(ind.personasRecurrentes)} />
-          {costos && <Stat label="Costo estimado" value={formatMoney(ind.costoEstimado)} />}
-          {costos && <Stat label="Costo real" value={formatMoney(ind.costoReal)} />}
-        </section>
+      <div className={cx("space-y-5", agenda && "mt-6")}>
+        <ResumenMes titulo={tituloMes} ind={ind} zonas={conObjetivo ? cumpl : []} conActividades={!agenda} />
+
+        <div className={cx("grid gap-5", conObjetivo && "lg:grid-cols-[1fr_1.15fr]")}>
+          <Destacados items={destacados} enColumna={conObjetivo} />
+          {conObjetivo && <AvanceZonas data={cumpl} anio={anio} mes={mes} />}
+        </div>
+
+        <GruposIndicadores ind={ind} conActividades={!agenda} />
+
+        {costos && <BloqueCostos estimado={ind.costoEstimado} real={ind.costoReal} />}
       </div>
 
       {!agenda && proximasSeccion}

@@ -5,6 +5,7 @@ import { invalidate, setConfigValue, snapshot } from "@/lib/db";
 import { cumplimiento, filtrarActividades, indicadores } from "@/lib/domain/metricas";
 import { parseRegiones } from "@/lib/territorio";
 import { armarFilas, sectoresDe } from "@/lib/ferias";
+import { destacadosDelMes, estadoZona } from "@/lib/domain/resumen";
 import type { TipoPuesto } from "@/lib/schema";
 import { asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, configurarFeria, crearFeria, generarPuestos, inscribirFeriaPublico, type FerianteInput } from "@/lib/services/ferias";
 import { ubicacionLabel } from "@/lib/labels";
@@ -210,6 +211,30 @@ describe("participantes, importación y asistencia", () => {
     expect(puede.editarActividad(ferias, feria)).toBe(true);
     expect(puede.verActividad(ferias, comun, [])).toBe(false);
     expect(puede.verParticipantes(ferias) || puede.verCostos(ferias) || puede.configurar(ferias)).toBe(false);
+  });
+
+  it("inicio: lo más importante del mes, con reglas", () => {
+    const base = { total: 10, programadas: 9, realizadas: 4, suspendidas: 1, canceladas: 0, borradores: 0, inscriptos: 70, asistentes: 40, pctAsistencia: 80, personasNuevas: 12, personasRecurrentes: 51, costoEstimado: 0, costoReal: 0, costoPromedio: 0 };
+    const zonas = [
+      { nombre: "Zona Norte", cantidad: 1, objetivo: 2 },
+      { nombre: "Zona Este", cantidad: 6, objetivo: 2 },
+      { nombre: "Zona Sur", cantidad: 2, objetivo: 2 },
+    ];
+    expect(destacadosDelMes(base, zonas, "Octubre").map((d) => d.texto)).toEqual([
+      "Zona Norte necesita 1 actividad más para cumplir el objetivo.",
+      "Zona Este ya superó su objetivo mensual.",
+      "1 actividad se suspendió o canceló este mes.",
+    ]);
+    const todoBien = destacadosDelMes({ ...base, suspendidas: 0 }, zonas.map((z) => ({ ...z, cantidad: 3 })), "Octubre");
+    expect(todoBien.map((d) => d.texto)).toEqual([
+      "Todas las zonas cumplieron el objetivo mensual.",
+      "12 personas participan por primera vez.",
+      "63 personas están inscriptas en actividades de octubre.",
+    ]);
+    expect(destacadosDelMes({ ...base, total: 0 }, zonas, "Octubre")[0].texto).toBe("Todavía no hay actividades cargadas para octubre.");
+    expect(estadoZona({ cantidad: 1, objetivo: 2 })).toEqual({ tono: "pendiente", texto: "Falta 1" });
+    expect(estadoZona({ cantidad: 6, objetivo: 2 }).texto).toBe("Objetivo superado");
+    expect(estadoZona({ cantidad: 2, objetivo: 2 }).texto).toBe("Objetivo cumplido");
   });
 
   it("feria: sectores del croquis", () => {
