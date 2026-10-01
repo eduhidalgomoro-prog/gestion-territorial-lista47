@@ -1,18 +1,19 @@
 import Link from "next/link";
-import { ActividadCard } from "@/components/actividad-card";
+import { ActividadCard, EstadoBadge } from "@/components/actividad-card";
+import { NavegarAgenda } from "@/components/calendario-agenda";
 import { Buscador, FiltroSelect, FiltrosForm } from "@/components/filtros";
-import { IconCalendar, IconList, IconMap, IconPlus } from "@/components/icons";
+import { IconArrowLeft, IconArrowRight, IconCalendar, IconList, IconMap, IconPin, IconPlus, IconUsers } from "@/components/icons";
 import { MapaActividades, type Encuadre, type PuntoMapa } from "@/components/mapa";
-import { Badge, cx, Empty, LinkButton, Notice, PageHeader } from "@/components/ui";
+import { cx, Empty, LinkButton, Notice, PageHeader } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { CATEGORIAS, categoriaDe, emojisDe, labelCategoria, type CategoriaId } from "@/lib/categorias";
 import { snapshot } from "@/lib/db";
 import { conteosPorActividad, filtrarActividades } from "@/lib/domain/metricas";
-import { ESTADO_COLOR, ESTADO_HEX, titulo, ubicacionLabel, zonaLabel } from "@/lib/labels";
+import { ESTADO_HEX, titulo, ubicacionLabel, zonaLabel } from "@/lib/labels";
 import { actividadesVisibles, esOperador, esResponsable, puede } from "@/lib/permisos";
 import { ESTADOS_ACTIVIDAD, ZONAS_ACTIVIDAD, type Actividad } from "@/lib/schema";
 import { ambitoDe, parseRegiones, regionLabel } from "@/lib/territorio";
-import { addMonths, formatDate, MESES, nombreMes, titleCase, today } from "@/lib/util";
+import { addMonths, formatDate, MESES, mesAnio, nombreMes, titleCase, today } from "@/lib/util";
 import { filtrosDe, qs, sp, type SP } from "@/lib/view";
 
 export type Vista = "listado" | "calendario" | "mapa";
@@ -217,7 +218,7 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
       </FiltrosForm>
 
       {vista === "listado" && <Listado lista={lista} conteos={conteos} />}
-      {vista === "calendario" && <Calendario lista={lista} anio={f.anio!} mes={f.mes!} keep={keep} />}
+      {vista === "calendario" && <Calendario lista={lista} anio={f.anio!} mes={f.mes!} keep={keep} conteos={conteos} />}
       {vista === "mapa" && <Mapa lista={lista} conteos={conteos} foco={sp(q, "foco")} emojis={emojisDe(s.config.emojis_mapa)} encuadre={encuadre} />}
     </>
   );
@@ -238,7 +239,48 @@ const esInterior = (a: Actividad) => ambitoDe(a.zona) === "interior";
 
 const DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
-function Calendario({ lista, anio, mes, keep }: { lista: Actividad[]; anio: number; mes: number; keep: Record<string, string | number | undefined> }) {
+/** Leyenda corta: estados (color + texto) y, si hay actividades del interior, el ámbito. */
+function LeyendaCalendario({ conInterior }: { conInterior: boolean }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs font-semibold text-gris">
+      {ESTADOS_ACTIVIDAD.map((e) => (
+        <span key={e} className="inline-flex items-center gap-1.5">
+          <span className="size-2.5 rounded-full" style={{ background: ESTADO_HEX[e] }} aria-hidden /> {titulo(e)}
+        </span>
+      ))}
+      {conInterior && (
+        <span className="inline-flex items-center gap-3 border-l border-linea pl-4">
+          <span>Ámbito:</span>
+          <span className="inline-flex items-center gap-1">Capital</span>
+          <span className="inline-flex items-center gap-1"><IconPin size={13} className="text-petroleo" /> Interior</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Evento dentro de una celda: «16:00 · Nombre», con el color del estado (y un pin si es del interior). */
+function EventoCalendario({ a }: { a: Actividad }) {
+  const lugar = esInterior(a) ? `Interior · ${a.localidad || "sin localidad"}` : `Capital · ${ubicacionLabel(a)}`;
+  return (
+    <Link
+      href={`/actividades/${a.id}`}
+      className="flex items-start gap-1 rounded-md border-l-[3px] px-1.5 py-1 text-[12px] leading-tight text-tinta transition-[filter] hover:brightness-95"
+      style={{ borderColor: ESTADO_HEX[a.estado], background: `${ESTADO_HEX[a.estado]}1a` }}
+      title={`${a.hora_inicio ? `${a.hora_inicio} · ` : ""}${a.nombre}\n${lugar}\nEstado: ${titulo(a.estado)}`}
+      aria-label={`${a.hora_inicio ? `${a.hora_inicio}, ` : ""}${a.nombre}. ${lugar}. Estado: ${titulo(a.estado)}`}
+    >
+      {esInterior(a) && <IconPin size={12} className="mt-px shrink-0 text-petroleo" />}
+      {/* Nombre resumido: hasta 2 líneas (el completo está en la agenda, en el tooltip y en la ficha). */}
+      <span className={cx("line-clamp-2 break-words", a.estado === "CANCELADA" && "line-through")}>
+        {a.hora_inicio && <b className="font-bold">{a.hora_inicio} · </b>}
+        {a.nombre}
+      </span>
+    </Link>
+  );
+}
+
+function Calendario({ lista, anio, mes, keep, conteos }: { lista: Actividad[]; anio: number; mes: number; keep: Record<string, string | number | undefined>; conteos: ReturnType<typeof conteosPorActividad> }) {
   const primero = new Date(Date.UTC(anio, mes - 1, 1));
   const diasMes = new Date(Date.UTC(anio, mes, 0)).getUTCDate();
   const offset = (primero.getUTCDay() + 6) % 7; // lunes primero
@@ -254,23 +296,42 @@ function Calendario({ lista, anio, mes, keep }: { lista: Actividad[]; anio: numb
   const celdas = Array.from({ length: Math.ceil((offset + diasMes) / 7) * 7 }, (_, i) => i - offset + 1);
   const fechaDe = (d: number) => `${anio}-${String(mes).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   const conFecha = [...porDia.keys()].sort((a, b) => a - b);
+  const delMes = conFecha.flatMap((d) => porDia.get(d)!);
+  const inscriptosMes = delMes.reduce((n, a) => n + (conteos.get(a.id)?.inscriptos ?? 0), 0);
+  const esMesActual = hoy.slice(0, 7) === fechaDe(1).slice(0, 7);
+  const hoyMes = mesAnio(hoy);
+  // Celda: hasta 3 actividades; si hay más, 2 y «+ N actividades».
+  const visibles = (n: number) => (n <= 3 ? n : 2);
 
   return (
-    <div>
-      <div className="mb-3 flex items-center justify-between">
-        <Link href={`/calendario${qs({ ...keep, mes: ant.mes, anio: ant.anio })}`} className="rounded-xl px-3 py-2 text-sm font-bold text-petroleo hover:bg-white">
-          ← {nombreMes(ant.mes)}
+    <NavegarAgenda>
+      {/* Navegación del mes: el mes actual es lo principal; anterior y siguiente, acciones secundarias. */}
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <Link href={`/calendario${qs({ ...keep, mes: ant.mes, anio: ant.anio })}`} className="inline-flex min-h-10 items-center gap-1 rounded-full px-3 text-sm font-bold text-gris hover:bg-white hover:text-petroleo">
+          <IconArrowLeft size={16} /> <span className="max-sm:sr-only">{nombreMes(ant.mes)}</span>
         </Link>
-        <h2 className="font-titulo text-lg font-extrabold">{nombreMes(mes)} {anio}</h2>
-        <Link href={`/calendario${qs({ ...keep, mes: sig.mes, anio: sig.anio })}`} className="rounded-xl px-3 py-2 text-sm font-bold text-petroleo hover:bg-white">
-          {nombreMes(sig.mes)} →
+        <div className="text-center">
+          <h2 className="font-titulo text-2xl font-extrabold tracking-tight sm:text-3xl">{nombreMes(mes)} {anio}</h2>
+          {!esMesActual && (
+            <Link href={`/calendario${qs({ ...keep, mes: hoyMes.mes, anio: hoyMes.anio })}`} className="text-xs font-bold text-petroleo hover:underline">
+              Volver a hoy
+            </Link>
+          )}
+        </div>
+        <Link href={`/calendario${qs({ ...keep, mes: sig.mes, anio: sig.anio })}`} className="inline-flex min-h-10 items-center gap-1 rounded-full px-3 text-sm font-bold text-gris hover:bg-white hover:text-petroleo">
+          <span className="max-sm:sr-only">{nombreMes(sig.mes)}</span> <IconArrowRight size={16} />
         </Link>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-linea bg-white">
-        <div className="grid grid-cols-7 border-b border-linea bg-fondo text-center text-xs font-bold text-gris">
-          {DIAS.map((d) => (
-            <div key={d} className="py-2">{d}</div>
+      <div className="mb-3">
+        <LeyendaCalendario conInterior={lista.some(esInterior)} />
+      </div>
+
+      {/* Computadora y tablet: calendario mensual. */}
+      <div className="overflow-hidden rounded-2xl border border-linea bg-white max-sm:hidden">
+        <div className="grid grid-cols-7 border-b border-linea text-center text-xs font-bold tracking-wide text-gris uppercase">
+          {DIAS.map((d, i) => (
+            <div key={d} className={cx("py-2.5", i >= 5 && "bg-fondo/50")}>{d}</div>
           ))}
         </div>
         <div className="grid grid-cols-7">
@@ -278,38 +339,37 @@ function Calendario({ lista, anio, mes, keep }: { lista: Actividad[]; anio: numb
             const valido = d >= 1 && d <= diasMes;
             const acts = valido ? porDia.get(d) ?? [] : [];
             const esHoy = valido && fechaDe(d) === hoy;
+            const finde = i % 7 >= 5;
+            const n = visibles(acts.length);
             return (
-              <div key={i} className={cx("min-h-14 border-r border-b border-linea p-0.5 sm:min-h-28 sm:p-1.5", (i + 1) % 7 === 0 && "border-r-0", !valido && "bg-fondo/60")}>
+              <div
+                key={i}
+                data-dia={acts.length ? d : undefined}
+                className={cx(
+                  "min-h-28 border-r border-b border-linea/70 p-1.5 lg:min-h-32",
+                  (i + 1) % 7 === 0 && "border-r-0",
+                  i >= celdas.length - 7 && "border-b-0",
+                  !valido ? "bg-fondo/40" : finde ? "bg-fondo/50" : "bg-white",
+                  esHoy && "bg-petroleo-50/60",
+                  acts.length > 0 && "cursor-pointer hover:bg-petroleo-50/40",
+                )}
+              >
                 {valido && (
                   <>
-                    <span className={cx("inline-flex size-6 items-center justify-center rounded-full text-xs font-bold", esHoy ? "bg-petroleo text-white" : "text-gris")}>{d}</span>
-                    {/* Celular: el nombre en letra chica (hasta 2 por día; el resto en la agenda de abajo).
-                        Computadora: hora y nombre (hasta 3 por día). El nombre ocupa varias líneas en lugar de cortarse. */}
-                    <ul className="mt-0.5 space-y-0.5 sm:mt-1 sm:space-y-1">
-                      {acts.map((a, j) => (
-                        <li key={a.id} className={cx(j >= 3 && "hidden", j >= 2 && "max-sm:hidden")}>
-                          {/* Capital: fondo del color del estado. Interior: borde del color del estado y la localidad adelante. */}
-                          <Link
-                            href={`/actividades/${a.id}`}
-                            className={cx(
-                              "block rounded px-0.5 py-px text-[9px] leading-[1.15] font-semibold break-words hyphens-auto hover:opacity-90 sm:rounded-md sm:px-1.5 sm:py-0.5 sm:text-[11px] sm:leading-tight",
-                              "line-clamp-3 sm:line-clamp-2",
-                              esInterior(a) ? "border bg-white sm:border-[1.5px]" : "text-white",
-                            )}
-                            style={esInterior(a) ? { borderColor: ESTADO_HEX[a.estado], color: ESTADO_HEX[a.estado] } : { background: ESTADO_HEX[a.estado] }}
-                            title={`${a.nombre} · ${ubicacionLabel(a)} · ${a.estado}`}
-                          >
-                            {esInterior(a) && <b className="uppercase">{a.localidad || "Interior"} · </b>}
-                            {a.hora_inicio && <span className="max-sm:hidden">{a.hora_inicio} </span>}
-                            {a.nombre}
-                          </Link>
-                        </li>
+                    <div className="mb-1 flex items-center justify-between px-0.5">
+                      <span className={cx("inline-flex size-7 items-center justify-center rounded-full text-[13px] font-bold", esHoy ? "bg-petroleo text-white" : acts.length ? "text-tinta" : "text-gris/70")}>
+                        {d}
+                      </span>
+                      {esHoy && <span className="text-[10px] font-bold tracking-wide text-petroleo uppercase">Hoy</span>}
+                    </div>
+                    <ul className="space-y-1">
+                      {acts.slice(0, n).map((a) => (
+                        <li key={a.id}><EventoCalendario a={a} /></li>
                       ))}
-                      {acts.length > 2 && (
-                        <li className={cx("px-0.5 text-[9px] font-bold text-gris sm:px-1 sm:text-[11px]", acts.length <= 3 && "sm:hidden")}>
-                          <a href={`#dia-${d}`}>
-                            <span className="sm:hidden">+{acts.length - 2}</span>
-                            <span className="max-sm:hidden">+{acts.length - 3} más</span>
+                      {acts.length > n && (
+                        <li>
+                          <a href={`#dia-${d}`} data-ir-dia={d} className="block rounded-md px-1.5 py-0.5 text-[12px] font-bold text-petroleo hover:bg-petroleo-50">
+                            + {acts.length - n} actividades
                           </a>
                         </li>
                       )}
@@ -322,61 +382,92 @@ function Calendario({ lista, anio, mes, keep }: { lista: Actividad[]; anio: numb
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold text-gris">
-        {ESTADOS_ACTIVIDAD.map((e) => (
-          <span key={e} className="inline-flex items-center gap-1.5">
-            <span className="size-2.5 rounded-full" style={{ background: ESTADO_HEX[e] }} /> {e}
-          </span>
-        ))}
-      </div>
-      {lista.some(esInterior) && (
-        <div className="mt-2 flex flex-wrap gap-4 text-xs font-semibold text-gris">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="rounded bg-petroleo px-1.5 py-0.5 text-[10px] text-white">Taller</span> Capital (relleno)
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="rounded border-[1.5px] border-petroleo bg-white px-1.5 py-0.5 text-[10px] text-petroleo"><b>GOYA ·</b> Taller</span> Interior (con borde y localidad)
-          </span>
+      {/* Celular: mes chico con puntos (qué días tienen actividades); al tocar un día baja a la agenda. */}
+      <div className="rounded-2xl border border-linea bg-white p-2 sm:hidden">
+        <div className="grid grid-cols-7 text-center text-[11px] font-bold text-gris uppercase">
+          {DIAS.map((d) => <div key={d} className="py-1">{d.slice(0, 2)}</div>)}
         </div>
-      )}
+        <div className="grid grid-cols-7">
+          {celdas.map((d, i) => {
+            const valido = d >= 1 && d <= diasMes;
+            const acts = valido ? porDia.get(d) ?? [] : [];
+            const esHoy = valido && fechaDe(d) === hoy;
+            if (!valido) return <div key={i} />;
+            return (
+              <button
+                key={i}
+                type="button"
+                data-ir-dia={acts.length ? d : undefined}
+                disabled={!acts.length}
+                aria-label={`${d}: ${acts.length ? `${acts.length} ${acts.length === 1 ? "actividad" : "actividades"}` : "sin actividades"}`}
+                className="flex min-h-12 flex-col items-center justify-start gap-1 rounded-xl py-1.5 enabled:active:bg-petroleo-50"
+              >
+                <span className={cx("inline-flex size-7 items-center justify-center rounded-full text-sm font-bold", esHoy ? "bg-petroleo text-white" : acts.length ? "text-tinta" : "text-gris/50")}>{d}</span>
+                <span className="flex gap-0.5" aria-hidden>
+                  {acts.slice(0, 3).map((a) => <span key={a.id} className="size-1.5 rounded-full" style={{ background: ESTADO_HEX[a.estado] }} />)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-      <section className="mt-6" aria-label="Agenda del mes">
-        <h2 className="mb-2 text-lg font-bold">Agenda de {nombreMes(mes).toLowerCase()}</h2>
+      {/* Agenda: el detalle de cada día (mismas actividades y mismos filtros que el calendario). */}
+      <section className="mt-8" aria-labelledby="agenda-titulo">
+        <h2 id="agenda-titulo" className="font-titulo text-xl font-extrabold">Agenda de {nombreMes(mes).toLowerCase()}</h2>
+        <p className="mb-4 text-[15px] text-gris">
+          <b className="text-tinta">{delMes.length}</b> {delMes.length === 1 ? "actividad" : "actividades"} · <b className="text-tinta">{inscriptosMes}</b> {inscriptosMes === 1 ? "inscripto" : "inscriptos"}
+        </p>
         {conFecha.length === 0 ? (
-          <Empty>No hay actividades este mes.</Empty>
+          <Empty>No hay actividades este mes con estos filtros.</Empty>
         ) : (
-          <ol className="space-y-4">
-            {conFecha.map((d) => (
-              <li key={d} id={`dia-${d}`} className="scroll-mt-20">
-                <p className="mb-1.5 text-sm font-bold text-gris first-letter:uppercase">{formatDate(fechaDe(d), { weekday: "long", day: "numeric", month: "long" })}</p>
-                <div className="space-y-2">
-                  {porDia.get(d)!.map((a) => (
-                    <Link key={a.id} href={`/actividades/${a.id}`} className="flex items-center gap-3 rounded-xl border border-linea bg-white p-3 hover:border-petroleo">
-                      <span
-                        className={cx("h-10 w-1.5 shrink-0 rounded-full", esInterior(a) && "border-2 bg-white")}
-                        style={esInterior(a) ? { borderColor: ESTADO_HEX[a.estado] } : { background: ESTADO_HEX[a.estado] }}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="mb-0.5 block text-[11px] font-bold tracking-wide uppercase" style={{ color: esInterior(a) ? "#3f742c" : "#106985" }}>
-                          {esInterior(a) ? `Interior · ${a.localidad || "sin localidad"}` : "Capital"}
-                        </span>
-                        <span className="block truncate font-bold">{a.nombre}</span>
-                        <span className="block text-sm text-gris">
-                          {a.hora_inicio || "Sin horario"} · {ubicacionLabel(a)}
-                          {a.barrio && ` · ${titleCase(a.barrio)}`}
-                        </span>
-                      </span>
-                      <Badge color={ESTADO_COLOR[a.estado]}>{a.estado}</Badge>
-                    </Link>
-                  ))}
-                </div>
-              </li>
-            ))}
+          <ol className="space-y-5">
+            {conFecha.map((d) => {
+              const acts = porDia.get(d)!;
+              const fecha = fechaDe(d);
+              return (
+                <li key={d} id={`dia-${d}`} className="scroll-mt-24 rounded-2xl transition-colors duration-700 data-[resaltado]:bg-petroleo-50 data-[resaltado]:ring-2 data-[resaltado]:ring-petroleo/30">
+                  <h3 className="mb-2 flex items-baseline gap-2 px-1 pt-1">
+                    <span className="font-titulo text-[15px] font-bold first-letter:uppercase">{formatDate(fecha, { weekday: "long", day: "numeric", month: "long" })}</span>
+                    {acts.length > 1 && <span className="text-sm text-gris">· {acts.length} actividades</span>}
+                    {fecha === hoy && <span className="rounded-full bg-petroleo px-2 py-0.5 text-[10px] font-bold tracking-wide text-white uppercase">Hoy</span>}
+                  </h3>
+                  <div className="space-y-2">
+                    {acts.map((a) => {
+                      const inscriptos = conteos.get(a.id)?.inscriptos ?? 0;
+                      const donde = esInterior(a)
+                        ? [a.localidad, zonaLabel(a.zona), a.barrio && titleCase(a.barrio), a.lugar].filter(Boolean).join(" · ")
+                        : [zonaLabel(a.zona), a.barrio && titleCase(a.barrio), a.lugar].filter(Boolean).join(" · ");
+                      return (
+                        <Link key={a.id} href={`/actividades/${a.id}`} className="flex items-stretch gap-3 rounded-xl border border-linea bg-white p-3 transition-colors hover:border-petroleo sm:p-3.5">
+                          <span className="w-1.5 shrink-0 rounded-full" style={{ background: ESTADO_HEX[a.estado] }} aria-hidden />
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[11px] font-bold tracking-[0.12em] text-gris uppercase">
+                              {esInterior(a) ? <span className="inline-flex items-center gap-1"><IconPin size={12} className="text-petroleo" /> Interior · {a.localidad || "sin localidad"}</span> : "Capital"}
+                            </span>
+                            <span className={cx("mt-0.5 block font-titulo text-[17px] leading-snug font-bold", a.estado === "CANCELADA" && "line-through decoration-gris/60")}>{a.nombre}</span>
+                            <span className="mt-0.5 block text-sm text-gris">
+                              <b className="font-semibold text-tinta">{a.hora_inicio ? `${a.hora_inicio}${a.hora_fin ? `–${a.hora_fin}` : ""}` : "Sin horario"}</b> · {donde}
+                            </span>
+                            <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                              <EstadoBadge estado={a.estado} />
+                              {inscriptos > 0 && (
+                                <span className="inline-flex items-center gap-1 text-sm font-semibold"><IconUsers size={15} /> {inscriptos} {inscriptos === 1 ? "inscripto" : "inscriptos"}</span>
+                              )}
+                            </span>
+                          </span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </li>
+              );
+            })}
           </ol>
         )}
         {lista.some((a) => !a.fecha) && <Notice className="mt-3">Hay actividades sin fecha (borradores): aparecen en el listado.</Notice>}
       </section>
-    </div>
+    </NavegarAgenda>
   );
 }
 
