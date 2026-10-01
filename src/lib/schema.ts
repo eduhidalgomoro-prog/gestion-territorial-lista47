@@ -142,6 +142,7 @@ export interface Puesto extends Meta {
   actividad_id: string;
   numero: number;
   tipo: TipoPuesto;
+  sector: string; // A, B, C… (una fila del croquis)
   x: number;
   y: number;
   activo: boolean; // false = se quitó al achicar la cantidad de puestos
@@ -478,6 +479,7 @@ export const TABLES: Record<TableName, TableDef> = {
       ["actividad_id", "ID Actividad"],
       ["numero", "Número"],
       ["tipo", "Tipo"],
+      ["sector", "Sector"],
       ["x", "Posición X (%)"],
       ["y", "Posición Y (%)"],
       ["activo", "Activo"],

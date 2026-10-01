@@ -13,10 +13,11 @@ import { crearUsuario, editarUsuario, guardarBarrio, guardarConfig, guardarInsti
 import { agregarPresente, buscarPorDni, guardarAsistencia, type Marca } from "@/lib/services/asistencia";
 import { geocodificar, type Ubicacion } from "@/lib/services/geocode";
 import {
-  agregarFeriante, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, configurarFeria, generarPuestos, quitarAsignaciones, ubicarPuestos,
+  agregarFeriante, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, configurarFeria, crearFeria, generarPuestos, quitarAsignaciones, ubicarPuestos,
 } from "@/lib/services/ferias";
 import { confirmarImportacion, darDeBaja, guardarLinkGrupo, guardarMensajes, marcarConfirmacion, vistaPreviaImportacion, type FilaImportada, type VistaPrevia } from "@/lib/services/inscripciones";
 import type { Yo } from "@/lib/permisos";
+import type { SectorFeria } from "@/lib/ferias";
 
 const str = (fd: FormData, k: string) => {
   const v = fd.get(k);
@@ -107,18 +108,39 @@ export async function mensajesAction(actividadId: string, _: ActionResult, fd: F
 // Ferias
 // ---------------------------------------------------------------------------
 
+export async function crearFeriaAction(_: ActionResult, fd: FormData): Promise<ActionResult> {
+  return act(
+    (yo) =>
+      crearFeria(
+        {
+          nombre: str(fd, "nombre"), fecha: str(fd, "fecha"), hora_inicio: str(fd, "hora_inicio"), hora_fin: str(fd, "hora_fin"), lugar: str(fd, "lugar"),
+          barrio: str(fd, "barrio").toUpperCase(), zona: str(fd, "zona"), localidad: str(fd, "localidad"),
+          cupo: num(fd, "cupo"), sectores: sectoresDeForm(fd),
+        },
+        yo,
+      ),
+    { redirectTo: (a) => `/actividades/${a.id}/feria?tab=puestos` },
+  );
+}
+
 export async function feriaConfigAction(actividadId: string, _: ActionResult, fd: FormData): Promise<ActionResult> {
   return act((yo) => configurarFeria(actividadId, num(fd, "cupo"), yo), { ok: "Feria configurada. El formulario de inscripción ya tiene cupo." });
 }
 
+/** Sectores de la feria que manda el editor como JSON ([{ tipo, cantidad }]). */
+function sectoresDeForm(fd: FormData): SectorFeria[] {
+  try {
+    const v = JSON.parse(str(fd, "sectores"));
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function puestosAction(actividadId: string, _: ActionResult, fd: FormData): Promise<ActionResult> {
-  return act(
-    async (yo) => {
-      const r = await generarPuestos(actividadId, { individuales: num(fd, "individuales"), compartidos: num(fd, "compartidos"), propios: num(fd, "propios") }, yo);
-      return r;
-    },
-    { ok: "Puestos guardados." },
-  );
+  const r = await act((yo) => generarPuestos(actividadId, sectoresDeForm(fd), yo));
+  if (!r.ok || !r.data) return r;
+  return { ok: true, message: `Puestos guardados: ${r.data.total}.${r.data.liberadas ? ` ${r.data.liberadas} feriantes quedaron sin puesto porque el suyo ya no existe o cambió: reasignalas.` : ""}` };
 }
 
 export async function ubicarPuestosAction(actividadId: string, posiciones: { numero: number; x: number; y: number }[]): Promise<ActionResult<number>> {

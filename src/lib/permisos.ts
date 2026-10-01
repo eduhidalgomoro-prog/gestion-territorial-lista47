@@ -66,6 +66,8 @@ export const puede = {
   verInscriptos: (yo: Yo, act: Actividad, asig: Asignacion[]) => !esDiseno(yo) && !esAgenda(yo) && puede.verActividad(yo, act, asig),
   /** Estado, imágenes y link del flyer: solo administración y diseño (el responsable solo lo pide y lo descarga). */
   editarFlyer: (yo: Yo, _act?: Actividad) => esAdmin(yo) || esDiseno(yo),
+  /** Menú Ferias (inscriptas, puestos y croquis): administración y responsables (de su zona). */
+  verFerias: (yo: Yo) => esAdmin(yo) || esResponsable(yo),
   verFlyers: (yo: Yo) => esAdmin(yo) || esDiseno(yo) || esResponsable(yo),
   verCostos: (yo: Yo) => esAdmin(yo) || esResponsable(yo),
   verParticipantes: (yo: Yo) => esAdmin(yo) || esResponsable(yo),

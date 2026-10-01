@@ -11,6 +11,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     estadisticas: puede.verEstadisticas(yo),
     configurar: puede.configurar(yo),
     flyers: puede.verFlyers(yo),
+    ferias: puede.verFerias(yo),
     inicio: !esDiseno(yo),
   };
   const rol = ROL_LABEL[yo.rol] + (yo.rol === "RESPONSABLE" && yo.zona ? ` · ${zonaLabel(yo.zona)}` : "");

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { IconCalendar, IconChart, IconGear, IconHome, IconImage, IconList, IconLogout, IconMap, IconMore, IconPlus, IconUsers } from "./icons";
+import { IconCalendar, IconChart, IconGazebo, IconGear, IconHome, IconImage, IconList, IconLogout, IconMap, IconMore, IconPlus, IconUsers } from "./icons";
 import { InstallButton } from "./install-button";
 import { cx, SelloLista47 } from "./ui";
 
@@ -13,6 +13,7 @@ export interface NavPermisos {
   estadisticas: boolean;
   configurar: boolean;
   flyers: boolean;
+  ferias: boolean;
   inicio: boolean;
 }
 
@@ -23,6 +24,7 @@ function items(p: NavPermisos) {
     { href: "/actividades", label: "Actividades", Icon: IconList, show: true },
     { href: "/calendario", label: "Calendario", Icon: IconCalendar, show: true },
     { href: "/mapa", label: "Mapa", Icon: IconMap, show: true },
+    { href: "/ferias", label: "Ferias", Icon: IconGazebo, show: p.ferias },
     { href: "/participantes", label: "Participantes", Icon: IconUsers, show: p.participantes },
     { href: "/estadisticas", label: "Estadísticas", Icon: IconChart, show: p.estadisticas },
     { href: "/flyers", label: "Flyers", Icon: IconImage, show: p.flyers && p.inicio },

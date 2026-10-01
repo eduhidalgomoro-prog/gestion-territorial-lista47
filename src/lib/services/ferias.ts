@@ -1,12 +1,13 @@
 import "server-only";
 import { insert, insertMany, readFresh, snapshot, update, updateMany, NotFoundError, type Snapshot } from "../db";
 import { ForbiddenError, UserError } from "../errors";
-import { CAPACIDAD, LLEVA_OPCIONES, proponerAsignacion } from "../ferias";
+import { CAPACIDAD, letraSector, LLEVA_OPCIONES, proponerAsignacion, type SectorFeria } from "../ferias";
 import { withLock } from "../lock";
-import { puede, type Yo } from "../permisos";
-import type { Actividad, Feriante, Puesto, TipoPuesto } from "../schema";
+import { esResponsable, puede, type Yo } from "../permisos";
+import { ambitoDe } from "../territorio";
+import { TIPOS_PUESTO, type Actividad, type Feriante, type Puesto, type TipoPuesto } from "../schema";
 import { cleanString, nowIso } from "../util";
-import { formularioInscripcion } from "./actividades";
+import { crearActividad, formularioInscripcion } from "./actividades";
 import { inscribir, inscripcionAbiertaPublica } from "./inscripciones";
 import { limpiarPersona, upsertParticipantes, type PersonaInput } from "./participantes";
 
@@ -33,6 +34,41 @@ export const puestosDe = (s: Pick<Snapshot, "puestos">, actividadId: string) =>
 // Configuración
 // ---------------------------------------------------------------------------
 
+export interface NuevaFeriaInput {
+  nombre: string;
+  fecha: string;
+  hora_inicio: string;
+  hora_fin: string;
+  lugar: string;
+  barrio: string;
+  zona: string;
+  localidad: string;
+  cupo: number;
+  sectores: SectorFeria[];
+}
+
+/** Crea la feria en un paso: la actividad (tipo «FERIAS DE ESME»), el cupo, el formulario y los puestos. */
+export async function crearFeria(datos: NuevaFeriaInput, yo: Yo): Promise<Actividad> {
+  // En el interior, el campo «Barrio / localidad» es la localidad.
+  const zona = esResponsable(yo) ? yo.zona : datos.zona;
+  const interior = ambitoDe(zona) === "interior";
+  const input = { ...datos, localidad: interior ? datos.localidad || datos.barrio : "", barrio: interior ? "" : datos.barrio };
+  const a = await crearActividad(
+    {
+      nombre: input.nombre, detalle: "", responsable: yo.nombre, zona: input.zona, localidad: input.localidad, tipo: "FERIAS DE ESME", publico: "EMPRENDEDORES",
+      estado: "PROGRAMADA", fecha: input.fecha, hora_inicio: input.hora_inicio, hora_fin: input.hora_fin, fecha_alt: "", hora_alt: "",
+      barrio: input.barrio, direccion: "", entre_calles: "", lugar: input.lugar, lat: 0, lng: 0,
+      articula: false, tipo_articulacion: "", mesa: "", institucion_id: "", institucion_nueva: "", institucion_nueva_tipo: "",
+      requiere_flyer: false, estado_flyer: "", link_flyer: "", gazebo: false, gazebo_cant: 0, mesas: false, mesas_cant: 0, sillas: false, sillas_cant: 0,
+      luz: false, sonido: false, insumos: [], costo_estimado: null, costo_real: 0, obs_logistica: "", generar_formulario: true, preguntas_extra: "", observaciones: "",
+    },
+    yo,
+  );
+  await configurarFeria(a.id, input.cupo, yo);
+  if (input.sectores.some((x) => x.cantidad > 0)) await generarPuestos(a.id, input.sectores, yo);
+  return a;
+}
+
 /** Convierte la actividad en feria (o actualiza el cupo). Abre el formulario público si no lo tenía. */
 export async function configurarFeria(actividadId: string, cupo: number, yo: Yo) {
   const { a } = await feriaEditable(actividadId, yo);
@@ -43,28 +79,30 @@ export async function configurarFeria(actividadId: string, cupo: number, yo: Yo)
 }
 
 /**
- * Arma los puestos numerados: primero los individuales, después los compartidos y al final los de gazebo propio
- * (1..N). Si ya existían, conserva su ubicación en el croquis y solo cambia el tipo; los que sobran se desactivan.
+ * Arma los puestos numerados a partir de los sectores (A, B, C… en orden), numerados de corrido (1..N).
+ * Si ya existían, conserva su ubicación en el croquis y solo cambia tipo y sector; los que sobran se desactivan.
  */
-export async function generarPuestos(actividadId: string, cant: { individuales: number; compartidos: number; propios: number }, yo: Yo) {
+export async function generarPuestos(actividadId: string, sectores: SectorFeria[], yo: Yo) {
   await feriaEditable(actividadId, yo);
-  const n = (v: number) => Math.max(0, Math.min(300, Math.round(Number(v) || 0)));
-  const tipos: TipoPuesto[] = [
-    ...Array<TipoPuesto>(n(cant.individuales)).fill("INDIVIDUAL"),
-    ...Array<TipoPuesto>(n(cant.compartidos)).fill("COMPARTIDO"),
-    ...Array<TipoPuesto>(n(cant.propios)).fill("PROPIO"),
-  ];
-  if (!tipos.length) throw new UserError("Indicá cuántos puestos hay de cada tipo.");
+  const lista = (Array.isArray(sectores) ? sectores : [])
+    .filter((x) => (TIPOS_PUESTO as readonly string[]).includes(x?.tipo))
+    .map((x) => ({ tipo: x.tipo, cantidad: Math.max(0, Math.min(200, Math.round(Number(x.cantidad) || 0))) }))
+    .filter((x) => x.cantidad > 0)
+    .slice(0, 26);
+  const filas = lista.flatMap((x, i) => Array.from({ length: x.cantidad }, () => ({ tipo: x.tipo, sector: letraSector(i) })));
+  if (!filas.length) throw new UserError("Indicá al menos un sector con gazebos.");
+  if (filas.length > 400) throw new UserError("Son demasiados puestos (máximo 400).");
+  const tipos: TipoPuesto[] = filas.map((f) => f.tipo);
   return withLock(`puestos:${actividadId}`, async () => {
     const actuales = (await readFresh("puestos")).filter((p) => p.actividad_id === actividadId);
     const porNumero = new Map(actuales.map((p) => [p.numero, p]));
     const patches: { id: string; patch: Partial<Puesto> }[] = [];
     const nuevos: Omit<Puesto, "id" | "creado" | "actualizado" | "actualizado_por" | "version">[] = [];
-    tipos.forEach((tipo, i) => {
+    filas.forEach(({ tipo, sector }, i) => {
       const ex = porNumero.get(i + 1);
       if (ex) {
-        if (ex.tipo !== tipo || !ex.activo) patches.push({ id: ex.id, patch: { tipo, activo: true } });
-      } else nuevos.push({ actividad_id: actividadId, numero: i + 1, tipo, x: 0, y: 0, activo: true, observaciones: "" });
+        if (ex.tipo !== tipo || ex.sector !== sector || !ex.activo) patches.push({ id: ex.id, patch: { tipo, sector, activo: true } });
+      } else nuevos.push({ actividad_id: actividadId, numero: i + 1, tipo, sector, x: 0, y: 0, activo: true, observaciones: "" });
     });
     for (const p of actuales) if (p.numero > tipos.length && p.activo) patches.push({ id: p.id, patch: { activo: false } });
     await updateMany("puestos", patches, yo.email, "configurar puestos");

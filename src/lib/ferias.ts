@@ -137,12 +137,47 @@ export interface FilaCroquis<P extends PuestoAsignable> {
   puestos: P[];
 }
 
+/** Un sector de la feria: una fila del croquis con gazebos del mismo tipo. */
+export interface SectorFeria {
+  tipo: TipoPuesto;
+  cantidad: number;
+}
+
+export const SECTORES_INICIALES: SectorFeria[] = [
+  { tipo: "INDIVIDUAL", cantidad: 15 },
+  { tipo: "COMPARTIDO", cantidad: 9 },
+  { tipo: "COMPARTIDO", cantidad: 8 },
+  { tipo: "PROPIO", cantidad: 10 },
+];
+
+export const letraSector = (i: number) => String.fromCharCode(65 + (i % 26));
+
+/** Sectores actuales a partir de los puestos (para editarlos). */
+export function sectoresDe(puestos: (PuestoAsignable & { sector?: string })[]): SectorFeria[] {
+  const out: (SectorFeria & { s: string })[] = [];
+  for (const p of [...puestos].sort((a, b) => a.numero - b.numero)) {
+    const ult = out[out.length - 1];
+    if (ult && (p.sector ? ult.s === p.sector : ult.tipo === p.tipo)) ult.cantidad++;
+    else out.push({ s: p.sector ?? "", tipo: p.tipo, cantidad: 1 });
+  }
+  return out.map(({ tipo, cantidad }) => ({ tipo, cantidad }));
+}
+
 /**
- * Croquis automático: una fila (sector) por grupo de puestos del mismo tipo, en orden de número.
- * Los grupos largos se parten en filas parejas de hasta `maxPorFila` (ej. 18 compartidos → 2 filas de 9).
+ * Croquis automático: una fila por sector (A, B, C…), en orden de número.
+ * Si los puestos no tienen sector (ferias viejas), se agrupan por tipo y los grupos largos se parten en filas de hasta `maxPorFila`.
  */
-export function armarFilas<P extends PuestoAsignable>(puestos: P[], maxPorFila = 16): FilaCroquis<P>[] {
+export function armarFilas<P extends PuestoAsignable & { sector?: string }>(puestos: P[], maxPorFila = 16): FilaCroquis<P>[] {
   const ordenados = [...puestos].sort((a, b) => a.numero - b.numero);
+  if (ordenados.length && ordenados.every((p) => p.sector)) {
+    const filas: FilaCroquis<P>[] = [];
+    for (const p of ordenados) {
+      const f = filas[filas.length - 1];
+      if (f && f.sector === p.sector) f.puestos.push(p);
+      else filas.push({ sector: p.sector!, tipo: p.tipo, puestos: [p] });
+    }
+    return filas;
+  }
   const grupos: P[][] = [];
   for (const p of ordenados) {
     const g = grupos[grupos.length - 1];

@@ -4,6 +4,8 @@ import { mensajeActividad } from "@/lib/compartir";
 import { invalidate, setConfigValue, snapshot } from "@/lib/db";
 import { cumplimiento, filtrarActividades, indicadores } from "@/lib/domain/metricas";
 import { parseRegiones } from "@/lib/territorio";
+import { armarFilas, sectoresDe } from "@/lib/ferias";
+import type { TipoPuesto } from "@/lib/schema";
 import { asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, configurarFeria, generarPuestos, inscribirFeriaPublico, type FerianteInput } from "@/lib/services/ferias";
 import { ubicacionLabel } from "@/lib/labels";
 import { normalizeDni, normalizePhone, parseFechaFlexible, parseFechaNacimiento, parseHoraFlexible, phoneKey } from "@/lib/format";
@@ -152,7 +154,7 @@ describe("participantes, importación y asistencia", () => {
     let s = await snapshot({ fresh: true });
     const feria = s.actividades.find((x) => x.id === a.id)!;
     expect(feria).toMatchObject({ es_feria: true, cupo: 3, inscripcion_abierta: true });
-    expect(await generarPuestos(a.id, { individuales: 1, compartidos: 1, propios: 1 }, admin)).toMatchObject({ total: 3 });
+    expect(await generarPuestos(a.id, [{ tipo: "INDIVIDUAL", cantidad: 1 }, { tipo: "COMPARTIDO", cantidad: 1 }, { tipo: "PROPIO", cantidad: 1 }], admin)).toMatchObject({ total: 3 });
     const persona = (nombre: string, apellido: string, tel: string, extra: Partial<FerianteInput> = {}) => ({
       nombre, apellido, dni: "", telefono: tel, barrio: "", emprendimiento: `${nombre} Deco`, rubro: "Deco", lleva: [], al_lado_de: "", comparte: "SI", consentimiento: true, ...extra,
     });
@@ -181,6 +183,22 @@ describe("participantes, importación y asistencia", () => {
     s = await snapshot({ fresh: true });
     expect(puestoDe("Dora")).toBe(3); // trae gazebo → puesto propio
     await expect(asignarPuesto(s.feriantes.find((f) => f.puesto === 3)!.id, 2, admin)).rejects.toThrow(/completo/);
+    // Cambiar los sectores: el compartido pasa a ser el sector B con 2 gazebos; las asignaciones válidas se mantienen.
+    expect(await generarPuestos(a.id, [{ tipo: "INDIVIDUAL", cantidad: 1 }, { tipo: "COMPARTIDO", cantidad: 2 }], admin)).toMatchObject({ total: 3, liberadas: 0 });
+    s = await snapshot({ fresh: true });
+    expect(s.puestos.filter((p) => p.activo).map((p) => `${p.numero}${p.sector}${p.tipo[0]}`)).toEqual(["1AI", "2BC", "3BC"]);
+    expect(puestoDe("Bea")).toBe(2);
+    expect(puestoDe("Dora")).toBe(3); // su puesto ahora es compartido pero sigue teniendo lugar (en la lista aparece «revisar»)
+    // Achicar: el puesto 3 desaparece y Dora queda sin puesto.
+    expect(await generarPuestos(a.id, [{ tipo: "INDIVIDUAL", cantidad: 1 }, { tipo: "COMPARTIDO", cantidad: 1 }], admin)).toMatchObject({ total: 2, liberadas: 1 });
+    s = await snapshot({ fresh: true });
+    expect(puestoDe("Dora")).toBe(0);
+  });
+
+  it("feria: sectores del croquis", () => {
+    const ps = [1, 2, 3, 4, 5].map((n) => ({ numero: n, tipo: (n <= 2 ? "INDIVIDUAL" : "COMPARTIDO") as TipoPuesto, sector: n <= 2 ? "A" : n <= 3 ? "B" : "C" }));
+    expect(armarFilas(ps).map((f) => `${f.sector}:${f.puestos.length}`)).toEqual(["A:2", "B:1", "C:2"]);
+    expect(sectoresDe(ps)).toEqual([{ tipo: "INDIVIDUAL", cantidad: 2 }, { tipo: "COMPARTIDO", cantidad: 1 }, { tipo: "COMPARTIDO", cantidad: 2 }]);
   });
 
   it("importa listas sin DNI (por teléfono) y después completa el DNI sin duplicar", async () => {

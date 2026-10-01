@@ -10,9 +10,10 @@ import { requireUser } from "@/lib/auth";
 import { whatsappA, whatsappCompartir } from "@/lib/compartir";
 import { snapshot } from "@/lib/db";
 import { env } from "@/lib/env";
-import { buscarVecina, CAPACIDAD, describirPuesto, LLEVA_OPCIONES, TIPO_PUESTO_HEX, TIPO_PUESTO_LABEL } from "@/lib/ferias";
+import { SectoresEditor } from "@/components/sectores-editor";
+import { buscarVecina, CAPACIDAD, describirPuesto, LLEVA_OPCIONES, SECTORES_INICIALES, sectoresDe, TIPO_PUESTO_HEX, TIPO_PUESTO_LABEL } from "@/lib/ferias";
 import { puede } from "@/lib/permisos";
-import type { Actividad, TipoPuesto } from "@/lib/schema";
+import type { Actividad } from "@/lib/schema";
 import { ferianteActivas, puestosDe } from "@/lib/services/ferias";
 import { formatDate, formatPhone } from "@/lib/util";
 import { sp, type SP } from "@/lib/view";
@@ -76,7 +77,6 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
   const fecha = a.fecha ? formatDate(a.fecha, { weekday: "long", day: "numeric", month: "long" }) : "";
   const conPuesto = activas.filter((f) => f.puesto).length;
   const capacidadTotal = puestos.reduce((n, p) => n + CAPACIDAD[p.tipo], 0);
-  const cuenta = (t: TipoPuesto) => puestos.filter((p) => p.tipo === t).length;
 
   const mensaje = (f: (typeof asignables)[number]) => {
     const compañeras = activas.filter((o) => o.puesto === f.puesto && o.id !== f.id).map((o) => nombre(o.participante_id));
@@ -222,15 +222,11 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
           {editable && (
             <div className="grid gap-4 md:grid-cols-2">
               <Card className="p-4 sm:p-5">
-                <h2 className="mb-1 text-lg font-bold">Puestos</h2>
-                <p className="mb-3 text-sm text-gris">Se numeran en orden: primero los individuales, después los compartidos (2 feriantes por gazebo) y al final los de gazebo propio.</p>
+                <h2 className="mb-1 text-lg font-bold">Sectores y gazebos</h2>
+                <p className="mb-3 text-sm text-gris">Cada sector es una fila del croquis; los números van de corrido. Si cambiás algo, las asignaciones que siguen siendo válidas se mantienen.</p>
                 <ActionForm action={puestosAction.bind(null, a.id)}>
-                  <div className="grid grid-cols-3 gap-2">
-                    <Field label="Individuales" name="individuales"><Input name="individuales" type="number" min={0} inputMode="numeric" defaultValue={String(puestos.length ? cuenta("INDIVIDUAL") : 15)} /></Field>
-                    <Field label="Compartidos" name="compartidos"><Input name="compartidos" type="number" min={0} inputMode="numeric" defaultValue={String(puestos.length ? cuenta("COMPARTIDO") : 17)} /></Field>
-                    <Field label="Gazebo propio" name="propios"><Input name="propios" type="number" min={0} inputMode="numeric" defaultValue={String(puestos.length ? cuenta("PROPIO") : 10)} /></Field>
-                  </div>
-                  <SubmitButton>{puestos.length ? "Actualizar puestos" : "Armar puestos"}</SubmitButton>
+                  <SectoresEditor key={puestos.map((p) => `${p.numero}${p.tipo}${p.sector}`).join()} inicial={puestos.length ? sectoresDe(puestos) : SECTORES_INICIALES} />
+                  <SubmitButton>{puestos.length ? "Guardar sectores" : "Armar puestos"}</SubmitButton>
                 </ActionForm>
               </Card>
               <Card className="p-4 sm:p-5">
