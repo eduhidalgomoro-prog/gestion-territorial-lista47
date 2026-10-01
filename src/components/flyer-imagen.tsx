@@ -10,11 +10,11 @@ const LADO_MAX = 2000; // px: suficiente para que el texto del flyer se lea nít
 const CALIDAD = 0.88;
 
 /** Achica la imagen en el navegador (así se sube rápido y ocupa poco). */
-async function achicar(file: File): Promise<Blob> {
+export async function achicar(file: File, ladoMax = LADO_MAX): Promise<Blob> {
   // Si ya es liviana, se sube tal cual (conserva la calidad original).
   if (file.size <= 900 * 1024 && file.type !== "image/png") return file;
   const bmp = await createImageBitmap(file);
-  const escala = Math.min(1, LADO_MAX / Math.max(bmp.width, bmp.height));
+  const escala = Math.min(1, ladoMax / Math.max(bmp.width, bmp.height));
   const w = Math.round(bmp.width * escala);
   const h = Math.round(bmp.height * escala);
   const canvas = document.createElement("canvas");

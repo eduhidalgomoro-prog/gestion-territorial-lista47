@@ -12,6 +12,9 @@ import {
 import { crearUsuario, editarUsuario, guardarBarrio, guardarConfig, guardarInstitucion } from "@/lib/services/administracion";
 import { agregarPresente, buscarPorDni, guardarAsistencia, type Marca } from "@/lib/services/asistencia";
 import { geocodificar, type Ubicacion } from "@/lib/services/geocode";
+import {
+  agregarFeriante, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, configurarFeria, generarPuestos, quitarAsignaciones, ubicarPuestos,
+} from "@/lib/services/ferias";
 import { confirmarImportacion, darDeBaja, guardarLinkGrupo, guardarMensajes, marcarConfirmacion, vistaPreviaImportacion, type FilaImportada, type VistaPrevia } from "@/lib/services/inscripciones";
 import type { Yo } from "@/lib/permisos";
 
@@ -98,6 +101,63 @@ export async function mensajesAction(actividadId: string, _: ActionResult, fd: F
     (yo) => guardarMensajes(actividadId, restaurar ? "" : str(fd, "mensaje_confirmacion"), restaurar ? "" : str(fd, "mensaje_grupo"), yo),
     { ok: restaurar ? "Se volvió a los mensajes por defecto." : "Mensajes guardados para esta actividad." },
   );
+}
+
+// ---------------------------------------------------------------------------
+// Ferias
+// ---------------------------------------------------------------------------
+
+export async function feriaConfigAction(actividadId: string, _: ActionResult, fd: FormData): Promise<ActionResult> {
+  return act((yo) => configurarFeria(actividadId, num(fd, "cupo"), yo), { ok: "Feria configurada. El formulario de inscripción ya tiene cupo." });
+}
+
+export async function puestosAction(actividadId: string, _: ActionResult, fd: FormData): Promise<ActionResult> {
+  return act(
+    async (yo) => {
+      const r = await generarPuestos(actividadId, { individuales: num(fd, "individuales"), compartidos: num(fd, "compartidos"), propios: num(fd, "propios") }, yo);
+      return r;
+    },
+    { ok: "Puestos guardados." },
+  );
+}
+
+export async function ubicarPuestosAction(actividadId: string, posiciones: { numero: number; x: number; y: number }[]): Promise<ActionResult<number>> {
+  return act((yo) => ubicarPuestos(actividadId, Array.isArray(posiciones) ? posiciones.slice(0, 600) : [], yo), { ok: "Croquis guardado." });
+}
+
+export async function asignarPuestoAction(ferianteId: string, numero: number): Promise<ActionResult> {
+  return act((yo) => asignarPuesto(ferianteId, numero, yo), { ok: numero ? `Puesto N° ${numero} asignado.` : "Puesto quitado." });
+}
+
+export async function asignarAutomaticoAction(actividadId: string): Promise<ActionResult> {
+  const r = await act((yo) => asignarAutomatico(actividadId, yo));
+  if (!r.ok || !r.data) return r;
+  const { asignadas, sinLugar } = r.data;
+  return { ok: true, message: `${asignadas} ${asignadas === 1 ? "feriante ubicada" : "feriantes ubicadas"}.${sinLugar ? ` ${sinLugar} sin lugar: revisá los puestos.` : ""}` };
+}
+
+export async function quitarAsignacionesAction(actividadId: string): Promise<ActionResult> {
+  return act((yo) => quitarAsignaciones(actividadId, yo), { ok: "Se quitaron todas las asignaciones." });
+}
+
+export async function estadoFerianteAction(ferianteId: string, activa: boolean): Promise<ActionResult> {
+  return act((yo) => cambiarEstadoFeriante(ferianteId, activa, yo), { ok: activa ? "Feriante reincorporada." : "Feriante dada de baja: se liberó su lugar." });
+}
+
+export async function agregarFerianteAction(actividadId: string, _: ActionResult, fd: FormData): Promise<ActionResult> {
+  const r = await act((yo) =>
+    agregarFeriante(
+      actividadId,
+      {
+        nombre: str(fd, "nombre"), apellido: str(fd, "apellido"), dni: str(fd, "dni"), telefono: str(fd, "telefono"), barrio: "",
+        emprendimiento: str(fd, "emprendimiento"), rubro: str(fd, "rubro"), lleva: fd.getAll("lleva").map(String), al_lado_de: str(fd, "al_lado_de"), comparte: str(fd, "comparte"),
+      },
+      yo,
+    ),
+  );
+  if (!r.ok || !r.data) return r;
+  if (r.data.status === "completo" || r.data.status === "cerrada") return { ok: false, message: "El cupo está completo: subí el cupo o da de baja a alguien." };
+  return { ok: true, message: r.data.status === "ya" ? "Ya estaba inscripta: se actualizaron sus datos." : "Feriante agregada." };
 }
 
 export async function bajaInscripcionAction(inscripcionId: string): Promise<ActionResult> {

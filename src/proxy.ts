@@ -6,7 +6,7 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
  * Cada página y acción vuelve a comprobar la sesión y el ROL (defensa en profundidad).
  * El formulario público de inscripción (/inscripcion/...) queda separado y sin login.
  */
-const PUBLIC_PREFIXES = ["/inscripcion/", "/login", "/privacidad", "/api/auth/", "/offline", "/icons/"];
+const PUBLIC_PREFIXES = ["/inscripcion/", "/feria/", "/login", "/privacidad", "/api/auth/", "/offline", "/icons/"];
 const PUBLIC_FILES = ["/manifest.webmanifest", "/sw.js", "/favicon.ico", "/robots.txt"];
 
 export async function proxy(request: NextRequest) {

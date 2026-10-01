@@ -3,6 +3,7 @@
 import { checkSpam } from "@/lib/antispam";
 import { toActionError, type ActionResult } from "@/lib/errors";
 import { inscribirPublico } from "@/lib/services/inscripciones";
+import { inscribirFeriaPublico } from "@/lib/services/ferias";
 
 export type InscripcionState = ActionResult<{ status: string; nombre: string; motivo?: string }>;
 
@@ -29,6 +30,35 @@ export async function inscribirAction(slug: string, _: InscripcionState, fd: For
       consentimiento: fd.get("consentimiento") === "on",
     });
     if (r.status === "cerrada") return { ok: false, message: r.motivo, data: { status: r.status, nombre: "", motivo: r.motivo } };
+    return { ok: true, data: { status: r.status, nombre: r.nombre } };
+  } catch (e) {
+    return toActionError(e);
+  }
+}
+
+export type FeriaState = ActionResult<{ status: string; nombre: string; motivo?: string }>;
+
+/** Server Action PÚBLICA de inscripción a una feria (respeta el cupo). */
+export async function inscribirFeriaAction(slug: string, _: FeriaState, fd: FormData): Promise<FeriaState> {
+  const spam = await checkSpam(fd, slug);
+  if (!spam.ok) {
+    return spam.silencioso ? { ok: true, data: { status: "inscripta", nombre: "" } } : { ok: false, message: spam.message };
+  }
+  try {
+    const r = await inscribirFeriaPublico(slug, {
+      nombre: s(fd, "nombre"),
+      apellido: s(fd, "apellido"),
+      dni: s(fd, "dni"),
+      telefono: s(fd, "telefono"),
+      barrio: "",
+      emprendimiento: s(fd, "emprendimiento"),
+      rubro: s(fd, "rubro"),
+      lleva: fd.getAll("lleva").map(String),
+      al_lado_de: s(fd, "al_lado_de"),
+      comparte: s(fd, "comparte"),
+      consentimiento: fd.get("consentimiento") === "on",
+    });
+    if ("motivo" in r) return { ok: false, data: { status: r.status, nombre: "", motivo: r.motivo } };
     return { ok: true, data: { status: r.status, nombre: r.nombre } };
   } catch (e) {
     return toActionError(e);

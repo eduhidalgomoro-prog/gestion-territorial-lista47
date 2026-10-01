@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { CopyButton } from "@/components/copy-button";
 import { ActionForm, Input, Select, SubmitButton } from "@/components/forms";
-import { IconCheck, IconClipboard, IconEdit, IconForm, IconImage, IconLock, IconMap, IconUpload, IconUsers, IconWhatsApp, IconX } from "@/components/icons";
+import { IconCheck, IconClipboard, IconEdit, IconForm, IconImage, IconLock, IconMap, IconPin, IconUpload, IconUsers, IconWhatsApp, IconX } from "@/components/icons";
 import { mensajeActividad, whatsappCompartir } from "@/lib/compartir";
 import { FlyersActividad } from "@/components/flyer-imagen";
 import { esFlyerSubido } from "@/lib/flyers";
@@ -104,6 +104,9 @@ export default async function FichaActividad({ params, searchParams }: { params:
       {/* Acciones principales */}
       <nav className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Acciones de la actividad">
         {editar && <Accion href={`/actividades/${a.id}/editar`} Icon={IconEdit}>Editar actividad</Accion>}
+        {verInscriptos && (a.es_feria || (editar && /feria/i.test(a.tipo + a.nombre))) && (
+          <Accion href={`/actividades/${a.id}/feria`} Icon={IconPin} principal={a.es_feria}>{a.es_feria ? "Feria: puestos y croquis" : "Organizar como feria"}</Accion>
+        )}
         {verInscriptos && <Accion href={`/actividades/${a.id}/inscriptos`} Icon={IconUsers}>Ver inscriptos</Accion>}
         {puede.verFlyers(yo) && a.requiere_flyer && <Accion href={`/flyers?mes=${a.mes || 0}&anio=${a.anio || ""}#${(a.estado_flyer || "SOLICITADO").replace(/\s/g, "-")}`} Icon={IconImage}>Flyer</Accion>}
         {asistencia && a.estado !== "CANCELADA" && <Accion href={`/actividades/${a.id}/asistencia`} Icon={IconClipboard} principal>Tomar asistencia</Accion>}

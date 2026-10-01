@@ -258,6 +258,9 @@ export async function crearActividad(input: ActividadInput, yo: Yo): Promise<Act
         mensaje_grupo: "",
         origen: "APP",
         creado_por: yo.email,
+        es_feria: false,
+        cupo: 0,
+        croquis: "",
       },
       yo.email,
     );

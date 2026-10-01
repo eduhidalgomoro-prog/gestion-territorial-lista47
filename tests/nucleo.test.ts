@@ -4,6 +4,7 @@ import { mensajeActividad } from "@/lib/compartir";
 import { invalidate, setConfigValue, snapshot } from "@/lib/db";
 import { cumplimiento, filtrarActividades, indicadores } from "@/lib/domain/metricas";
 import { parseRegiones } from "@/lib/territorio";
+import { asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, configurarFeria, generarPuestos, inscribirFeriaPublico, type FerianteInput } from "@/lib/services/ferias";
 import { ubicacionLabel } from "@/lib/labels";
 import { normalizeDni, normalizePhone, parseFechaFlexible, parseFechaNacimiento, parseHoraFlexible, phoneKey } from "@/lib/format";
 import { parsePreguntas } from "@/lib/preguntas";
@@ -143,6 +144,43 @@ describe("participantes, importación y asistencia", () => {
     expect(filtrarActividades(s.actividades, { ambito: "interior" }).map((x) => x.id)).toEqual([a.id, porLocalidad.id, sinRegion.id]);
     expect(filtrarActividades(s.actividades, { ambito: "capital" }).map((x) => x.id)).toEqual([general.id]);
     expect(mensajeActividad(a, { inscriptos: 0, presentes: 0 })).toContain("Mercedes · Región Mercedes - Curuzú");
+  });
+
+  it("feria: cupo cerrado, sin duplicados, puestos numerados y asignación automática", async () => {
+    const a = await crearActividad(input({ nombre: "Feria de Emprendedoras", zona: "NORTE", tipo: "FERIAS DE ESME", generar_formulario: false }), admin);
+    await configurarFeria(a.id, 3, admin);
+    let s = await snapshot({ fresh: true });
+    const feria = s.actividades.find((x) => x.id === a.id)!;
+    expect(feria).toMatchObject({ es_feria: true, cupo: 3, inscripcion_abierta: true });
+    expect(await generarPuestos(a.id, { individuales: 1, compartidos: 1, propios: 1 }, admin)).toMatchObject({ total: 3 });
+    const persona = (nombre: string, apellido: string, tel: string, extra: Partial<FerianteInput> = {}) => ({
+      nombre, apellido, dni: "", telefono: tel, barrio: "", emprendimiento: `${nombre} Deco`, rubro: "Deco", lleva: [], al_lado_de: "", comparte: "SI", consentimiento: true, ...extra,
+    });
+    expect(await inscribirFeriaPublico(feria.slug, persona("Ana", "Pérez", "3794111111", { comparte: "NO" }))).toMatchObject({ status: "inscripta" });
+    expect(await inscribirFeriaPublico(feria.slug, persona("Bea", "Gómez", "3794222222", { al_lado_de: "Carla Ruiz", rubro: "Comida" }))).toMatchObject({ status: "inscripta" });
+    expect(await inscribirFeriaPublico(feria.slug, persona("Ana", "Pérez", "379 4111111", { comparte: "NO" }))).toMatchObject({ status: "ya" }); // no se duplica
+    expect(await inscribirFeriaPublico(feria.slug, persona("Carla", "Ruiz", "3794333333"))).toMatchObject({ status: "inscripta" });
+    expect(await inscribirFeriaPublico(feria.slug, persona("Dora", "Sosa", "3794444444"))).toMatchObject({ status: "completo" }); // cupo lleno
+    s = await snapshot({ fresh: true });
+    expect(s.feriantes.filter((f) => f.estado === "INSCRIPTA")).toHaveLength(3);
+    expect(s.inscripciones.filter((i) => i.actividad_id === a.id)).toHaveLength(3);
+    await asignarAutomatico(a.id, admin);
+    s = await snapshot({ fresh: true });
+    const puestoDe = (nombre: string) => {
+      const p = s.participantes.find((x) => x.nombre === nombre)!;
+      return s.feriantes.find((f) => f.participante_id === p.id)!.puesto;
+    };
+    expect(puestoDe("Ana")).toBe(1); // no comparte → individual
+    expect(puestoDe("Bea")).toBe(2); // quiere estar con Carla y ambas comparten → mismo gazebo compartido
+    expect(puestoDe("Carla")).toBe(2);
+    // Una baja libera el cupo: ahora sí entra Dora.
+    const ana = s.feriantes.find((f) => f.puesto === 1)!;
+    await cambiarEstadoFeriante(ana.id, false, admin);
+    expect(await inscribirFeriaPublico(feria.slug, persona("Dora", "Sosa", "3794444444", { lleva: ["Gazebo propio"] }))).toMatchObject({ status: "inscripta" });
+    await asignarAutomatico(a.id, admin);
+    s = await snapshot({ fresh: true });
+    expect(puestoDe("Dora")).toBe(3); // trae gazebo → puesto propio
+    await expect(asignarPuesto(s.feriantes.find((f) => f.puesto === 3)!.id, 2, admin)).rejects.toThrow(/completo/);
   });
 
   it("importa listas sin DNI (por teléfono) y después completa el DNI sin duplicar", async () => {

@@ -27,6 +27,9 @@ export const CONFIRMACIONES = ["CONFIRMÓ", "NO VA"] as const;
 export const ESTADOS_ASISTENCIA = ["PRESENTE", "AUSENTE"] as const;
 export const ESTADOS_REQUERIMIENTO = ["PENDIENTE", "CONSEGUIDO", "ANULADO"] as const;
 export const ESTADOS_ASIGNACION = ["ACTIVA", "QUITADA"] as const;
+/** Ferias: tipos de puesto (el compartido es un gazebo para 2 feriantes). */
+export const TIPOS_PUESTO = ["INDIVIDUAL", "COMPARTIDO", "PROPIO"] as const;
+export const ESTADOS_FERIANTE = ["INSCRIPTA", "BAJA"] as const;
 
 export type Zona = (typeof ZONAS)[number];
 export type ZonaActividad = (typeof ZONAS_ACTIVIDAD)[number];
@@ -38,6 +41,8 @@ export type EstadoInscripcion = (typeof ESTADOS_INSCRIPCION)[number];
 export type Confirmacion = (typeof CONFIRMACIONES)[number];
 export type EstadoAsistencia = (typeof ESTADOS_ASISTENCIA)[number];
 export type EstadoRequerimiento = (typeof ESTADOS_REQUERIMIENTO)[number];
+export type TipoPuesto = (typeof TIPOS_PUESTO)[number];
+export type EstadoFeriante = (typeof ESTADOS_FERIANTE)[number];
 
 // ---------------------------------------------------------------------------
 // Entidades
@@ -112,6 +117,35 @@ export interface Actividad extends Meta {
   observaciones: string;
   origen: string; // APP o ref. de la fila importada del formulario anterior
   creado_por: string;
+  // Ferias (ver services/ferias.ts)
+  es_feria: boolean;
+  cupo: number; // cantidad máxima de feriantes (0 = sin límite)
+  croquis: string; // imagen del lugar donde se marcan los puestos
+}
+
+/** Emprendedora inscripta a una feria (los datos personales están en PARTICIPANTES). */
+export interface Feriante extends Meta {
+  actividad_id: string;
+  participante_id: string;
+  emprendimiento: string;
+  rubro: string;
+  lleva: string; // lo que puede llevar, separado por comas (ej. «Gazebo propio, Mesa»)
+  al_lado_de: string; // con quién quiere estar al lado (texto libre)
+  comparte: boolean; // puede compartir stand
+  estado: EstadoFeriante;
+  puesto: number; // número de puesto asignado (0 = sin asignar)
+  observaciones: string;
+}
+
+/** Lugar numerado de una feria, ubicado sobre el croquis (x, y en % de la imagen; 0 = sin ubicar). */
+export interface Puesto extends Meta {
+  actividad_id: string;
+  numero: number;
+  tipo: TipoPuesto;
+  x: number;
+  y: number;
+  activo: boolean; // false = se quitó al achicar la cantidad de puestos
+  observaciones: string;
 }
 
 export interface Participante extends Meta {
@@ -207,6 +241,8 @@ export interface EntityMap {
   usuarios: Usuario;
   asignaciones: Asignacion;
   instituciones: Institucion;
+  feriantes: Feriante;
+  puestos: Puesto;
 }
 
 export type EntityTable = keyof EntityMap;
@@ -296,13 +332,16 @@ export const TABLES: Record<TableName, TableDef> = {
       ["observaciones", "Observaciones"],
       ["origen", "Origen"],
       ["creado_por", "Creado por"],
+      ["es_feria", "Es feria"],
+      ["cupo", "Cupo"],
+      ["croquis", "Croquis"],
       ...META,
     ],
     numeric: [
       "mes", "anio", "lat", "lng", "gazebo_cant", "mesas_cant", "sillas_cant", "costo_estimado", "costo_real",
-      "inscriptos", "presentes", "ausentes", "pct_asistencia",
+      "inscriptos", "presentes", "ausentes", "pct_asistencia", "cupo",
     ],
-    boolean: ["articula", "requiere_flyer", "gazebo", "mesas", "sillas", "luz", "sonido", "inscripcion_abierta"],
+    boolean: ["articula", "requiere_flyer", "gazebo", "mesas", "sillas", "luz", "sonido", "inscripcion_abierta", "es_feria"],
     enums: { estado: ESTADOS_ACTIVIDAD, estado_flyer: ESTADOS_FLYER },
   },
   participantes: {
@@ -410,6 +449,45 @@ export const TABLES: Record<TableName, TableDef> = {
       ...META,
     ],
   },
+  feriantes: {
+    sheet: "FERIANTES",
+    prefix: "FER",
+    columns: [
+      ["id", "ID Feriante"],
+      ["actividad_id", "ID Actividad"],
+      ["participante_id", "ID Participante"],
+      ["emprendimiento", "Emprendimiento"],
+      ["rubro", "Rubro"],
+      ["lleva", "Puede llevar"],
+      ["al_lado_de", "Quiere estar al lado de"],
+      ["comparte", "Puede compartir stand"],
+      ["estado", "Estado"],
+      ["puesto", "Puesto"],
+      ["observaciones", "Observaciones"],
+      ...META,
+    ],
+    numeric: ["puesto"],
+    boolean: ["comparte"],
+    enums: { estado: ESTADOS_FERIANTE },
+  },
+  puestos: {
+    sheet: "PUESTOS",
+    prefix: "PUE",
+    columns: [
+      ["id", "ID Puesto"],
+      ["actividad_id", "ID Actividad"],
+      ["numero", "Número"],
+      ["tipo", "Tipo"],
+      ["x", "Posición X (%)"],
+      ["y", "Posición Y (%)"],
+      ["activo", "Activo"],
+      ["observaciones", "Observaciones"],
+      ...META,
+    ],
+    numeric: ["numero", "x", "y"],
+    boolean: ["activo"],
+    enums: { tipo: TIPOS_PUESTO },
+  },
   zonas_barrios: {
     sheet: "ZONAS_BARRIOS",
     columns: [
@@ -442,7 +520,7 @@ export const TABLES: Record<TableName, TableDef> = {
 };
 
 export const ENTITY_TABLES: EntityTable[] = [
-  "actividades", "participantes", "inscripciones", "asistencias", "requerimientos", "usuarios", "asignaciones", "instituciones",
+  "actividades", "participantes", "inscripciones", "asistencias", "requerimientos", "usuarios", "asignaciones", "instituciones", "feriantes", "puestos",
 ];
 export const ALL_TABLES = Object.keys(TABLES) as TableName[];
 

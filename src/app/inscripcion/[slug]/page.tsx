@@ -7,6 +7,8 @@ import { parsePreguntas } from "@/lib/preguntas";
 import { snapshot } from "@/lib/db";
 import { formatDate, titleCase } from "@/lib/util";
 import { inscripcionAbiertaPublica } from "@/lib/services/inscripciones";
+import { lugaresLibres } from "@/lib/services/ferias";
+import { FeriaForm } from "./feria-form";
 import { InscripcionForm } from "./inscripcion-form";
 
 /**
@@ -41,6 +43,9 @@ export default async function FormularioPublico({ params }: { params: Promise<{ 
   const abierta = inscripcionAbiertaPublica(a);
   const preguntas = parsePreguntas(a.preguntas_extra);
   const barrios = s.barrios.filter((b) => b.activo).map((b) => b.barrio).sort();
+  const libres = a.es_feria ? lugaresLibres(a, s) : null;
+  // Rubros que ya usaron otras feriantes (sugerencias para escribir igual).
+  const rubros = a.es_feria ? [...new Set(s.feriantes.map((f) => f.rubro).filter(Boolean))].sort().slice(0, 40) : [];
 
   return (
     <div className="min-h-dvh bg-fondo">
@@ -80,6 +85,20 @@ export default async function FormularioPublico({ params }: { params: Promise<{ 
         <section className="mt-6" aria-labelledby="form-titulo">
           {!abierta.abierta ? (
             <p className="rounded-2xl bg-white p-5 text-center text-[16px] ring-1 ring-linea">{abierta.motivo}</p>
+          ) : a.es_feria ? (
+            libres === 0 ? (
+              <p className="rounded-2xl bg-white p-5 text-center text-[16px] font-semibold ring-1 ring-linea">
+                ¡Se completó el cupo de esta feria! Gracias por tu interés: vas a tener oportunidad en la próxima.
+              </p>
+            ) : (
+              <>
+                <h2 id="form-titulo" className="mb-1 text-2xl font-extrabold">Reservá tu lugar</h2>
+                <p className="mb-5 text-[15px] text-gris">
+                  Cupo limitado{libres !== null && libres <= 15 ? `: quedan ${libres} ${libres === 1 ? "lugar" : "lugares"}` : ""}. Te lleva un minuto.
+                </p>
+                <FeriaForm slug={a.slug} token={formToken()} rubros={rubros} />
+              </>
+            )
           ) : (
             <>
               <h2 id="form-titulo" className="mb-1 text-2xl font-extrabold">Inscribite</h2>
