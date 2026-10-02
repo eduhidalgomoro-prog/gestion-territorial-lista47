@@ -43,7 +43,7 @@ export default async function Asistencia({ params }: { params: Promise<{ id: str
 
   return (
     <div className="mx-auto max-w-2xl">
-      <PageHeader back={{ href: `/actividades/${id}`, label: "Ficha de la actividad" }} kicker="Tomar asistencia" title={a.nombre} />
+      <PageHeader back={{ href: `/actividades/${id}`, label: "Ficha de la actividad" }} kicker="Tomar asistencia" title={a.nombre} subtitle={`${lista.length} ${lista.length === 1 ? "inscripto" : "inscriptos"}${a.hora_inicio ? ` · ${a.hora_inicio}${a.hora_fin ? `–${a.hora_fin}` : ""} h` : ""}`} />
       {a.estado === "REALIZADA" && (
         <Notice className="mb-4">
           La actividad ya está cerrada. Podés corregir la asistencia; los totales de la ficha se actualizan al{" "}

@@ -3,23 +3,26 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { CopyButton } from "@/components/copy-button";
 import { ActionForm, Input, Select, SubmitButton } from "@/components/forms";
-import { IconCheck, IconClipboard, IconEdit, IconForm, IconImage, IconLock, IconMap, IconPin, IconUpload, IconUsers, IconWhatsApp, IconX } from "@/components/icons";
+import { IconCheck, IconEdit, IconForm, IconImage, IconLock, IconMap, IconPin, IconUpload, IconUsers, IconWhatsApp, IconX } from "@/components/icons";
 import { mensajeActividad, whatsappCompartir } from "@/lib/compartir";
 import { FlyersActividad } from "@/components/flyer-imagen";
 import { esFlyerSubido } from "@/lib/flyers";
-import { Badge, btn, Card, cx, Notice, PageHeader } from "@/components/ui";
+import { Badge, btn, Card, cx, Notice } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { snapshot } from "@/lib/db";
-import { ESTADO_COLOR, FLYER_COLOR, titulo, zonaLabel } from "@/lib/labels";
+import { ESTADO_COLOR, FLYER_COLOR, zonaLabel } from "@/lib/labels";
 import { ambitoDe } from "@/lib/territorio";
 import { MarcandoHuellasHeader, MarcandoHuellasStats } from "@/components/huellas";
+import { CambiarEstado } from "@/components/cambiar-estado";
+import { AccionAsistencia, AccionSec, TallerEncabezado } from "@/components/taller";
+import { IconArrowLeft } from "@/components/icons";
 import { esMarcandoHuellas, resumenHuellas } from "@/lib/huellas";
 import { esAgenda, puede } from "@/lib/permisos";
 import { ESTADOS_FLYER, type EstadoActividad } from "@/lib/schema";
 import { linkInscripcion, resumenAsistencia } from "@/lib/services/actividades";
 import { formatDate, formatDateLong, formatMoney, titleCase } from "@/lib/util";
 import { sp, type SP } from "@/lib/view";
-import { asignarOperadorAction, cambiarEstadoAction, flyerAction, formularioAction, quitarOperadorAction } from "../../actions";
+import { asignarOperadorAction, flyerAction, formularioAction, quitarOperadorAction } from "../../actions";
 
 const MENSAJES: Record<string, string> = {
   creada: "¡Actividad guardada! Ya quedó registrada en la planilla.",
@@ -66,6 +69,10 @@ export default async function FichaActividad({ params, searchParams }: { params:
   // Marcando Huellas: sin inscripción; se registran atenciones (persona → animales → prestaciones).
   const huellas = esMarcandoHuellas(a);
   const atencionesOp = huellas ? s.atenciones.filter((x) => x.actividad_id === a.id && x.activo).length : 0;
+  // Transiciones de estado que permite la ficha (las mismas de siempre).
+  const estadosPosibles = (["PROGRAMADA", "CONFIRMADA", "SUSPENDIDA", "CANCELADA"] as EstadoActividad[]).filter((e) => e !== a.estado);
+  const asistenciaTomada = a.estado === "REALIZADA" || r.presentes + r.ausentesMarcados > 0;
+  const abrir = sp(q, "abrir");
 
   return (
     <div className={cx("mx-auto max-w-4xl", huellas && "tema-huellas")}>
@@ -78,104 +85,108 @@ export default async function FichaActividad({ params, searchParams }: { params:
         </>
       ) : (
         <>
-          <PageHeader
-            back={{ href: "/actividades", label: "Actividades" }}
-            kicker={a.tipo || "Actividad"}
-            title={a.nombre}
-            subtitle={<span className="font-mono text-xs">{a.id}</span>}
-          />
+          <Link href="/actividades" className="mb-3 inline-flex items-center gap-1.5 text-sm font-bold text-petroleo hover:underline">
+            <IconArrowLeft size={16} /> Actividades
+          </Link>
           {ok && <Notice tone="ok" className="mb-4">{ok}</Notice>}
+          {/* Centro de gestión: qué es → cuándo y dónde → estado → cuánta gente → qué hacer ahora. */}
+          <TallerEncabezado
+            a={a}
+            estado={editar && a.estado !== "REALIZADA" ? <CambiarEstado actividadId={a.id} actual={a.estado} opciones={estadosPosibles} /> : null}
+            numeros={{
+              inscriptos: r.inscriptos,
+              presentes: r.presentes,
+              ausentes: a.estado === "REALIZADA" ? r.ausentes : r.ausentesMarcados,
+              pct: a.estado === "REALIZADA" && r.inscriptos ? r.pct : asistenciaTomada && r.inscriptos ? Math.round((r.presentes / r.inscriptos) * 100) : null,
+            }}
+          />
+          <div className="mt-4 space-y-2">
+            {asistencia && a.estado !== "CANCELADA" && <AccionAsistencia id={a.id} registrada={asistenciaTomada} presentes={r.presentes} />}
+            <nav className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Acciones de la actividad">
+              {verInscriptos && <AccionSec href={`/actividades/${a.id}/inscriptos`} Icon={IconUsers}>Ver inscriptos</AccionSec>}
+              {editar && <AccionSec href={`/actividades/${a.id}/editar`} Icon={IconEdit}>Editar</AccionSec>}
+              <AccionSec href={`/mapa?foco=${a.id}&mes=${a.mes || ""}&anio=${a.anio || ""}`} Icon={IconMap}>Ver mapa</AccionSec>
+              <AccionSec href={whatsappCompartir(mensajeActividad(a, r))} Icon={IconWhatsApp} externo>Compartir</AccionSec>
+            </nav>
+            {/* Lo menos frecuente, a un toque. */}
+            <details className="group/mas">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-center gap-1 rounded-xl text-sm font-bold text-gris hover:text-petroleo [&::-webkit-details-marker]:hidden">
+                <span className="group-open/mas:hidden">Más acciones</span>
+                <span className="hidden group-open/mas:inline">Menos acciones</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden className="transition-transform group-open/mas:rotate-180"><path d="m6 9 6 6 6-6" /></svg>
+              </summary>
+              <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {verInscriptos && (a.es_feria || (editar && /feria/i.test(a.tipo + a.nombre))) && (
+                  <AccionSec href={`/actividades/${a.id}/feria`} Icon={IconPin}>{a.es_feria ? "Feria: puestos" : "Organizar como feria"}</AccionSec>
+                )}
+                {puede.verFlyers(yo) && a.requiere_flyer && <AccionSec href={`/flyers?mes=${a.mes || 0}&anio=${a.anio || ""}#${(a.estado_flyer || "SOLICITADO").replace(/\s/g, "-")}`} Icon={IconImage}>Flyer</AccionSec>}
+                {!agenda && <AccionSec href={`/actividades/${a.id}?abrir=inscripcion#inscripcion`} Icon={IconForm}>Formulario de inscripción</AccionSec>}
+                {puede.importar(yo, a) && <AccionSec href={`/actividades/${a.id}/importar`} Icon={IconUpload}>Importar participantes</AccionSec>}
+                {cerrar && a.estado !== "REALIZADA" && <AccionSec href={`/actividades/${a.id}/cerrar`} Icon={IconLock}>Cerrar actividad</AccionSec>}
+              </div>
+            </details>
+          </div>
         </>
       )}
 
-      <Card className={cx("p-4 sm:p-5", huellas && "mt-4")}>
-        <div className="mb-3 flex flex-wrap gap-2">
-          <Badge color={ESTADO_COLOR[a.estado]} className="text-sm">{a.estado}</Badge>
-          <Badge color="petroleo" className="text-sm">{zonaLabel(a.zona)}</Badge>
-          {ambitoDe(a.zona) === "interior" && <Badge color="verde" className="text-sm">Interior</Badge>}
-        </div>
-        <dl className="grid gap-x-6 gap-y-2 text-[15px] sm:grid-cols-2">
-          {a.localidad && <Fila k="Localidad" v={a.localidad} />}
-          <Fila k="Barrio" v={titleCase(a.barrio)} />
-          <Fila k="Fecha" v={a.fecha ? <span className="first-letter:uppercase">{formatDateLong(a.fecha)}</span> : "Sin fecha"} />
-          <Fila k="Horario" v={a.hora_inicio ? `${a.hora_inicio}${a.hora_fin ? ` – ${a.hora_fin}` : ""}` : ""} />
-          <Fila k="Responsable" v={a.responsable} />
-        </dl>
-
-        {!huellas && (
-          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-            <Numero n={r.inscriptos} label="Inscriptos" />
-            <Numero n={r.presentes} label="Presentes" tono="verde" />
-            <Numero n={a.estado === "REALIZADA" ? r.ausentes : r.ausentesMarcados} label="Ausentes" tono="gris" />
-          </div>
-        )}
-        {!huellas && r.inscriptos > 0 && a.estado === "REALIZADA" && <p className="mt-2 text-center text-sm font-semibold text-gris">Asistencia: {r.pct}%</p>}
-
-        {costos && (
-          <div className="mt-4 grid grid-cols-2 gap-2 border-t border-linea pt-4 text-[15px]">
-            <p>Costo estimado: <b>{formatMoney(a.costo_estimado)}</b></p>
-            <p>Costo real: <b>{a.costo_real ? formatMoney(a.costo_real) : "—"}</b></p>
-          </div>
-        )}
-      </Card>
-
-      {/* Acciones principales */}
-      <nav className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Acciones de la actividad">
-        {editar && <Accion href={`/actividades/${a.id}/editar`} Icon={IconEdit}>Editar actividad</Accion>}
-        {verInscriptos && (a.es_feria || (editar && /feria/i.test(a.tipo + a.nombre))) && (
-          <Accion href={`/actividades/${a.id}/feria`} Icon={IconPin} principal={a.es_feria}>{a.es_feria ? "Feria: puestos y croquis" : "Organizar como feria"}</Accion>
-        )}
-        {verInscriptos && !huellas && <Accion href={`/actividades/${a.id}/inscriptos`} Icon={IconUsers}>Ver inscriptos</Accion>}
-        {puede.verFlyers(yo) && a.requiere_flyer && <Accion href={`/flyers?mes=${a.mes || 0}&anio=${a.anio || ""}#${(a.estado_flyer || "SOLICITADO").replace(/\s/g, "-")}`} Icon={IconImage}>Flyer</Accion>}
-        {asistencia && !huellas && a.estado !== "CANCELADA" && <Accion href={`/actividades/${a.id}/asistencia`} Icon={IconClipboard} principal>Tomar asistencia</Accion>}
-        {!agenda && !huellas && <Accion href="#inscripcion" Icon={IconForm}>Formulario de inscripción</Accion>}
-        <Accion href={`/mapa?foco=${a.id}&mes=${a.mes || ""}&anio=${a.anio || ""}`} Icon={IconMap}>Ver en mapa</Accion>
-        <a
-          href={whatsappCompartir(mensajeActividad(a, r))}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={cx(btn("secundario", "lg"), "border-[#1f8f4e]/40 text-[14px] leading-tight text-[#1f8f4e] uppercase")}
-        >
-          <IconWhatsApp size={20} className="shrink-0" /> Compartir por WhatsApp
-        </a>
-        {cerrar && a.estado !== "REALIZADA" && <Accion href={`/actividades/${a.id}/cerrar`} Icon={IconLock}>Cerrar actividad</Accion>}
-      </nav>
-
-      {editar && a.estado !== "REALIZADA" && (
-        <Seccion titulo="Estado de la actividad">
-          <div className="flex flex-wrap gap-2">
-            {(["PROGRAMADA", "CONFIRMADA", "SUSPENDIDA", "CANCELADA"] as EstadoActividad[])
-              .filter((e) => e !== a.estado)
-              .map((e) => (
-                <ActionForm key={e} action={cambiarEstadoAction.bind(null, a.id, e)}>
-                  <SubmitButton size="sm" variant={e === "CONFIRMADA" ? "primario" : e === "CANCELADA" ? "peligro" : "secundario"} pendingText="…">
-                    {e === "CONFIRMADA" ? "✓ Confirmar" : `Pasar a ${titulo(e).toLowerCase()}`}
-                  </SubmitButton>
-                </ActionForm>
-              ))}
-          </div>
-        </Seccion>
+      {huellas && (
+        <>
+          <Card className="mt-4 p-4 sm:p-5">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <Badge color={ESTADO_COLOR[a.estado]} className="text-sm">{a.estado}</Badge>
+              <Badge color="petroleo" className="text-sm">{zonaLabel(a.zona)}</Badge>
+              {ambitoDe(a.zona) === "interior" && <Badge color="verde" className="text-sm">Interior</Badge>}
+              {editar && a.estado !== "REALIZADA" && <CambiarEstado actividadId={a.id} actual={a.estado} opciones={estadosPosibles} />}
+            </div>
+            <dl className="grid gap-x-6 gap-y-2 text-[15px] sm:grid-cols-2">
+              {a.localidad && <Fila k="Localidad" v={a.localidad} />}
+              <Fila k="Barrio" v={titleCase(a.barrio)} />
+              <Fila k="Fecha" v={a.fecha ? <span className="first-letter:uppercase">{formatDateLong(a.fecha)}</span> : "Sin fecha"} />
+              <Fila k="Horario" v={a.hora_inicio ? `${a.hora_inicio}${a.hora_fin ? ` – ${a.hora_fin}` : ""}` : ""} />
+              <Fila k="Responsable" v={a.responsable} />
+            </dl>
+          </Card>
+          <nav className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Acciones de la actividad">
+            {editar && <Accion href={`/actividades/${a.id}/editar`} Icon={IconEdit}>Editar actividad</Accion>}
+            {puede.verFlyers(yo) && a.requiere_flyer && <Accion href={`/flyers?mes=${a.mes || 0}&anio=${a.anio || ""}#${(a.estado_flyer || "SOLICITADO").replace(/\s/g, "-")}`} Icon={IconImage}>Flyer</Accion>}
+            <Accion href={`/mapa?foco=${a.id}&mes=${a.mes || ""}&anio=${a.anio || ""}`} Icon={IconMap}>Ver en mapa</Accion>
+            <a
+              href={whatsappCompartir(mensajeActividad(a, r))}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cx(btn("secundario", "lg"), "border-[#1f8f4e]/40 text-[14px] leading-tight text-[#1f8f4e] uppercase")}
+            >
+              <IconWhatsApp size={20} className="shrink-0" /> Compartir por WhatsApp
+            </a>
+            {cerrar && a.estado !== "REALIZADA" && <Accion href={`/actividades/${a.id}/cerrar`} Icon={IconLock}>Cerrar actividad</Accion>}
+          </nav>
+        </>
       )}
 
-      <Seccion titulo="Información general">
-        <dl className="space-y-2 text-[15px]">
+      <div className="mt-5 grid items-start gap-3 lg:grid-cols-2">
+      <Seccion titulo="Información general" abierto>
+        <dl className="space-y-3 text-[15px]">
           <Fila k="Detalle" v={a.detalle} multi />
           <Fila k="Tipo / programa" v={a.tipo} />
-          <Fila k="Público dirigido" v={titleCase(a.publico)} />
+          <Fila k="Público" v={titleCase(a.publico)} />
+          <Fila k="Responsable" v={a.responsable} />
           <Fila k="Fecha alternativa" v={a.fecha_alt ? `${formatDate(a.fecha_alt)} ${a.hora_alt}` : ""} />
-          <Fila k="Cargada" v={[a.marca_temporal, a.creado_por, a.origen.startsWith("FORM:") ? "importada del formulario anterior" : ""].filter(Boolean).join(" · ")} />
           {a.observaciones && <Fila k="Observaciones" v={a.observaciones} multi />}
         </dl>
+        <p className="mt-4 border-t border-linea pt-3 text-xs text-gris">
+          {a.id}{[a.marca_temporal, a.creado_por, a.origen.startsWith("FORM:") ? "importada del formulario anterior" : ""].filter(Boolean).length ? " · Cargada " : ""}
+          {[a.marca_temporal, a.creado_por, a.origen.startsWith("FORM:") ? "importada del formulario anterior" : ""].filter(Boolean).join(" · ")}
+        </p>
       </Seccion>
 
-      <Seccion titulo="Ubicación">
-        <dl className="space-y-2 text-[15px]">
+      <Seccion titulo="Ubicación" resumen={[titleCase(a.barrio), a.direccion].filter(Boolean).join(" · ") || (a.lat ? "Ubicada en el mapa" : "Sin ubicar")}>
+        <dl className="space-y-3 text-[15px]">
           {a.localidad && <Fila k="Localidad" v={a.localidad} />}
           <Fila k="Barrio" v={titleCase(a.barrio)} />
           <Fila k="Dirección" v={a.direccion} />
           <Fila k="Entre calles" v={a.entre_calles} />
           <Fila k="Lugar" v={a.lugar} />
-          <Fila k="Mapa" v={a.lat ? `${a.lat.toFixed(5)}, ${a.lng.toFixed(5)}` : "Sin ubicar"} />
+          <Fila k="Zona" v={zonaLabel(a.zona)} />
         </dl>
         <div className="mt-3 flex flex-wrap gap-2">
           {a.lat !== 0 && (
@@ -187,7 +198,10 @@ export default async function FichaActividad({ params, searchParams }: { params:
         </div>
       </Seccion>
 
-      {!agenda && <Seccion titulo="Requerimientos y logística">
+      {!agenda && <Seccion
+        titulo="Requerimientos y logística"
+        resumen={[a.gazebo && "Gazebo", a.mesas && "Mesas", a.sillas && "Sillas", a.luz && "Luz", a.sonido && "Sonido", reqs.length && `${reqs.length} insumos`].filter(Boolean).join(" · ") || "Sin requerimientos"}
+      >
         <ul className="grid gap-2 text-[15px] sm:grid-cols-2">
           <Req ok={a.gazebo} label={`Gazebos${a.gazebo ? `: ${a.gazebo_cant || "?"}` : ""}`} />
           <Req ok={a.mesas} label={`Mesas${a.mesas ? `: ${a.mesas_cant || "?"}` : ""}`} />
@@ -219,7 +233,7 @@ export default async function FichaActividad({ params, searchParams }: { params:
         {a.obs_logistica && <p className="mt-3 text-[15px] whitespace-pre-line text-gris">{a.obs_logistica}</p>}
       </Seccion>}
 
-      <Seccion titulo="Comunicación">
+      <Seccion titulo="Comunicación" resumen={a.requiere_flyer ? `Flyer: ${(a.estado_flyer || "solicitado").toLowerCase()}` : "No requiere flyer"}>
         {a.requiere_flyer ? (
           <>
             <p className="mb-3 text-[15px]">Flyer: {a.estado_flyer ? <Badge color={FLYER_COLOR[a.estado_flyer]}>{a.estado_flyer}</Badge> : "—"}</p>
@@ -248,16 +262,21 @@ export default async function FichaActividad({ params, searchParams }: { params:
         )}
       </Seccion>
 
-      {!agenda && !huellas && <Seccion titulo="Formulario de inscripción" id="inscripcion">
+      {!agenda && !huellas && <Seccion
+        titulo="Formulario de inscripción"
+        id="inscripcion"
+        abierto={abrir === "inscripcion"}
+        resumen={link ? `${a.inscripcion_abierta ? "Abierto" : "Cerrado"} · ${r.inscriptos} ${r.inscriptos === 1 ? "inscripto" : "inscriptos"}` : "Sin formulario propio"}
+      >
         {link ? (
           <>
-            <p className="mb-2 text-[15px]">
-              {a.inscripcion_abierta ? <Badge color="verde">ABIERTA</Badge> : <Badge color="gris">CERRADA</Badge>}{" "}
-              Link público (sin usuario ni contraseña):
+            <p className="mb-3 flex flex-wrap items-center gap-2 text-[15px]">
+              {a.inscripcion_abierta ? <Badge color="verde">ABIERTO</Badge> : <Badge color="gris">CERRADO</Badge>}
+              <span><b>{r.inscriptos}</b> {r.inscriptos === 1 ? "inscripto" : "inscriptos"}</span>
             </p>
-            <p className="mb-3 rounded-xl bg-fondo px-3 py-2 font-mono text-sm break-all">{link}</p>
+            <p className="mb-2 text-sm text-gris">Enlace de inscripción (sin usuario ni contraseña)</p>
             <div className="flex flex-wrap gap-2">
-              <CopyButton text={link} />
+              <CopyButton text={link} label="Copiar enlace" />
               <a href={`/inscripcion/${a.slug}`} target="_blank" rel="noopener noreferrer" className={btn("secundario", "sm")}>Ver formulario</a>
               {editar && (
                 <ActionForm action={formularioAction.bind(null, a.id, !a.inscripcion_abierta)}>
@@ -281,12 +300,12 @@ export default async function FichaActividad({ params, searchParams }: { params:
         {puede.importar(yo, a) && (
           <p className="mt-4 text-[15px]">
             ¿Se inscribieron por Google Forms?{" "}
-            <Link href={`/actividades/${a.id}/importar`} className="font-bold text-petroleo hover:underline">Importar Excel / CSV →</Link>
+            <Link href={`/actividades/${a.id}/importar`} className="font-bold text-petroleo hover:underline">Importar participantes (Excel / CSV) →</Link>
           </p>
         )}
       </Seccion>}
 
-      <Seccion titulo="Instituciones relacionadas">
+      <Seccion titulo="Instituciones relacionadas" resumen={a.articula ? inst?.nombre || a.institucion_nombre || titleCase(a.mesa) || "Articula" : "No hay instituciones relacionadas"}>
         {a.articula ? (
           <dl className="space-y-2 text-[15px]">
             <Fila k="Tipo de articulación" v={titleCase(a.tipo_articulacion)} />
@@ -298,18 +317,26 @@ export default async function FichaActividad({ params, searchParams }: { params:
         )}
       </Seccion>
 
-      {verInscriptos && !huellas && <Seccion titulo="Participantes">
-        <p className="text-[15px]">
-          <b>{r.inscriptos}</b> inscriptos · <b>{r.presentes}</b> presentes
-          {r.sinMarcar > 0 && a.estado !== "REALIZADA" && <> · <b>{r.sinMarcar}</b> sin marcar</>}
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Link href={`/actividades/${a.id}/inscriptos`} className={btn("secundario", "sm")}>Ver listado</Link>
-          {asistencia && a.estado !== "CANCELADA" && <Link href={`/actividades/${a.id}/asistencia`} className={btn("primario", "sm")}>Tomar asistencia</Link>}
+      {verInscriptos && !huellas && <Seccion titulo="Participantes" resumen={asistenciaTomada ? "✓ Asistencia registrada" : r.sinMarcar > 0 ? `${r.sinMarcar} sin marcar` : "Ver inscriptos y asistencia"}>
+        {asistenciaTomada && <p className="mb-3 flex items-center gap-1.5 font-bold text-marca-600"><IconCheck size={18} /> Asistencia registrada</p>}
+        {!asistenciaTomada && r.sinMarcar > 0 && a.estado !== "REALIZADA" && <p className="mb-3 text-[15px] text-gris">{r.sinMarcar} {r.sinMarcar === 1 ? "persona sin marcar" : "personas sin marcar"}.</p>}
+        <div className="flex flex-wrap gap-2">
+          <Link href={`/actividades/${a.id}/inscriptos`} className={btn("secundario", "sm")}>Ver participantes</Link>
+          {asistencia && a.estado !== "CANCELADA" && <Link href={`/actividades/${a.id}/asistencia`} className={btn("primario", "sm")}>{asistenciaTomada ? "Revisar asistencia" : "Tomar asistencia"}</Link>}
         </div>
+      </Seccion>}
+
+      {!huellas && (
+        <Seccion titulo="Equipo asignado" resumen={[a.responsable, asignaciones.length && `${asignaciones.length} ${asignaciones.length === 1 ? "operador" : "operadores"}`].filter(Boolean).join(" · ") || "Sin equipo"}>
+          <dl className="space-y-3 text-[15px]">
+            <Fila k="Responsable" v={a.responsable || "—"} />
+            {!puede.asignarOperadores(yo, a) && (
+              <Fila k="Operadores" v={asignaciones.map((x) => { const u = s.usuarios.find((y) => y.id === x.usuario_id); return u ? `${u.nombre} ${u.apellido}` : x.usuario_id; }).join(", ") || "Nadie asignado"} />
+            )}
+          </dl>
         {puede.asignarOperadores(yo, a) && (
-          <div className="mt-5 border-t border-linea pt-4">
-            <p className="mb-2 font-bold">Operadores asignados</p>
+          <div className="mt-4 border-t border-linea pt-4">
+            <p className="mb-2 font-bold">Operadores</p>
             {asignaciones.length === 0 && <p className="mb-2 text-sm text-gris">Nadie asignado. Los operadores solo ven las actividades que tienen asignadas.</p>}
             <ul className="mb-3 flex flex-wrap gap-2">
               {asignaciones.map((x) => {
@@ -339,10 +366,24 @@ export default async function FichaActividad({ params, searchParams }: { params:
             )}
           </div>
         )}
-      </Seccion>}
+        </Seccion>
+      )}
+
+      {costos && (
+        <Seccion titulo="Costos" resumen={a.costo_estimado || a.costo_real ? `Estimado ${formatMoney(a.costo_estimado)} · Real ${a.costo_real ? formatMoney(a.costo_real) : "—"}` : "Sin costos registrados"}>
+          {a.costo_estimado || a.costo_real ? (
+            <dl className="grid grid-cols-2 gap-3">
+              <div><dt className="text-xs font-bold text-gris uppercase">Estimado</dt><dd className="font-titulo text-2xl font-extrabold">{formatMoney(a.costo_estimado)}</dd></div>
+              <div><dt className="text-xs font-bold text-gris uppercase">Real</dt><dd className="font-titulo text-2xl font-extrabold">{a.costo_real ? formatMoney(a.costo_real) : "—"}</dd></div>
+            </dl>
+          ) : (
+            <p className="text-[15px] text-gris">Sin costos registrados.</p>
+          )}
+        </Seccion>
+      )}
 
       {a.estado === "REALIZADA" && (
-        <Seccion titulo="Resultados">
+        <Seccion titulo="Resultados" abierto>
           <dl className="space-y-2 text-[15px]">
             <Fila k="Asistencia" v={`${a.presentes || r.presentes} de ${a.inscriptos || r.inscriptos} (${a.pct_asistencia || r.pct}%)`} />
             <Fila k="Resultados" v={a.resultados} multi />
@@ -352,25 +393,18 @@ export default async function FichaActividad({ params, searchParams }: { params:
           {cerrar && <Link href={`/actividades/${a.id}/cerrar`} className={cx(btn("secundario", "sm"), "mt-3")}>Editar cierre</Link>}
         </Seccion>
       )}
+      </div>
     </div>
   );
 }
 
+/** Dato: en el celular, etiqueta chica arriba y valor abajo (más natural que una tabla). */
 function Fila({ k, v, multi }: { k: string; v: ReactNode; multi?: boolean }) {
   if (!v) return null;
   return (
-    <div className="flex gap-3">
-      <dt className="w-32 shrink-0 text-gris">{k}</dt>
+    <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-3">
+      <dt className="text-xs font-bold tracking-wide text-gris uppercase sm:w-32 sm:shrink-0 sm:pt-0.5 sm:text-[15px] sm:font-normal sm:tracking-normal sm:normal-case">{k}</dt>
       <dd className={cx("min-w-0 font-semibold", multi && "font-normal whitespace-pre-line")}>{v}</dd>
-    </div>
-  );
-}
-
-function Numero({ n, label, tono }: { n: number; label: string; tono?: "verde" | "gris" }) {
-  return (
-    <div className={cx("rounded-2xl py-3", tono === "verde" ? "bg-verde-50 text-marca-600" : tono === "gris" ? "bg-fondo text-gris" : "bg-petroleo-50 text-petroleo-600")}>
-      <p className="font-titulo text-3xl leading-none font-extrabold tabular-nums">{n}</p>
-      <p className="mt-1 text-xs font-bold tracking-wide uppercase">{label}</p>
     </div>
   );
 }
@@ -383,12 +417,19 @@ function Accion({ href, Icon, children, principal }: { href: string; Icon: typeo
   );
 }
 
-function Seccion({ titulo, children, id }: { titulo: string; children: ReactNode; id?: string }) {
+/** Sección desplegable: las administrativas empiezan cerradas y muestran un resumen en el título. */
+function Seccion({ titulo, children, id, abierto = false, resumen }: { titulo: string; children: ReactNode; id?: string; abierto?: boolean; resumen?: ReactNode }) {
   return (
-    <section id={id} className="mt-4 scroll-mt-20 rounded-2xl border border-linea bg-white p-4 sm:p-5">
-      <h2 className="mb-3 text-lg font-bold">{titulo}</h2>
-      {children}
-    </section>
+    <details id={id} open={abierto} className="group/sec scroll-mt-20 rounded-2xl bg-white shadow-[0_1px_2px_rgba(16,105,133,0.05)] ring-1 ring-linea">
+      <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 sm:px-5 [&::-webkit-details-marker]:hidden">
+        <span className="min-w-0">
+          <span className="block text-[17px] font-bold">{titulo}</span>
+          {resumen && <span className="block truncate text-sm text-gris group-open/sec:hidden">{resumen}</span>}
+        </span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden className="shrink-0 text-petroleo transition-transform duration-200 group-open/sec:rotate-180"><path d="m6 9 6 6 6-6" /></svg>
+      </summary>
+      <div className="px-4 pb-4 sm:px-5 sm:pb-5">{children}</div>
+    </details>
   );
 }
 

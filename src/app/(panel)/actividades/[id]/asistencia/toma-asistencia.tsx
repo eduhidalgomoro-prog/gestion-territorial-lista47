@@ -154,6 +154,18 @@ export function TomaAsistencia({ actividadId, inicial, barrios, puedeCerrar }: {
           <Contador n={ausentes} label="Ausentes" activo={filtro === "AUSENTE"} onClick={() => setFiltro(filtro === "AUSENTE" ? "todos" : "AUSENTE")} tono="gris" />
           <Contador n={sinMarcar} label="Sin marcar" activo={filtro === "sin"} onClick={() => setFiltro(filtro === "sin" ? "todos" : "sin")} tono="petroleo" />
         </div>
+        {personas.length > 0 && (
+          <div className="mb-2">
+            <div className="flex items-baseline justify-between text-sm">
+              <span><b className="font-titulo text-lg text-marca">{presentes}</b> <span className="text-gris">de {personas.length} presentes</span></span>
+              <span className="font-semibold text-gris">{Math.round(((presentes + ausentes) / personas.length) * 100)}% registrado</span>
+            </div>
+            <div className="mt-1 flex h-2.5 overflow-hidden rounded-full bg-white ring-1 ring-linea" role="img" aria-label={`${presentes} presentes y ${ausentes} ausentes de ${personas.length}`}>
+              <div className="h-full bg-verde transition-[width] duration-300" style={{ width: `${(presentes / personas.length) * 100}%` }} />
+              <div className="h-full bg-gris/40 transition-[width] duration-300" style={{ width: `${(ausentes / personas.length) * 100}%` }} />
+            </div>
+          </div>
+        )}
         <label className="relative block">
           <span className="sr-only">Buscar participante</span>
           <IconSearch className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-gris" size={20} />
@@ -215,10 +227,31 @@ export function TomaAsistencia({ actividadId, inicial, barrios, puedeCerrar }: {
         </ul>
       )}
 
-      {puedeCerrar && (
-        <div className="mt-6 rounded-2xl border border-linea bg-white p-4 text-center">
-          <p className="mb-3 text-[15px] text-gris">¿Terminó la actividad? Al cerrarla, quienes no se marcaron quedan como ausentes.</p>
-          <Link href={`/actividades/${actividadId}/cerrar`} className={btn("secundario", "lg")}>Cerrar actividad</Link>
+      {/* Finalizar: las marcas ya se guardan solas; esto resume y lleva a cerrar la actividad. */}
+      {personas.length > 0 && (
+        <div className="mt-6 rounded-3xl bg-white p-5 ring-1 ring-linea">
+          <p className="text-xs font-bold tracking-wide text-gris uppercase">Asistencia</p>
+          <dl className="mt-2 grid grid-cols-4 gap-2 text-center">
+            {[
+              [personas.length, "inscriptos"],
+              [presentes, "presentes"],
+              [ausentes + sinMarcar, "ausentes"],
+              [`${Math.round((presentes / personas.length) * 100)}%`, "asistencia"],
+            ].map(([n, l], i) => (
+              <div key={String(l)}>
+                <dd className={cx("font-titulo text-2xl font-extrabold tabular-nums", i === 1 && "text-marca")}>{n}</dd>
+                <dt className="text-xs text-gris">{l}</dt>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-3 text-center text-sm text-gris">
+            Las marcas se guardan solas.{sinMarcar > 0 && ` ${sinMarcar} sin marcar cuentan como ausentes al cerrar.`}
+          </p>
+          {puedeCerrar && (
+            <Link href={`/actividades/${actividadId}/cerrar`} className={cx(btn("primario", "lg"), "mt-3 w-full")}>
+              <IconCheck /> Finalizar asistencia y cerrar la actividad
+            </Link>
+          )}
         </div>
       )}
 

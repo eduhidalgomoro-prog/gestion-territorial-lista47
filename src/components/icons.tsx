@@ -46,6 +46,10 @@ export const IconWhatsApp = ({ size = 22, ...p }: P) => (
 );
 
 export const IconMap = (p: P) => (<svg {...base(p)}><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z" /><path d="M9 4v13.5M15 6.5V20" /></svg>);
+/** Talleres: hilo y aguja, tijera y aprendizaje (rubros que la app reconoce por el nombre o el tipo). */
+export const IconHilo = (p: P) => (<svg {...base(p)}><circle cx="9" cy="14" r="6" /><path d="M4.5 10.5c3 .5 6 2.5 7.5 6M5 16.5c2-1.5 6-1.5 8.5 0M20 3 13 10" /><path d="M18.5 3.5a1.2 1.2 0 1 1 1.7 1.7" /></svg>);
+export const IconTijera = (p: P) => (<svg {...base(p)}><circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12" /></svg>);
+export const IconAprender = (p: P) => (<svg {...base(p)}><path d="M2 8.5 12 4l10 4.5-10 4.5z" /><path d="M6 10.5V16c2 2 10 2 12 0v-5.5M22 8.5V14" /></svg>);
 /** Marcando Huellas: huella, perro, gato y vacuna (trazos simples, como el resto de los íconos). */
 export const IconHuella = (p: P) => (<svg {...base(p)}><ellipse cx="12" cy="16" rx="4.2" ry="3.6" /><ellipse cx="6" cy="10.5" rx="1.8" ry="2.3" /><ellipse cx="9.6" cy="6.5" rx="1.8" ry="2.4" /><ellipse cx="14.4" cy="6.5" rx="1.8" ry="2.4" /><ellipse cx="18" cy="10.5" rx="1.8" ry="2.3" /></svg>);
 export const IconPerro = (p: P) => (<svg {...base(p)}><path d="M6 8 4 4.5 3 9c0 1 .6 1.7 1.5 2" /><path d="M18 8l2-3.5 1 4.5c0 1-.6 1.7-1.5 2" /><path d="M6 8.5C7 6.3 9.3 5 12 5s5 1.3 6 3.5c.8 1.8.8 4.4 0 6.3C17 17.6 14.7 20 12 20s-5-2.4-6-5.2c-.8-1.9-.8-4.5 0-6.3z" /><circle cx="9.5" cy="11" r=".6" fill="currentColor" /><circle cx="14.5" cy="11" r=".6" fill="currentColor" /><path d="M11 15h2l-1 1.2z" /></svg>);
