@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { Barras, BarrasDobles } from "@/components/charts";
-import { Bloque, Cobertura, ComparacionTarjetas, CostosResumen, InscriptosAsistentes, NuevosRecurrentes, ResumenEstadistico, Tarjeta, TopBarras, Vacio, type FilaComparacion } from "@/components/estadisticas";
-import { EvolucionMensual } from "@/components/evolucion";
+import { Bloque, Cobertura, CostosResumen, InscriptosAsistentes, NuevosRecurrentes, ResumenEstadistico, Tarjeta, TopBarras, Vacio } from "@/components/estadisticas";
 import { FiltroSelect, FiltrosForm } from "@/components/filtros";
 import { AvanceZonas, Destacados } from "@/components/inicio";
 import { cx, Notice } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { snapshot } from "@/lib/db";
-import { agrupar, cumplimiento, evolucion, filtrarActividades, indicadores, inscriptosPorCiudad, inscriptosVsAsistentes, participantesPor, porZona, resumenEscuela } from "@/lib/domain/metricas";
+import { agrupar, cumplimiento, filtrarActividades, indicadores, inscriptosPorCiudad, inscriptosVsAsistentes, participantesPor, porZona, resumenEscuela } from "@/lib/domain/metricas";
 import { conclusionesEstadisticas } from "@/lib/domain/resumen";
 import { MarcandoHuellasStats } from "@/components/huellas";
 import { esMarcandoHuellas, resumenHuellas } from "@/lib/huellas";
@@ -15,14 +14,14 @@ import { opcionesZona, titulo, zonaLabel } from "@/lib/labels";
 import { actividadesVisibles, puede, zonaForzada } from "@/lib/permisos";
 import { ESTADOS_ACTIVIDAD, ZONAS } from "@/lib/schema";
 import { ambitoDe, parseRegiones } from "@/lib/territorio";
-import { addMonths, formatMoney, fullName, MESES, nombreMes, titleCase, today } from "@/lib/util";
+import { formatMoney, fullName, MESES, nombreMes, titleCase, today } from "@/lib/util";
 import { periodo, sp, type SP } from "@/lib/view";
 
 export const metadata = { title: "Estadísticas" };
 
 /**
  * Estadísticas como resumen de gestión: primero cómo viene el período y lo más importante,
- * después Territorio, Participación, Evolución y Costos. Mismos cálculos de siempre (lib/domain/metricas).
+ * después Territorio, Participación, Escuela y Costos. «Evolución» (comparar meses) se saca hasta tener varios meses de uso. Mismos cálculos de siempre (lib/domain/metricas).
  */
 export default async function Estadisticas({ searchParams }: { searchParams: Promise<SP> }) {
   const yo = await requireUser();
@@ -31,11 +30,6 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
   const { anio, mes } = periodo(q);
   const zonaFija = zonaForzada(yo);
   const zona = zonaFija || sp(q, "zona");
-  // Mes de comparación: por defecto, el anterior.
-  const refMes = mes || Number(today().slice(5, 7));
-  const prev = addMonths(anio, refMes, -1);
-  const compMes = Number(sp(q, "cmes")) || prev.mes;
-  const compAnio = Number(sp(q, "canio")) || prev.anio;
 
   const s = await snapshot();
   const ambito = zonaFija ? "" : sp(q, "ambito");
@@ -44,14 +38,10 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
   // Todos los bloques usan la misma lista filtrada (el período se aplica después).
   const visibles = filtrarActividades(deMiAlcance, { zona, ...extra }).filter((a) => (ambito !== "capital" && ambito !== "interior") || ambitoDe(a.zona) === ambito);
   const delPeriodo = visibles.filter((a) => a.anio === anio && (!mes || a.mes === mes));
-  const delComp = visibles.filter((a) => a.anio === compAnio && a.mes === compMes);
   const A = indicadores(delPeriodo, s, { anio, mes });
-  const B = indicadores(delComp, s, { anio: compAnio, mes: compMes });
   const costos = puede.verCostos(yo);
-  const evo = evolucion({ ...s, actividades: visibles }, { anio, mes: refMes }, 12);
   const etiqueta = mes ? `${nombreMes(mes)} ${anio}` : `Año ${anio}`;
   const nombreActual = mes ? nombreMes(mes).toLowerCase() : `año ${anio}`;
-  const nombreAnterior = `${nombreMes(compMes).toLowerCase()}${compAnio !== anio ? ` ${compAnio}` : ""}`;
   const anioActual = Number(today().slice(0, 4));
   const anios = [anioActual - 1, anioActual, anioActual + 1].map((a) => [a, String(a)] as const);
   const noCanceladas = delPeriodo.filter((a) => a.estado !== "CANCELADA" && a.estado !== "BORRADOR");
@@ -78,27 +68,17 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
   // Lo más importante (reglas, sin IA)
   const conclusiones = conclusionesEstadisticas({
     ind: A,
-    anterior: mes ? B : null,
-    nombreAnterior,
+    // Sin comparar con el mes anterior por ahora (la app recién arranca): se suma más adelante, junto con «Evolución».
+    anterior: null,
+    nombreAnterior: "",
     zonas: cumpl.map((c) => ({ ...c, nombre: zonaLabel(c.zona) })),
     barrios: actsPorBarrio.filter((b) => b.label !== "Sin barrio cargado"),
   });
 
-  const comparacion: FilaComparacion[] = [
-    { titulo: "Actividades programadas", actual: A.programadas, anterior: B.programadas, mejorSiSube: true, unidad: (n) => `${n} ${n === 1 ? "actividad" : "actividades"}` },
-    { titulo: "Realizadas", actual: A.realizadas, anterior: B.realizadas, mejorSiSube: true, unidad: (n) => `${n} ${n === 1 ? "realizada" : "realizadas"}` },
-    { titulo: "Inscriptos", actual: A.inscriptos, anterior: B.inscriptos, mejorSiSube: true, unidad: (n) => `${n} ${n === 1 ? "inscripto" : "inscriptos"}` },
-    { titulo: "Asistentes", actual: A.asistentes, anterior: B.asistentes, mejorSiSube: true, unidad: (n) => `${n} ${n === 1 ? "asistente" : "asistentes"}` },
-    { titulo: "Personas nuevas", actual: A.personasNuevas, anterior: B.personasNuevas, mejorSiSube: true, unidad: (n) => `${n} ${n === 1 ? "persona" : "personas"}` },
-    { titulo: "% de asistencia", actual: A.pctAsistencia, anterior: B.pctAsistencia, mejorSiSube: true, unidad: (n) => `${n} ${n === 1 ? "punto" : "puntos"}`, formato: (n) => `${n}%` },
-    { titulo: "Suspendidas o canceladas", actual: A.suspendidas + A.canceladas, anterior: B.suspendidas + B.canceladas, mejorSiSube: false, unidad: (n) => `${n}` },
-    ...(costos ? [{ titulo: "Costo real", actual: A.costoReal, anterior: B.costoReal, mejorSiSube: null, unidad: formatMoney, formato: formatMoney }] : []),
-  ];
-
   // Opciones de los filtros (de lo que cada uno puede ver)
   const enAmbito = deMiAlcance.filter((a) => (ambito !== "capital" && ambito !== "interior") || ambitoDe(a.zona) === ambito);
   const uniq = (xs: string[]) => [...new Set(xs.filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
-  const filtrosExtra = [zonaFija ? "" : sp(q, "zona"), ...Object.values(extra), sp(q, "cmes"), sp(q, "canio")].filter(Boolean).length;
+  const filtrosExtra = [zonaFija ? "" : sp(q, "zona"), ...Object.values(extra)].filter(Boolean).length;
   const alcance = zona ? zonaLabel(zona) : ambito === "capital" ? "Capital" : ambito === "interior" ? "Interior" : "Toda la provincia";
 
   const costosPorZona = agrupar(noCanceladas, (a) => zonaLabel(a.zona), (a) => a.costo_estimado, (a) => a.costo_real).filter((d) => d.value || d.value2);
@@ -141,9 +121,6 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
               <FiltroSelect chip name="tipo" label="Tipo" value={extra.tipo} placeholder="Tipo: todos" options={uniq(enAmbito.map((a) => a.tipo)).map((t) => [t, t] as const)} />
               <FiltroSelect chip name="responsable" label="Responsable" value={extra.responsable} placeholder="Responsable: todos" options={uniq(enAmbito.map((a) => a.responsable)).map((r) => [r, r] as const)} />
               <FiltroSelect chip name="estado" label="Estado" value={extra.estado} placeholder="Estado: todos" options={ESTADOS_ACTIVIDAD.map((e) => [e, titulo(e)] as const)} />
-              <span className="basis-full text-xs font-bold tracking-wide text-gris uppercase">Comparar con</span>
-              <FiltroSelect chip name="cmes" label="Comparar con mes" activo={!!sp(q, "cmes")} value={compMes} options={MESES.map((m, i) => [i + 1, m] as const)} />
-              <FiltroSelect chip name="canio" label="Comparar con año" activo={!!sp(q, "canio")} value={compAnio} options={anios} />
               {filtrosExtra > 0 && (
                 <Link href={`/estadisticas?mes=${mes}&anio=${anio}${ambito ? `&ambito=${ambito}` : ""}`} className="inline-flex h-10 items-center px-2 text-sm font-bold text-petroleo hover:underline">
                   Limpiar filtros
@@ -255,19 +232,6 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
             </div>
           </Bloque>
         )}
-
-        {/* 4. Evolución */}
-        <Bloque id="evolucion" titulo="Evolución" resumen={`Comparación con ${nombreAnterior} y últimos 12 meses`}>
-          <Tarjeta titulo={`Comparación con ${nombreAnterior}`} nota={B.total ? undefined : `No hay actividades cargadas en ${nombreAnterior}.`} ancha>
-            <ComparacionTarjetas filas={comparacion} nombreActual={nombreActual} nombreAnterior={nombreAnterior} />
-          </Tarjeta>
-          <Tarjeta titulo="Evolución mensual" nota="Últimos 12 meses." ancha>
-            <EvolucionMensual
-              actividades={evo.map((e) => ({ label: `${nombreMes(e.mes).slice(0, 3)}${e.mes === 1 ? ` ${String(e.anio).slice(2)}` : ""}`, value: e.actividades, value2: e.realizadas }))}
-              participacion={evo.map((e) => ({ label: `${nombreMes(e.mes).slice(0, 3)}${e.mes === 1 ? ` ${String(e.anio).slice(2)}` : ""}`, value: e.inscriptos, value2: e.asistentes }))}
-            />
-          </Tarjeta>
-        </Bloque>
 
         {/* Costos: secundario */}
         {costos && (
