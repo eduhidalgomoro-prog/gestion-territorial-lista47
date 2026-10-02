@@ -6,6 +6,7 @@ import { ActionForm, Input, Select, SubmitButton } from "@/components/forms";
 import { IconCheck, IconEdit, IconForm, IconImage, IconLock, IconMap, IconPin, IconUpload, IconUsers, IconWhatsApp, IconX } from "@/components/icons";
 import { mensajeActividad, whatsappCompartir } from "@/lib/compartir";
 import { FlyersActividad } from "@/components/flyer-imagen";
+import { FlyerRapido } from "@/components/flyer-rapido";
 import { esFlyerSubido } from "@/lib/flyers";
 import { Badge, btn, Card, cx, Notice } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
@@ -73,6 +74,17 @@ export default async function FichaActividad({ params, searchParams }: { params:
   const estadosPosibles = (["PROGRAMADA", "CONFIRMADA", "SUSPENDIDA", "CANCELADA"] as EstadoActividad[]).filter((e) => e !== a.estado);
   const asistenciaTomada = a.estado === "REALIZADA" || r.presentes + r.ausentesMarcados > 0;
   const abrir = sp(q, "abrir");
+  // Acceso rápido al flyer (mismos archivos que «Comunicación»). Si la actividad no pide flyer ni tiene uno, no se muestra.
+  const flyerRapido =
+    a.requiere_flyer || a.link_flyer || a.link_flyer_historia ? (
+      <FlyerRapido
+        nombre={a.nombre}
+        estado={a.requiere_flyer ? a.estado_flyer || "SOLICITADO" : "PUBLICADO"}
+        feed={a.link_flyer}
+        historia={a.link_flyer_historia}
+        comunicacionHref={editarFlyer ? `/actividades/${a.id}?abrir=comunicacion#comunicacion` : undefined}
+      />
+    ) : null;
 
   return (
     <div className={cx("mx-auto max-w-4xl", huellas && "tema-huellas")}>
@@ -102,11 +114,12 @@ export default async function FichaActividad({ params, searchParams }: { params:
           />
           <div className="mt-4 space-y-2">
             {asistencia && a.estado !== "CANCELADA" && <AccionAsistencia id={a.id} registrada={asistenciaTomada} presentes={r.presentes} />}
+            {flyerRapido}
             <nav className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Acciones de la actividad">
               {verInscriptos && <AccionSec href={`/actividades/${a.id}/inscriptos`} Icon={IconUsers}>Ver inscriptos</AccionSec>}
               {editar && <AccionSec href={`/actividades/${a.id}/editar`} Icon={IconEdit}>Editar</AccionSec>}
               <AccionSec href={`/mapa?foco=${a.id}&mes=${a.mes || ""}&anio=${a.anio || ""}`} Icon={IconMap}>Ver mapa</AccionSec>
-              <AccionSec href={whatsappCompartir(mensajeActividad(a, r))} Icon={IconWhatsApp} externo>Compartir</AccionSec>
+              <AccionSec href={whatsappCompartir(mensajeActividad(a, r))} Icon={IconWhatsApp} externo>Compartir actividad</AccionSec>
             </nav>
             {/* Lo menos frecuente, a un toque. */}
             <details className="group/mas">
@@ -146,6 +159,7 @@ export default async function FichaActividad({ params, searchParams }: { params:
               <Fila k="Responsable" v={a.responsable} />
             </dl>
           </Card>
+          {flyerRapido && <div className="mt-4">{flyerRapido}</div>}
           <nav className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Acciones de la actividad">
             {editar && <Accion href={`/actividades/${a.id}/editar`} Icon={IconEdit}>Editar actividad</Accion>}
             {puede.verFlyers(yo) && a.requiere_flyer && <Accion href={`/flyers?mes=${a.mes || 0}&anio=${a.anio || ""}#${(a.estado_flyer || "SOLICITADO").replace(/\s/g, "-")}`} Icon={IconImage}>Flyer</Accion>}
@@ -233,7 +247,7 @@ export default async function FichaActividad({ params, searchParams }: { params:
         {a.obs_logistica && <p className="mt-3 text-[15px] whitespace-pre-line text-gris">{a.obs_logistica}</p>}
       </Seccion>}
 
-      <Seccion titulo="Comunicación" resumen={a.requiere_flyer ? `Flyer: ${(a.estado_flyer || "solicitado").toLowerCase()}` : "No requiere flyer"}>
+      <Seccion titulo="Comunicación" id="comunicacion" abierto={abrir === "comunicacion"} resumen={a.requiere_flyer ? `Flyer: ${(a.estado_flyer || "solicitado").toLowerCase()}` : "No requiere flyer"}>
         {a.requiere_flyer ? (
           <>
             <p className="mb-3 text-[15px]">Flyer: {a.estado_flyer ? <Badge color={FLYER_COLOR[a.estado_flyer]}>{a.estado_flyer}</Badge> : "—"}</p>
