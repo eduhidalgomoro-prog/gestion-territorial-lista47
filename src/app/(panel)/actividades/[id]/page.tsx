@@ -326,8 +326,9 @@ export default async function FichaActividad({ params, searchParams }: { params:
         </div>
       </Seccion>}
 
-      {!huellas && (
-        <Seccion titulo="Equipo asignado" resumen={[a.responsable, asignaciones.length && `${asignaciones.length} ${asignaciones.length === 1 ? "operador" : "operadores"}`].filter(Boolean).join(" · ") || "Sin equipo"}>
+      {/* Equipo: en todas las actividades (en Marcando Huellas, el operador asignado es quien registra las atenciones). */}
+      {(
+        <Seccion titulo="Equipo asignado" abierto={huellas && puede.asignarOperadores(yo, a) && asignaciones.length === 0} resumen={[a.responsable, asignaciones.length && `${asignaciones.length} ${asignaciones.length === 1 ? "operador" : "operadores"}`].filter(Boolean).join(" · ") || "Sin equipo"}>
           <dl className="space-y-3 text-[15px]">
             <Fila k="Responsable" v={a.responsable || "—"} />
             {!puede.asignarOperadores(yo, a) && (
