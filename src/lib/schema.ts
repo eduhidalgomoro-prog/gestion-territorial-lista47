@@ -217,7 +217,7 @@ export interface Inscripcion extends Meta {
 export interface Asistencia extends Meta {
   actividad_id: string;
   participante_id: string;
-  estado: EstadoAsistencia;
+  estado: EstadoAsistencia | ""; // "" = se volvió a «sin marcar» (corrección en la toma de asistencia)
   registrado: string; // fecha/hora ISO del registro
   usuario: string;
 }

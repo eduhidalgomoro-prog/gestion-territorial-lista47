@@ -63,7 +63,7 @@ export function conteosPorActividad(d: Pick<Datos, "inscripciones" | "asistencia
   for (const a of d.asistencias) {
     if (!activos.has(`${a.actividad_id}|${a.participante_id}`)) continue;
     if (a.estado === "PRESENTE") get(a.actividad_id).presentes++;
-    else get(a.actividad_id).ausentes++;
+    else if (a.estado === "AUSENTE") get(a.actividad_id).ausentes++;
   }
   return out;
 }

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { categoriaDe, emojisDe } from "@/lib/categorias";
 import { mensajeActividad } from "@/lib/compartir";
 import { invalidate, setConfigValue, snapshot } from "@/lib/db";
-import { cumplimiento, filtrarActividades, indicadores } from "@/lib/domain/metricas";
+import { conteosPorActividad, cumplimiento, filtrarActividades, indicadores } from "@/lib/domain/metricas";
 import { parseRegiones } from "@/lib/territorio";
 import { armarFilas, sectoresDe } from "@/lib/ferias";
 import { resumenHuellas, type AnimalInput } from "@/lib/huellas";
@@ -394,6 +394,25 @@ describe("participantes, importación y asistencia", () => {
     expect(s.asistencias.filter((x) => x.estado === "AUSENTE")).toHaveLength(1); // el no marcado quedó ausente
     const ind = indicadores(s.actividades, s, { anio: 2026, mes: 10 });
     expect(ind).toMatchObject({ realizadas: 1, inscriptos: 4, asistentes: 3, pctAsistencia: 75, costoReal: 20000 });
+  });
+
+  it("corregir a «sin marcar»: no cuenta y al cerrar queda ausente sin duplicar filas", async () => {
+    const a = await crearActividad(input(), admin);
+    await confirmarImportacion(a.id, [
+      { nombre: "A", apellido: "Uno", dni: "30000001", telefono: "", barrio: "" },
+      { nombre: "B", apellido: "Dos", dni: "30000002", telefono: "", barrio: "" },
+    ], admin);
+    let s = await snapshot({ fresh: true });
+    const [p1, p2] = s.participantes;
+    await guardarAsistencia(a.id, [{ participanteId: p1.id, estado: "PRESENTE" }, { participanteId: p2.id, estado: "PRESENTE" }], admin);
+    await guardarAsistencia(a.id, [{ participanteId: p2.id, estado: "" }, { participanteId: "otro", estado: "" }], admin);
+    s = await snapshot({ fresh: true });
+    expect(conteosPorActividad(s).get(a.id)).toEqual({ inscriptos: 2, presentes: 1, ausentes: 0 });
+    const { resumen } = await cerrarActividad(a.id, { costo_real: 0, observaciones: "", resultados: "", incidencias: "", fotos: "" }, admin);
+    expect(resumen).toMatchObject({ inscriptos: 2, presentes: 1, ausentes: 1 });
+    s = await snapshot({ fresh: true });
+    expect(s.asistencias).toHaveLength(2);
+    expect(s.asistencias.find((x) => x.participante_id === p2.id)?.estado).toBe("AUSENTE");
   });
 });
 

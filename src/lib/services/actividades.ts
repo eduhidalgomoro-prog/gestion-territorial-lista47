@@ -358,16 +358,20 @@ export async function cerrarActividad(id: string, input: CierreInput, yo: Yo) {
   if (a.estado === "CANCELADA") throw new UserError("La actividad está cancelada: no se puede cerrar.");
   return withLock(`asis:${id}`, async () => {
     const [inscripciones, asistencias] = await Promise.all([readFresh("inscripciones"), readFresh("asistencias")]);
-    const marcados = new Set(asistencias.filter((x) => x.actividad_id === id).map((x) => x.participante_id));
-    const faltan = inscripciones.filter((i) => i.actividad_id === id && i.estado === "INSCRIPTO" && !marcados.has(i.participante_id));
+    const filas = new Map(asistencias.filter((x) => x.actividad_id === id).map((x) => [x.participante_id, x]));
+    const faltan = inscripciones.filter((i) => i.actividad_id === id && i.estado === "INSCRIPTO" && !filas.get(i.participante_id)?.estado);
     const registrado = nowIso();
+    // Quien se había vuelto a «sin marcar» ya tiene fila: se actualiza (no se duplica).
+    const vacias = faltan.map((i) => filas.get(i.participante_id)).filter((x) => x !== undefined);
+    await updateMany("asistencias", vacias.map((x) => ({ id: x.id, patch: { estado: "AUSENTE" as const, registrado, usuario: yo.email } })), yo.email, "ausentes automáticos al cerrar");
     const nuevas = await insertMany(
       "asistencias",
-      faltan.map((i) => ({ actividad_id: id, participante_id: i.participante_id, estado: "AUSENTE" as const, registrado, usuario: yo.email })),
+      faltan.filter((i) => !filas.has(i.participante_id)).map((i) => ({ actividad_id: id, participante_id: i.participante_id, estado: "AUSENTE" as const, registrado, usuario: yo.email })),
       yo.email,
       "ausentes automáticos al cerrar",
     );
-    const r = resumenAsistencia(id, { inscripciones, asistencias: [...asistencias, ...nuevas] });
+    const vaciasIds = new Set(vacias.map((x) => x.id));
+    const r = resumenAsistencia(id, { inscripciones, asistencias: [...asistencias.map((x) => (vaciasIds.has(x.id) ? { ...x, estado: "AUSENTE" as const } : x)), ...nuevas] });
     const act = await update(
       "actividades",
       id,

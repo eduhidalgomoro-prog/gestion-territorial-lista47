@@ -10,7 +10,7 @@ import { nowIso } from "../util";
 
 export interface Marca {
   participanteId: string;
-  estado: EstadoAsistencia;
+  estado: EstadoAsistencia | ""; // "" = volver a «sin marcar»
   /** Momento en que se marcó en el celular (puede ser antes si estaba sin conexión). */
   ts?: string;
 }
@@ -30,7 +30,7 @@ async function actividadConAsistencia(actividadId: string, yo: Yo) {
  */
 export async function guardarAsistencia(actividadId: string, marcas: Marca[], yo: Yo) {
   await actividadConAsistencia(actividadId, yo);
-  const validas = marcas.filter((m) => m && typeof m.participanteId === "string" && (ESTADOS_ASISTENCIA as readonly string[]).includes(m.estado));
+  const validas = marcas.filter((m) => m && typeof m.participanteId === "string" && (m.estado === "" || (ESTADOS_ASISTENCIA as readonly string[]).includes(m.estado)));
   if (!validas.length) return { guardadas: 0 };
   if (validas.length > 2000) throw new UserError("Demasiadas marcas en un solo envío.");
   const ultima = new Map<string, Marca>();
@@ -53,7 +53,8 @@ export async function guardarAsistencia(actividadId: string, marcas: Marca[], yo
       const ex = existentes.get(m.participanteId);
       if (ex) {
         if (ex.estado !== m.estado) actualizar.push({ id: ex.id, patch: { estado: m.estado, registrado, usuario: yo.email } });
-      } else {
+      } else if (m.estado) {
+        // «Sin marcar» de alguien que nunca se marcó: no hay nada que guardar.
         crear.push({ actividad_id: actividadId, participante_id: m.participanteId, estado: m.estado, registrado, usuario: yo.email });
       }
     }
