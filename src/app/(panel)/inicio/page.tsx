@@ -8,6 +8,7 @@ import { requireUser } from "@/lib/auth";
 import { snapshot } from "@/lib/db";
 import { conteosPorActividad, cumplimiento, indicadores } from "@/lib/domain/metricas";
 import { destacadosDelMes } from "@/lib/domain/resumen";
+import { conteosHuellas } from "@/lib/huellas";
 import { zonaLabel } from "@/lib/labels";
 import { redirect } from "next/navigation";
 import { actividadesVisibles, esAgenda, esDiseno, esFerias, esOperador, puede, zonaForzada } from "@/lib/permisos";
@@ -28,6 +29,7 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<S
   const s = await snapshot();
   const visibles = actividadesVisibles(yo, s.actividades, s.asignaciones);
   const conteos = conteosPorActividad(s);
+  const huellasPorActividad = conteosHuellas(s.atenciones, s.animales);
   const hoy = today();
   const proximas = visibles
     .filter((a) => a.fecha >= hoy && !["CANCELADA", "REALIZADA", "BORRADOR"].includes(a.estado))
@@ -45,7 +47,7 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<S
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {[...proximas, ...visibles.filter((a) => !proximas.includes(a))].map((a) => (
-              <ActividadCard key={a.id} a={a} conteo={conteos.get(a.id)} />
+              <ActividadCard key={a.id} a={a} conteo={conteos.get(a.id)} huellas={huellasPorActividad.get(a.id)} />
             ))}
           </div>
         )}
@@ -75,7 +77,7 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<S
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {proximas.slice(0, agenda ? 12 : 6).map((a) => (
-            <ActividadCard key={a.id} a={a} conteo={conteos.get(a.id)} />
+            <ActividadCard key={a.id} a={a} conteo={conteos.get(a.id)} huellas={huellasPorActividad.get(a.id)} />
           ))}
         </div>
       )}

@@ -1,5 +1,6 @@
 import { formatDate, normalizePhone, titleCase } from "./format";
 import { ubicacionLabel } from "./labels";
+import { esMarcandoHuellas } from "./huellas";
 import type { Actividad } from "./schema";
 
 /**
@@ -16,9 +17,11 @@ export function mensajeActividad(a: Actividad, n: { inscriptos: number; presente
     cuando.charAt(0).toUpperCase() + cuando.slice(1),
     `📍 ${donde}`,
     a.responsable ? `👤 Responsable: ${a.responsable}` : "",
-    a.estado === "REALIZADA"
-      ? `✅ Realizada: ${n.presentes} asistentes de ${n.inscriptos} inscriptos`
-      : `👥 ${n.inscriptos} ${n.inscriptos === 1 ? "inscripto" : "inscriptos"}${a.estado !== "CONFIRMADA" ? ` · ${a.estado.toLowerCase()}` : ""}`,
+    esMarcandoHuellas(a)
+      ? `🐾 Marcando Huellas: vacunación antirrábica y desparasitación (sin inscripción previa)${a.estado !== "CONFIRMADA" ? ` · ${a.estado.toLowerCase()}` : ""}`
+      : a.estado === "REALIZADA"
+        ? `✅ Realizada: ${n.presentes} asistentes de ${n.inscriptos} inscriptos`
+        : `👥 ${n.inscriptos} ${n.inscriptos === 1 ? "inscripto" : "inscriptos"}${a.estado !== "CONFIRMADA" ? ` · ${a.estado.toLowerCase()}` : ""}`,
     a.lat && a.lng ? `🗺️ https://www.google.com/maps/search/?api=1&query=${a.lat},${a.lng}` : "",
   ];
   return lineas.filter(Boolean).join("\n");

@@ -18,6 +18,7 @@ import {
 import { confirmarImportacion, darDeBaja, guardarLinkGrupo, guardarMensajes, marcarConfirmacion, vistaPreviaImportacion, type FilaImportada, type VistaPrevia } from "@/lib/services/inscripciones";
 import type { Yo } from "@/lib/permisos";
 import type { SectorFeria } from "@/lib/ferias";
+import { anularAtencion, buscarResponsable, editarAtencion, registrarAtencion, type AtencionInput } from "@/lib/services/huellas";
 
 const str = (fd: FormData, k: string) => {
   const v = fd.get(k);
@@ -102,6 +103,27 @@ export async function mensajesAction(actividadId: string, _: ActionResult, fd: F
     (yo) => guardarMensajes(actividadId, restaurar ? "" : str(fd, "mensaje_confirmacion"), restaurar ? "" : str(fd, "mensaje_grupo"), yo),
     { ok: restaurar ? "Se volvió a los mensajes por defecto." : "Mensajes guardados para esta actividad." },
   );
+}
+
+// ---------------------------------------------------------------------------
+// Marcando Huellas (atenciones)
+// ---------------------------------------------------------------------------
+
+export async function registrarAtencionAction(actividadId: string, input: AtencionInput, atencionId?: string): Promise<ActionResult<{ id: string; nombre: string; perros: number; gatos: number }>> {
+  return act((yo) => (atencionId ? editarAtencion(atencionId, input, yo) : registrarAtencion(actividadId, input, yo)), { ok: atencionId ? "Atención corregida." : "Atención registrada." });
+}
+
+export async function anularAtencionAction(atencionId: string, actividadId: string): Promise<ActionResult> {
+  return act((yo) => anularAtencion(atencionId, yo), { redirectTo: () => `/actividades/${actividadId}/atenciones?ok=anulada` });
+}
+
+export async function buscarResponsableAction(actividadId: string, dni: string) {
+  const yo = await requireUser();
+  try {
+    return await buscarResponsable(actividadId, String(dni ?? "").slice(0, 20), yo);
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -46,7 +46,12 @@ export const IconWhatsApp = ({ size = 22, ...p }: P) => (
 );
 
 export const IconMap = (p: P) => (<svg {...base(p)}><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z" /><path d="M9 4v13.5M15 6.5V20" /></svg>);
-export const IconSube = (p: P) => (<svg {...base(p)}><path d="m4 16 6-6 4 4 6-7" /><path d="M15 7h5v5" /></svg>);
+/** Marcando Huellas: huella, perro, gato y vacuna (trazos simples, como el resto de los íconos). */
+export const IconHuella = (p: P) => (<svg {...base(p)}><ellipse cx="12" cy="16" rx="4.2" ry="3.6" /><ellipse cx="6" cy="10.5" rx="1.8" ry="2.3" /><ellipse cx="9.6" cy="6.5" rx="1.8" ry="2.4" /><ellipse cx="14.4" cy="6.5" rx="1.8" ry="2.4" /><ellipse cx="18" cy="10.5" rx="1.8" ry="2.3" /></svg>);
+export const IconPerro = (p: P) => (<svg {...base(p)}><path d="M6 8 4 4.5 3 9c0 1 .6 1.7 1.5 2" /><path d="M18 8l2-3.5 1 4.5c0 1-.6 1.7-1.5 2" /><path d="M6 8.5C7 6.3 9.3 5 12 5s5 1.3 6 3.5c.8 1.8.8 4.4 0 6.3C17 17.6 14.7 20 12 20s-5-2.4-6-5.2c-.8-1.9-.8-4.5 0-6.3z" /><circle cx="9.5" cy="11" r=".6" fill="currentColor" /><circle cx="14.5" cy="11" r=".6" fill="currentColor" /><path d="M11 15h2l-1 1.2z" /></svg>);
+export const IconGato = (p: P) => (<svg {...base(p)}><path d="M5 10V3.5l4 3.2c1-.4 2-.6 3-.6s2 .2 3 .6l4-3.2V10" /><path d="M5 10c-.6 1.2-1 2.6-1 4 0 3.9 3.6 6.5 8 6.5s8-2.6 8-6.5c0-1.4-.4-2.8-1-4" /><circle cx="9.3" cy="12.5" r=".6" fill="currentColor" /><circle cx="14.7" cy="12.5" r=".6" fill="currentColor" /><path d="M11 15.5h2l-1 1zM3 15l3.5.5M3.5 17.5 7 16.8M21 15l-3.5.5M20.5 17.5 17 16.8" /></svg>);
+export const IconVacuna = (p: P) => (<svg {...base(p)}><path d="m18 2 4 4M19.5 4.5l-3 3M14 5l5 5M7.5 11.5l5 5M15 6 5.5 15.5l-1 4 4-1L18 9" /><path d="m2 22 2.5-2.5" /></svg>);
+export const IconSube =(p: P) => (<svg {...base(p)}><path d="m4 16 6-6 4 4 6-7" /><path d="M15 7h5v5" /></svg>);
 export const IconBaja = (p: P) => (<svg {...base(p)}><path d="m4 8 6 6 4-4 6 7" /><path d="M15 17h5v-5" /></svg>);
 /** Gazebo de feria. */
 export const IconGazebo = (p: P) => (<svg {...base(p)}><path d="M12 3 3 9h18z" /><path d="M5 9v11M19 9v11M3 14h18" /></svg>);

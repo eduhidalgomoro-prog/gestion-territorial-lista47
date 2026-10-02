@@ -5,6 +5,8 @@ import { invalidate, setConfigValue, snapshot } from "@/lib/db";
 import { cumplimiento, filtrarActividades, indicadores } from "@/lib/domain/metricas";
 import { parseRegiones } from "@/lib/territorio";
 import { armarFilas, sectoresDe } from "@/lib/ferias";
+import { resumenHuellas, type AnimalInput } from "@/lib/huellas";
+import { editarAtencion, registrarAtencion } from "@/lib/services/huellas";
 import { compararIndicador, conclusionesEstadisticas, destacadosDelMes, estadoZona } from "@/lib/domain/resumen";
 import type { TipoPuesto } from "@/lib/schema";
 import { asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, configurarFeria, crearFeria, generarPuestos, inscribirFeriaPublico, type FerianteInput } from "@/lib/services/ferias";
@@ -255,6 +257,32 @@ describe("participantes, importación y asistencia", () => {
     expect(compararIndicador(3, 1, false)).toMatchObject({ direccion: "sube", tono: "pendiente" });
     expect(compararIndicador(29, 24, true)).toMatchObject({ diff: 5, tono: "logro" });
     expect(compararIndicador(5, 5, true).tono).toBe("neutro");
+  });
+
+  it("marcando huellas: atenciones con animales, sin inscripciones y sin tocar la asistencia", async () => {
+    const op = await crearActividad(input({ nombre: "Jornada de Vacunación", tipo: "MARCANDO HUELLAS", zona: "ESTE", generar_formulario: false }), admin);
+    const perro = (castrado: boolean, quiere: boolean | null = null): AnimalInput => ({ especie: "PERRO", castrado, quiere_castrar: quiere, antirrabica: true, desparasitacion: true });
+    const gato: AnimalInput = { especie: "GATO", castrado: false, quiere_castrar: false, antirrabica: true, desparasitacion: false };
+    // Responsable nuevo con 2 perros y 1 gato. «Quiere castrar» en un castrado se ignora.
+    const r1 = await registrarAtencion(op.id, { nombre: "juan", apellido: "pérez", dni: "30.000.000", telefono: "3794123456", animales: [perro(true, true), perro(false, true), gato] }, admin);
+    expect(r1).toMatchObject({ nombre: "Juan Pérez", perros: 2, gatos: 1 });
+    // La misma persona vuelve (por DNI): no se duplica; sin teléfono, se mantiene el que tenía.
+    await registrarAtencion(op.id, { nombre: "Juan", apellido: "Pérez", dni: "30000000", telefono: "", animales: [{ ...gato, castrado: true }] }, admin);
+    await expect(registrarAtencion(op.id, { nombre: "Ana", apellido: "Gómez", dni: "31000000", telefono: "3794555555", animales: [] }, admin)).rejects.toThrow(/al menos un animal/);
+    await expect(registrarAtencion(op.id, { nombre: "Ana", apellido: "Gómez", dni: "31000000", telefono: "3794555555", animales: [{ ...gato, castrado: null }] }, admin)).rejects.toThrow(/castrado/);
+    let s = await snapshot({ fresh: true });
+    expect(s.participantes.filter((p) => p.dni === "30000000")).toHaveLength(1);
+    expect(s.inscripciones.filter((i) => i.actividad_id === op.id)).toHaveLength(0); // modelo propio: sin inscripciones
+    let res = resumenHuellas([op.id], s.atenciones, s.animales);
+    expect(res).toMatchObject({ atenciones: 2, responsables: 1, animales: 4, perros: 2, gatos: 2, antirrabicas: 4, desparasitaciones: 2, castrados: 2, noCastrados: 2, interesados: 1 });
+    // Corregir: ahora trajo solo 1 perro (los otros animales quedan inactivos, no se borran).
+    await editarAtencion(r1.id, { nombre: "Juan", apellido: "Pérez", dni: "30000000", telefono: "", animales: [perro(false, true)] }, admin);
+    s = await snapshot({ fresh: true });
+    res = resumenHuellas([op.id], s.atenciones, s.animales);
+    expect(res).toMatchObject({ atenciones: 2, animales: 2, perros: 1, gatos: 1, interesados: 1 });
+    // No distorsiona la asistencia: 0 inscriptos y 0% no cuentan en el denominador.
+    const ind = indicadores(s.actividades.filter((a) => a.id === op.id), s, { anio: 2026, mes: 10 });
+    expect(ind).toMatchObject({ inscriptos: 0, asistentes: 0 });
   });
 
   it("feria: sectores del croquis", () => {

@@ -30,6 +30,9 @@ export const ESTADOS_ASIGNACION = ["ACTIVA", "QUITADA"] as const;
 /** Ferias: tipos de puesto (el compartido es un gazebo para 2 feriantes). */
 export const TIPOS_PUESTO = ["INDIVIDUAL", "COMPARTIDO", "PROPIO"] as const;
 export const ESTADOS_FERIANTE = ["INSCRIPTA", "BAJA"] as const;
+/** Marcando Huellas: especies atendidas. */
+export const ESPECIES = ["PERRO", "GATO"] as const;
+export type Especie = (typeof ESPECIES)[number];
 
 export type Zona = (typeof ZONAS)[number];
 export type ZonaActividad = (typeof ZONAS_ACTIVIDAD)[number];
@@ -121,6 +124,34 @@ export interface Actividad extends Meta {
   es_feria: boolean;
   cupo: number; // cantidad máxima de feriantes (0 = sin límite)
   croquis: string; // imagen del lugar donde se marcan los puestos
+}
+
+/**
+ * Marcando Huellas: una atención es una persona responsable atendida en un operativo
+ * (sin inscripción previa). Los datos personales están en PARTICIPANTES.
+ */
+export interface Atencion extends Meta {
+  actividad_id: string;
+  participante_id: string;
+  perros: number; // se calculan de ANIMALES (quedan para listar rápido)
+  gatos: number;
+  registrado: string; // fecha/hora ISO
+  usuario: string;
+  activo: boolean; // false = anulada
+  observaciones: string;
+}
+
+/** Un animal atendido dentro de una atención, con sus prestaciones. */
+export interface Animal extends Meta {
+  atencion_id: string;
+  actividad_id: string;
+  especie: Especie;
+  numero: number; // Perro 1, Perro 2… dentro de la atención
+  castrado: boolean;
+  quiere_castrar: boolean; // solo tiene sentido si no está castrado
+  antirrabica: boolean;
+  desparasitacion: boolean;
+  activo: boolean; // false = se quitó al corregir la atención
 }
 
 /** Emprendedora inscripta a una feria (los datos personales están en PARTICIPANTES). */
@@ -244,6 +275,8 @@ export interface EntityMap {
   instituciones: Institucion;
   feriantes: Feriante;
   puestos: Puesto;
+  atenciones: Atencion;
+  animales: Animal;
 }
 
 export type EntityTable = keyof EntityMap;
@@ -490,6 +523,44 @@ export const TABLES: Record<TableName, TableDef> = {
     boolean: ["activo"],
     enums: { tipo: TIPOS_PUESTO },
   },
+  atenciones: {
+    sheet: "ATENCIONES",
+    prefix: "ATN",
+    columns: [
+      ["id", "ID Atención"],
+      ["actividad_id", "ID Actividad"],
+      ["participante_id", "ID Participante"],
+      ["perros", "Perros"],
+      ["gatos", "Gatos"],
+      ["registrado", "Fecha/hora registro"],
+      ["usuario", "Registró"],
+      ["activo", "Activa"],
+      ["observaciones", "Observaciones"],
+      ...META,
+    ],
+    numeric: ["perros", "gatos"],
+    boolean: ["activo"],
+  },
+  animales: {
+    sheet: "ANIMALES",
+    prefix: "ANI",
+    columns: [
+      ["id", "ID Animal"],
+      ["atencion_id", "ID Atención"],
+      ["actividad_id", "ID Actividad"],
+      ["especie", "Especie"],
+      ["numero", "Número"],
+      ["castrado", "Castrado"],
+      ["quiere_castrar", "Interés en castrar"],
+      ["antirrabica", "Antirrábica"],
+      ["desparasitacion", "Desparasitación"],
+      ["activo", "Activo"],
+      ...META,
+    ],
+    numeric: ["numero"],
+    boolean: ["castrado", "quiere_castrar", "antirrabica", "desparasitacion", "activo"],
+    enums: { especie: ESPECIES },
+  },
   zonas_barrios: {
     sheet: "ZONAS_BARRIOS",
     columns: [
@@ -522,7 +593,7 @@ export const TABLES: Record<TableName, TableDef> = {
 };
 
 export const ENTITY_TABLES: EntityTable[] = [
-  "actividades", "participantes", "inscripciones", "asistencias", "requerimientos", "usuarios", "asignaciones", "instituciones", "feriantes", "puestos",
+  "actividades", "participantes", "inscripciones", "asistencias", "requerimientos", "usuarios", "asignaciones", "instituciones", "feriantes", "puestos", "atenciones", "animales",
 ];
 export const ALL_TABLES = Object.keys(TABLES) as TableName[];
 

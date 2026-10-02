@@ -9,6 +9,8 @@ import { requireUser } from "@/lib/auth";
 import { snapshot } from "@/lib/db";
 import { agrupar, cumplimiento, evolucion, filtrarActividades, indicadores, inscriptosVsAsistentes, participantesPor, porZona } from "@/lib/domain/metricas";
 import { conclusionesEstadisticas } from "@/lib/domain/resumen";
+import { MarcandoHuellasStats } from "@/components/huellas";
+import { esMarcandoHuellas, resumenHuellas } from "@/lib/huellas";
 import { opcionesZona, titulo, zonaLabel } from "@/lib/labels";
 import { actividadesVisibles, puede, zonaForzada } from "@/lib/permisos";
 import { ESTADOS_ACTIVIDAD, ZONAS } from "@/lib/schema";
@@ -53,6 +55,8 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
   const anioActual = Number(today().slice(0, 4));
   const anios = [anioActual - 1, anioActual, anioActual + 1].map((a) => [a, String(a)] as const);
   const noCanceladas = delPeriodo.filter((a) => a.estado !== "CANCELADA" && a.estado !== "BORRADOR");
+  const operativosHuellas = delPeriodo.filter(esMarcandoHuellas);
+  const rHuellas = resumenHuellas(operativosHuellas.map((a) => a.id), s.atenciones, s.animales);
 
   // Objetivo mensual por zona (solo Capital y con un mes elegido; respeta los filtros).
   const conObjetivo = !!mes && ambito !== "interior" && (!zona || (ZONAS as readonly string[]).includes(zona));
@@ -193,6 +197,23 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
             <TopBarras data={participantesBarrio} color="#3f742c" verTodos="Ver todos los barrios" />
           </Tarjeta>
         </Bloque>
+
+        {/* Marcando Huellas: modelo propio (atenciones y animales), separado de inscripción y asistencia. */}
+        {operativosHuellas.length > 0 && (
+          <Bloque
+            id="huellas"
+            titulo="Marcando Huellas"
+            resumen={`${operativosHuellas.length} ${operativosHuellas.length === 1 ? "operativo" : "operativos"} · ${rHuellas.animales} ${rHuellas.animales === 1 ? "animal atendido" : "animales atendidos"}`}
+          >
+            <div className="tema-huellas lg:col-span-2">
+              <p className="mb-3 text-[15px] text-gris">
+                <b className="text-tinta">{operativosHuellas.filter((a) => a.estado !== "BORRADOR" && a.estado !== "CANCELADA").length}</b> operativos programados ·{" "}
+                <b className="text-tinta">{operativosHuellas.filter((a) => a.estado === "REALIZADA").length}</b> realizados. No tienen inscripción: no cuentan en el % de asistencia.
+              </p>
+              <MarcandoHuellasStats r={rHuellas} conOperativos />
+            </div>
+          </Bloque>
+        )}
 
         {/* 4. Evolución */}
         <Bloque id="evolucion" titulo="Evolución" resumen={`Comparación con ${nombreAnterior} y últimos 12 meses`}>

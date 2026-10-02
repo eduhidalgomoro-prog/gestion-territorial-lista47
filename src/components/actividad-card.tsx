@@ -2,7 +2,8 @@ import Link from "next/link";
 import { ESTADO_COLOR, ESTADO_HEX, ubicacionLabel } from "@/lib/labels";
 import { formatDate, formatDiaMes, titleCase } from "@/lib/format";
 import type { Actividad, EstadoActividad } from "@/lib/schema";
-import { IconClock, IconPin, IconUsers } from "./icons";
+import { esMarcandoHuellas } from "@/lib/huellas";
+import { IconClock, IconHuella, IconPin, IconUsers } from "./icons";
 import { Badge, cx } from "./ui";
 
 /** Estado con punto de color y texto (nunca solo color). */
@@ -20,7 +21,9 @@ export function EstadoBadge({ estado }: { estado: EstadoActividad }) {
  * fecha a la izquierda · tipo chico · nombre (protagonista, hasta 2 líneas) · horario y lugar · estado e inscriptos abajo.
  * Todas miden parecido: los textos largos se recortan (el detalle completo está en la ficha).
  */
-export function ActividadCard({ a, conteo, compacta }: { a: Actividad; conteo?: { inscriptos: number; presentes: number }; compacta?: boolean }) {
+export function ActividadCard({ a, conteo, compacta, huellas }: { a: Actividad; conteo?: { inscriptos: number; presentes: number }; compacta?: boolean; huellas?: { atenciones: number; animales: number } }) {
+  // Marcando Huellas no tiene inscripción: se muestran los animales atendidos (o qué es el operativo).
+  const esHuellas = esMarcandoHuellas(a);
   const [dia, mes] = a.fecha ? formatDiaMes(a.fecha).split(" ") : ["", ""];
   const diaSemana = a.fecha ? formatDate(a.fecha, { weekday: "short" }).replace(".", "").toUpperCase() : "";
   const horario = a.hora_inicio ? `${a.hora_inicio}${a.hora_fin ? ` – ${a.hora_fin}` : ""} h` : "Horario a confirmar";
@@ -45,7 +48,12 @@ export function ActividadCard({ a, conteo, compacta }: { a: Actividad; conteo?: 
           )}
         </div>
         <div className="min-w-0 flex-1">
-          {a.tipo && <p className="truncate text-[11px] font-bold tracking-[0.12em] text-marca uppercase">{a.tipo}</p>}
+          {a.tipo && (
+            <p className="flex items-center gap-1 truncate text-[11px] font-bold tracking-[0.12em] text-marca uppercase">
+              {esHuellas && <IconHuella size={13} className="shrink-0" />}
+              {a.tipo}
+            </p>
+          )}
           <p className={cx("line-clamp-2 font-titulo text-[17px] leading-snug font-bold text-tinta group-hover:text-petroleo", tachada && "line-through decoration-gris/60")} title={a.nombre}>
             {a.nombre}
           </p>
@@ -60,11 +68,18 @@ export function ActividadCard({ a, conteo, compacta }: { a: Actividad; conteo?: 
       {!compacta && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-linea px-4 py-2.5">
           <EstadoBadge estado={a.estado} />
-          <span className={cx("inline-flex items-center gap-1.5 text-sm font-semibold", inscriptos ? "text-tinta" : "text-gris")}>
-            <IconUsers size={16} />
-            {inscriptos} {inscriptos === 1 ? "inscripto" : "inscriptos"}
-            {conteo && (a.estado === "REALIZADA" || conteo.presentes > 0) && <span className="font-normal text-gris">· {conteo.presentes} asist.</span>}
-          </span>
+          {esHuellas ? (
+            <span className={cx("inline-flex items-center gap-1.5 text-sm font-semibold", huellas?.animales ? "text-marca-600" : "text-gris")}>
+              <IconHuella size={16} />
+              {huellas?.animales ? `${huellas.animales} ${huellas.animales === 1 ? "animal atendido" : "animales atendidos"}` : "Vacunación y desparasitación"}
+            </span>
+          ) : (
+            <span className={cx("inline-flex items-center gap-1.5 text-sm font-semibold", inscriptos ? "text-tinta" : "text-gris")}>
+              <IconUsers size={16} />
+              {inscriptos} {inscriptos === 1 ? "inscripto" : "inscriptos"}
+              {conteo && (a.estado === "REALIZADA" || conteo.presentes > 0) && <span className="font-normal text-gris">· {conteo.presentes} asist.</span>}
+            </span>
+          )}
         </div>
       )}
     </Link>

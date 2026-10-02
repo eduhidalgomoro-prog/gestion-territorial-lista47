@@ -2,13 +2,14 @@ import Link from "next/link";
 import { ActividadCard, EstadoBadge } from "@/components/actividad-card";
 import { NavegarAgenda } from "@/components/calendario-agenda";
 import { Buscador, FiltroSelect, FiltrosForm } from "@/components/filtros";
-import { IconArrowLeft, IconArrowRight, IconCalendar, IconList, IconMap, IconPin, IconPlus, IconUsers } from "@/components/icons";
+import { IconArrowLeft, IconArrowRight, IconCalendar, IconHuella, IconList, IconMap, IconPin, IconPlus, IconUsers } from "@/components/icons";
 import { MapaActividades, type Encuadre, type PuntoMapa } from "@/components/mapa";
 import { cx, Empty, LinkButton, Notice, PageHeader } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { CATEGORIAS, categoriaDe, emojisDe, labelCategoria, type CategoriaId } from "@/lib/categorias";
 import { snapshot } from "@/lib/db";
 import { conteosPorActividad, filtrarActividades } from "@/lib/domain/metricas";
+import { conteosHuellas, esMarcandoHuellas } from "@/lib/huellas";
 import { ESTADO_HEX, titulo, ubicacionLabel, zonaLabel } from "@/lib/labels";
 import { actividadesVisibles, esOperador, esResponsable, puede } from "@/lib/permisos";
 import { ESTADOS_ACTIVIDAD, ZONAS_ACTIVIDAD, type Actividad } from "@/lib/schema";
@@ -57,6 +58,7 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
   const regiones = parseRegiones(s.config.regiones_interior);
   const regionesUsadas = [...new Set([...regiones.map((r) => r.nombre), ...visibles.map((a) => a.zona).filter((z) => z && ambitoDe(z) === "interior")])];
   const conteos = conteosPorActividad(s);
+  const huellasPorActividad = conteosHuellas(s.atenciones, s.animales);
   // Orden del listado (solo presentación). Sin elegir, el de siempre: por fecha (todo el año: lo más reciente primero).
   const orden = ORDENES.some(([id]) => id === sp(q, "orden")) ? sp(q, "orden") : "";
   const porFecha = (a: Actividad, b: Actividad) => (a.fecha + a.hora_inicio).localeCompare(b.fecha + b.hora_inicio);
@@ -217,19 +219,19 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
         </div>
       </FiltrosForm>
 
-      {vista === "listado" && <Listado lista={lista} conteos={conteos} />}
-      {vista === "calendario" && <Calendario lista={lista} anio={f.anio!} mes={f.mes!} keep={keep} conteos={conteos} />}
+      {vista === "listado" && <Listado lista={lista} conteos={conteos} huellas={huellasPorActividad} />}
+      {vista === "calendario" && <Calendario lista={lista} anio={f.anio!} mes={f.mes!} keep={keep} conteos={conteos} huellas={huellasPorActividad} />}
       {vista === "mapa" && <Mapa lista={lista} conteos={conteos} foco={sp(q, "foco")} emojis={emojisDe(s.config.emojis_mapa)} encuadre={encuadre} />}
     </>
   );
 }
 
-function Listado({ lista, conteos }: { lista: Actividad[]; conteos: ReturnType<typeof conteosPorActividad> }) {
+function Listado({ lista, conteos, huellas }: { lista: Actividad[]; conteos: ReturnType<typeof conteosPorActividad>; huellas: ReturnType<typeof conteosHuellas> }) {
   if (!lista.length) return <Empty>No hay actividades con estos filtros.</Empty>;
   return (
     <div className="grid auto-rows-fr gap-3 md:grid-cols-2 xl:grid-cols-3">
       {lista.map((a) => (
-        <ActividadCard key={a.id} a={a} conteo={conteos.get(a.id)} />
+        <ActividadCard key={a.id} a={a} conteo={conteos.get(a.id)} huellas={huellas.get(a.id)} />
       ))}
     </div>
   );
@@ -270,6 +272,7 @@ function EventoCalendario({ a }: { a: Actividad }) {
       title={`${a.hora_inicio ? `${a.hora_inicio} · ` : ""}${a.nombre}\n${lugar}\nEstado: ${titulo(a.estado)}`}
       aria-label={`${a.hora_inicio ? `${a.hora_inicio}, ` : ""}${a.nombre}. ${lugar}. Estado: ${titulo(a.estado)}`}
     >
+      {esMarcandoHuellas(a) && <IconHuella size={12} className="mt-px shrink-0 text-marca" />}
       {esInterior(a) && <IconPin size={12} className="mt-px shrink-0 text-petroleo" />}
       {/* Nombre resumido: hasta 2 líneas (el completo está en la agenda, en el tooltip y en la ficha). */}
       <span className={cx("line-clamp-2 break-words", a.estado === "CANCELADA" && "line-through")}>
@@ -280,7 +283,7 @@ function EventoCalendario({ a }: { a: Actividad }) {
   );
 }
 
-function Calendario({ lista, anio, mes, keep, conteos }: { lista: Actividad[]; anio: number; mes: number; keep: Record<string, string | number | undefined>; conteos: ReturnType<typeof conteosPorActividad> }) {
+function Calendario({ lista, anio, mes, keep, conteos, huellas }: { lista: Actividad[]; anio: number; mes: number; keep: Record<string, string | number | undefined>; conteos: ReturnType<typeof conteosPorActividad>; huellas: ReturnType<typeof conteosHuellas> }) {
   const primero = new Date(Date.UTC(anio, mes - 1, 1));
   const diasMes = new Date(Date.UTC(anio, mes, 0)).getUTCDate();
   const offset = (primero.getUTCDay() + 6) % 7; // lunes primero
@@ -451,8 +454,12 @@ function Calendario({ lista, anio, mes, keep, conteos }: { lista: Actividad[]; a
                             </span>
                             <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                               <EstadoBadge estado={a.estado} />
-                              {inscriptos > 0 && (
-                                <span className="inline-flex items-center gap-1 text-sm font-semibold"><IconUsers size={15} /> {inscriptos} {inscriptos === 1 ? "inscripto" : "inscriptos"}</span>
+                              {esMarcandoHuellas(a) ? (
+                                <span className="inline-flex items-center gap-1 text-sm font-semibold text-marca-600">
+                                  <IconHuella size={15} /> {huellas.get(a.id)?.animales ? `${huellas.get(a.id)!.animales} animales atendidos` : "Vacunación y desparasitación"}
+                                </span>
+                              ) : (
+                                inscriptos > 0 && <span className="inline-flex items-center gap-1 text-sm font-semibold"><IconUsers size={15} /> {inscriptos} {inscriptos === 1 ? "inscripto" : "inscriptos"}</span>
                               )}
                             </span>
                           </span>

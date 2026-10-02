@@ -12,6 +12,8 @@ import { requireUser } from "@/lib/auth";
 import { snapshot } from "@/lib/db";
 import { ESTADO_COLOR, FLYER_COLOR, titulo, zonaLabel } from "@/lib/labels";
 import { ambitoDe } from "@/lib/territorio";
+import { MarcandoHuellasHeader, MarcandoHuellasStats } from "@/components/huellas";
+import { esMarcandoHuellas, resumenHuellas } from "@/lib/huellas";
 import { esAgenda, puede } from "@/lib/permisos";
 import { ESTADOS_FLYER, type EstadoActividad } from "@/lib/schema";
 import { linkInscripcion, resumenAsistencia } from "@/lib/services/actividades";
@@ -61,18 +63,32 @@ export default async function FichaActividad({ params, searchParams }: { params:
   const operadores = s.usuarios.filter((u) => u.rol === "OPERADOR" && u.estado === "ACTIVO");
   const link = a.slug ? linkInscripcion(a.slug) : "";
   const ok = MENSAJES[sp(q, "ok")];
+  // Marcando Huellas: sin inscripción; se registran atenciones (persona → animales → prestaciones).
+  const huellas = esMarcandoHuellas(a);
+  const atencionesOp = huellas ? s.atenciones.filter((x) => x.actividad_id === a.id && x.activo).length : 0;
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <PageHeader
-        back={{ href: "/actividades", label: "Actividades" }}
-        kicker={a.tipo || "Actividad"}
-        title={a.nombre}
-        subtitle={<span className="font-mono text-xs">{a.id}</span>}
-      />
-      {ok && <Notice tone="ok" className="mb-4">{ok}</Notice>}
+    <div className={cx("mx-auto max-w-4xl", huellas && "tema-huellas")}>
+      {huellas ? (
+        <>
+          <MarcandoHuellasHeader a={a} atenciones={atencionesOp} puedeRegistrar={asistencia} volver={{ href: "/actividades", label: "Actividades" }} />
+          {ok && <Notice tone="ok" className="mb-4">{ok}</Notice>}
+          {!agenda && <MarcandoHuellasStats r={resumenHuellas([a.id], s.atenciones, s.animales)} />}
+          {agenda && <p className="mb-2 text-[16px] font-semibold">{resumenHuellas([a.id], s.atenciones, s.animales).animales} animales atendidos</p>}
+        </>
+      ) : (
+        <>
+          <PageHeader
+            back={{ href: "/actividades", label: "Actividades" }}
+            kicker={a.tipo || "Actividad"}
+            title={a.nombre}
+            subtitle={<span className="font-mono text-xs">{a.id}</span>}
+          />
+          {ok && <Notice tone="ok" className="mb-4">{ok}</Notice>}
+        </>
+      )}
 
-      <Card className="p-4 sm:p-5">
+      <Card className={cx("p-4 sm:p-5", huellas && "mt-4")}>
         <div className="mb-3 flex flex-wrap gap-2">
           <Badge color={ESTADO_COLOR[a.estado]} className="text-sm">{a.estado}</Badge>
           <Badge color="petroleo" className="text-sm">{zonaLabel(a.zona)}</Badge>
@@ -86,12 +102,14 @@ export default async function FichaActividad({ params, searchParams }: { params:
           <Fila k="Responsable" v={a.responsable} />
         </dl>
 
-        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-          <Numero n={r.inscriptos} label="Inscriptos" />
-          <Numero n={r.presentes} label="Presentes" tono="verde" />
-          <Numero n={a.estado === "REALIZADA" ? r.ausentes : r.ausentesMarcados} label="Ausentes" tono="gris" />
-        </div>
-        {r.inscriptos > 0 && a.estado === "REALIZADA" && <p className="mt-2 text-center text-sm font-semibold text-gris">Asistencia: {r.pct}%</p>}
+        {!huellas && (
+          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+            <Numero n={r.inscriptos} label="Inscriptos" />
+            <Numero n={r.presentes} label="Presentes" tono="verde" />
+            <Numero n={a.estado === "REALIZADA" ? r.ausentes : r.ausentesMarcados} label="Ausentes" tono="gris" />
+          </div>
+        )}
+        {!huellas && r.inscriptos > 0 && a.estado === "REALIZADA" && <p className="mt-2 text-center text-sm font-semibold text-gris">Asistencia: {r.pct}%</p>}
 
         {costos && (
           <div className="mt-4 grid grid-cols-2 gap-2 border-t border-linea pt-4 text-[15px]">
@@ -107,10 +125,10 @@ export default async function FichaActividad({ params, searchParams }: { params:
         {verInscriptos && (a.es_feria || (editar && /feria/i.test(a.tipo + a.nombre))) && (
           <Accion href={`/actividades/${a.id}/feria`} Icon={IconPin} principal={a.es_feria}>{a.es_feria ? "Feria: puestos y croquis" : "Organizar como feria"}</Accion>
         )}
-        {verInscriptos && <Accion href={`/actividades/${a.id}/inscriptos`} Icon={IconUsers}>Ver inscriptos</Accion>}
+        {verInscriptos && !huellas && <Accion href={`/actividades/${a.id}/inscriptos`} Icon={IconUsers}>Ver inscriptos</Accion>}
         {puede.verFlyers(yo) && a.requiere_flyer && <Accion href={`/flyers?mes=${a.mes || 0}&anio=${a.anio || ""}#${(a.estado_flyer || "SOLICITADO").replace(/\s/g, "-")}`} Icon={IconImage}>Flyer</Accion>}
-        {asistencia && a.estado !== "CANCELADA" && <Accion href={`/actividades/${a.id}/asistencia`} Icon={IconClipboard} principal>Tomar asistencia</Accion>}
-        {!agenda && <Accion href="#inscripcion" Icon={IconForm}>Formulario de inscripción</Accion>}
+        {asistencia && !huellas && a.estado !== "CANCELADA" && <Accion href={`/actividades/${a.id}/asistencia`} Icon={IconClipboard} principal>Tomar asistencia</Accion>}
+        {!agenda && !huellas && <Accion href="#inscripcion" Icon={IconForm}>Formulario de inscripción</Accion>}
         <Accion href={`/mapa?foco=${a.id}&mes=${a.mes || ""}&anio=${a.anio || ""}`} Icon={IconMap}>Ver en mapa</Accion>
         <a
           href={whatsappCompartir(mensajeActividad(a, r))}
@@ -230,7 +248,7 @@ export default async function FichaActividad({ params, searchParams }: { params:
         )}
       </Seccion>
 
-      {!agenda && <Seccion titulo="Formulario de inscripción" id="inscripcion">
+      {!agenda && !huellas && <Seccion titulo="Formulario de inscripción" id="inscripcion">
         {link ? (
           <>
             <p className="mb-2 text-[15px]">
@@ -280,7 +298,7 @@ export default async function FichaActividad({ params, searchParams }: { params:
         )}
       </Seccion>
 
-      {verInscriptos && <Seccion titulo="Participantes">
+      {verInscriptos && !huellas && <Seccion titulo="Participantes">
         <p className="text-[15px]">
           <b>{r.inscriptos}</b> inscriptos · <b>{r.presentes}</b> presentes
           {r.sinMarcar > 0 && a.estado !== "REALIZADA" && <> · <b>{r.sinMarcar}</b> sin marcar</>}
