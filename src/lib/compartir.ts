@@ -53,6 +53,28 @@ export function whatsappA(telefono: string, texto: string): string {
   return d.length === 10 ? `https://wa.me/549${d}?text=${encodeURIComponent(texto)}` : "";
 }
 
+/**
+ * Link para agregar la actividad a Google Calendar (funciona en cualquier celular, sin instalar nada).
+ * Sin hora: evento de todo el día. Sin hora de fin: dura 2 horas. "" si no tiene fecha.
+ */
+export function linkCalendario(a: Pick<Actividad, "nombre" | "fecha" | "hora_inicio" | "hora_fin" | "lugar" | "direccion" | "barrio" | "localidad">): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(a.fecha)) return "";
+  const dia = a.fecha.replace(/-/g, "");
+  let fechas: string;
+  if (/^\d{2}:\d{2}$/.test(a.hora_inicio)) {
+    const [h, m] = a.hora_inicio.split(":").map(Number);
+    const fin = /^\d{2}:\d{2}$/.test(a.hora_fin) && a.hora_fin > a.hora_inicio ? a.hora_fin : `${String(Math.min(h + 2, 23)).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    fechas = `${dia}T${a.hora_inicio.replace(":", "")}00/${dia}T${fin.replace(":", "")}00`;
+  } else {
+    const d = new Date(`${a.fecha}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + 1);
+    fechas = `${dia}/${d.toISOString().slice(0, 10).replace(/-/g, "")}`;
+  }
+  const lugar = [a.lugar, a.direccion, a.barrio ? `B° ${titleCase(a.barrio)}` : "", a.localidad || "Corrientes"].filter(Boolean).join(", ");
+  const p = new URLSearchParams({ action: "TEMPLATE", text: a.nombre, dates: fechas, ctz: "America/Argentina/Buenos_Aires", location: lugar });
+  return `https://calendar.google.com/calendar/render?${p}`;
+}
+
 /** Link para abrir WhatsApp con el mensaje (la persona elige a quién mandarlo). */
 export function whatsappCompartir(texto: string): string {
   return `https://wa.me/?text=${encodeURIComponent(texto)}`;

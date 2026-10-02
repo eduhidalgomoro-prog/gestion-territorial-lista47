@@ -241,6 +241,44 @@ export function participantesPor(acts: Actividad[], d: Datos, por: "zona" | "bar
   return [...grupos].map(([label, s]) => ({ label, value: s.size })).sort((a, b) => b.value - a.value);
 }
 
+/**
+ * Preguntas de la Escuela (formulario de talleres): cada persona cuenta una vez, con su respuesta más reciente.
+ * Sirve para encontrar ex alumnas, posibles profes (y qué enseñarían) y lugares para nuevos talleres.
+ */
+export function resumenEscuela(acts: Actividad[], d: Pick<Datos, "inscripciones">) {
+  const ids = new Set(acts.map((a) => a.id));
+  const porPersona = new Map<string, Datos["inscripciones"][number]>();
+  for (const i of d.inscripciones) {
+    if (i.estado !== "INSCRIPTO" || !ids.has(i.actividad_id)) continue;
+    if (!i.ex_alumna && !i.quiere_ser_profe && !i.conoce_espacio) continue;
+    const prev = porPersona.get(i.participante_id);
+    if (!prev || i.creado > prev.creado) porPersona.set(i.participante_id, i);
+  }
+  const r = [...porPersona.values()];
+  return {
+    respondieron: r.length,
+    exAlumnas: r.filter((i) => i.ex_alumna === "SI").length,
+    nuevas: r.filter((i) => i.ex_alumna === "NO").length,
+    profes: r.filter((i) => i.quiere_ser_profe === "SI").map((i) => ({ participante_id: i.participante_id, texto: i.ensenaria })),
+    espacios: r.filter((i) => i.conoce_espacio === "SI").map((i) => ({ participante_id: i.participante_id, texto: i.espacio })),
+  };
+}
+
+/** Personas distintas inscriptas, por la ciudad donde viven (solo las que la tienen cargada). */
+export function inscriptosPorCiudad(acts: Actividad[], d: Pick<Datos, "inscripciones" | "participantes">): Barra[] {
+  const ids = new Set(acts.map((a) => a.id));
+  const ciudad = new Map(d.participantes.map((p) => [p.id, p.ciudad]));
+  const grupos = new Map<string, Set<string>>();
+  for (const i of d.inscripciones) {
+    if (i.estado !== "INSCRIPTO" || !ids.has(i.actividad_id)) continue;
+    const c = ciudad.get(i.participante_id);
+    if (!c) continue;
+    if (!grupos.has(c)) grupos.set(c, new Set());
+    grupos.get(c)!.add(i.participante_id);
+  }
+  return [...grupos].map(([label, s]) => ({ label, value: s.size })).sort((a, b) => b.value - a.value);
+}
+
 /** Variación entre dos valores, para comparar meses. */
 export function variacion(actual: number, anterior: number): { diff: number; pct: number | null } {
   return { diff: actual - anterior, pct: anterior ? Math.round(((actual - anterior) / anterior) * 100) : null };

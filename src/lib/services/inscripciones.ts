@@ -6,6 +6,9 @@ import { puede, type Yo } from "../permisos";
 import { CONFIRMACIONES, type Actividad, type Confirmacion, type Inscripcion, type OrigenInscripcion } from "../schema";
 import { cleanString, normalizeDni, nowIso, parseFechaFlexible, phoneKey, today } from "../util";
 import { parsePreguntas } from "../preguntas";
+import { CIUDAD_CAPITAL, esCapital, esTallerEscuela, fechaNacimientoPublica, limpiarEscuela, preguntasSinRepetir, validarInscripcion, type DatosInscripcion, type RespuestasEscuela } from "../inscripcion-publica";
+
+const SIN_RESPUESTAS_ESCUELA: RespuestasEscuela = { ex_alumna: "", quiere_ser_profe: "", ensenaria: "", conoce_espacio: "", espacio: "" };
 import { ajustarPrimeraFecha, clavePersona, limpiarPersona, upsertParticipantes, type PersonaInput, type PersonaLimpia } from "./participantes";
 
 /**
@@ -14,7 +17,7 @@ import { ajustarPrimeraFecha, clavePersona, limpiarPersona, upsertParticipantes,
  */
 export async function inscribir(
   actividadId: string,
-  items: { participanteId: string; fecha?: string; respuestas?: string }[],
+  items: { participanteId: string; fecha?: string; respuestas?: string; escuela?: RespuestasEscuela }[],
   origen: OrigenInscripcion,
   user: string,
 ): Promise<{ nuevas: number; yaEstaban: number; inscripciones: Inscripcion[] }> {
@@ -30,7 +33,7 @@ export async function inscribir(
       vistos.add(it.participanteId);
       const ex = porPart.get(it.participanteId);
       if (ex?.estado === "INSCRIPTO") yaEstaban++;
-      else if (ex) reactivar.push({ id: ex.id, patch: { estado: "INSCRIPTO" } });
+      else if (ex) reactivar.push({ id: ex.id, patch: { estado: "INSCRIPTO", ...Object.fromEntries(Object.entries(it.escuela ?? {}).filter(([, v]) => v)) } });
       else
         crear.push({
           actividad_id: actividadId,
@@ -40,6 +43,7 @@ export async function inscribir(
           estado: "INSCRIPTO",
           respuestas: it.respuestas ?? "",
           confirmacion: "",
+          ...(it.escuela ?? SIN_RESPUESTAS_ESCUELA),
         });
     }
     await updateMany("inscripciones", reactivar, user, "reactivar inscripción");
@@ -228,12 +232,15 @@ export async function confirmarImportacion(actividadId: string, filas: FilaImpor
 // Formulario público (sin usuario). Solo permite ENVIAR: nunca devuelve datos de la base.
 // ---------------------------------------------------------------------------
 
-export interface InscripcionPublicaInput extends PersonaInput {
+export interface InscripcionPublicaInput extends DatosInscripcion {
   respuestas: { pregunta: string; respuesta: string }[];
-  consentimiento: boolean;
+  escuela: RespuestasEscuela;
 }
 
-export type ResultadoPublico = { status: "inscripto"; nombre: string } | { status: "cerrada"; motivo: string };
+export type ResultadoPublico =
+  | { status: "inscripto"; nombre: string }
+  | { status: "ya_inscripto"; nombre: string }
+  | { status: "cerrada"; motivo: string };
 
 export function inscripcionAbiertaPublica(a: Actividad): { abierta: boolean; motivo: string } {
   if (!a.slug || !a.inscripcion_abierta) return { abierta: false, motivo: "La inscripción a esta actividad no está abierta." };
@@ -250,20 +257,39 @@ export async function inscribirPublico(slug: string, input: InscripcionPublicaIn
   if (!a) throw new UserError("No encontramos esta actividad.");
   const abierta = inscripcionAbiertaPublica(a);
   if (!abierta.abierta) return { status: "cerrada", motivo: abierta.motivo };
-  const persona = limpiarPersona(input, { telefonoObligatorio: true, barrioObligatorio: true });
-  if (!input.consentimiento) throw new UserError("Para inscribirte tenés que aceptar el uso de tus datos.", { consentimiento: "Marcá esta casilla para continuar." });
+  // Mismas reglas y mensajes que ve la persona en el navegador.
+  const errores = validarInscripcion(input);
+  if (Object.keys(errores).length) throw new UserError("Revisá los datos marcados en rojo.", errores);
+  const persona = limpiarPersona(
+    { ...input, ciudad: esCapital(input.ciudad) ? CIUDAD_CAPITAL : input.ciudad, fecha_nacimiento: fechaNacimientoPublica(input.fecha_nacimiento) },
+    { telefonoObligatorio: true, barrioObligatorio: true },
+  );
+  const escuela = esTallerEscuela(a) ? limpiarEscuela(input.escuela, (t) => cleanString(t, 500)) : SIN_RESPUESTAS_ESCUELA;
   const preguntas = parsePreguntas(a.preguntas_extra);
+  const visibles = new Set(preguntasSinRepetir(preguntas, esTallerEscuela(a)).map((x) => x.indice));
   const respuestas = preguntas
     .map((q, i) => {
-      let r = cleanString(input.respuestas?.[i]?.respuesta ?? "", 300);
+      let r = visibles.has(i) ? cleanString(input.respuestas?.[i]?.respuesta ?? "", 300) : "";
       if (q.opciones && r && !q.opciones.includes(r)) r = ""; // solo opciones válidas
       return r ? `${q.texto}: ${r}` : "";
     })
     .filter(Boolean)
     .join("\n");
   const [r] = await upsertParticipantes([persona], "FORMULARIO PROPIO", "formulario-publico", { consentimiento: nowIso() });
-  await inscribir(a.id, [{ participanteId: r.participante.id, respuestas }], "FORMULARIO PROPIO", "formulario-publico");
-  // La misma respuesta exista o no la persona: el formulario no revela quién está en la base.
+  const res = await inscribir(a.id, [{ participanteId: r.participante.id, respuestas, escuela }], "FORMULARIO PROPIO", "formulario-publico");
+  if (res.yaEstaban) {
+    // Ya estaba inscripta en ESTE taller: no se duplica. Solo se completan respuestas que estaban vacías
+    // (nunca se pisan datos: con un DNI ajeno no se puede cambiar nada de otra persona).
+    const ex = res.inscripciones.find((i) => i.participante_id === r.participante.id);
+    if (ex) {
+      const patch: Partial<Inscripcion> = {};
+      for (const k of Object.keys(escuela) as (keyof RespuestasEscuela)[]) if (!ex[k] && escuela[k]) Object.assign(patch, { [k]: escuela[k] });
+      if (!ex.respuestas && respuestas) patch.respuestas = respuestas;
+      if (Object.keys(patch).length) await update("inscripciones", ex.id, patch, "formulario-publico", { accion: "completar respuestas" });
+    }
+    return { status: "ya_inscripto", nombre: persona.nombre };
+  }
+  // No se devuelve ningún dato guardado: solo el nombre que escribió la persona.
   return { status: "inscripto", nombre: persona.nombre };
 }
 

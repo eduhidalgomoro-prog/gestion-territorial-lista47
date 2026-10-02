@@ -3,6 +3,7 @@ import { insertMany, nextSeq, readFresh, updateMany } from "../db";
 import { UserError } from "../errors";
 import { withLock } from "../lock";
 import type { OrigenInscripcion, Participante } from "../schema";
+import { nombrePropio } from "../territorio";
 import { cleanString, normalizeBarrio, normalizeDni, normalizePhone, normalizeText, parseFechaNacimiento, phoneKey, titleCase, today } from "../util";
 
 export interface PersonaInput {
@@ -10,6 +11,7 @@ export interface PersonaInput {
   apellido: string;
   dni: string;
   telefono: string;
+  ciudad?: string;
   barrio: string;
   direccion?: string;
   fecha_nacimiento?: string;
@@ -20,6 +22,7 @@ export interface PersonaLimpia {
   apellido: string;
   dni: string;
   telefono: string;
+  ciudad: string;
   barrio: string;
   direccion: string;
   fecha_nacimiento: string;
@@ -55,7 +58,8 @@ export function limpiarPersona(
   if (Object.keys(f).length) throw new UserError("Revisá los datos de la persona.", f);
   const direccion = cleanString(p.direccion ?? "", 200);
   const fecha_nacimiento = parseFechaNacimiento(p.fecha_nacimiento ?? "");
-  return { nombre, apellido, dni, telefono, barrio, direccion, fecha_nacimiento };
+  const ciudad = nombrePropio(cleanString(p.ciudad ?? "", 80));
+  return { nombre, apellido, dni, telefono, ciudad, barrio, direccion, fecha_nacimiento };
 }
 
 /** Clave para reconocer a una persona dentro de un lote: DNI, o si no tiene, su teléfono. */
@@ -110,6 +114,7 @@ export async function upsertParticipantes(
         const patch: Partial<Participante> = {};
         if (!ex.dni && p.dni) patch.dni = p.dni;
         if (!ex.telefono && p.telefono) patch.telefono = p.telefono;
+        if (!ex.ciudad && p.ciudad) patch.ciudad = p.ciudad;
         if (!ex.barrio && p.barrio) patch.barrio = p.barrio;
         if (!ex.direccion && p.direccion) patch.direccion = p.direccion;
         if (!ex.fecha_nacimiento && p.fecha_nacimiento) patch.fecha_nacimiento = p.fecha_nacimiento;

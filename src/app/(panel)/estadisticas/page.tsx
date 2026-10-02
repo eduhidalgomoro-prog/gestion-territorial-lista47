@@ -7,7 +7,7 @@ import { AvanceZonas, Destacados } from "@/components/inicio";
 import { cx, Notice } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { snapshot } from "@/lib/db";
-import { agrupar, cumplimiento, evolucion, filtrarActividades, indicadores, inscriptosVsAsistentes, participantesPor, porZona } from "@/lib/domain/metricas";
+import { agrupar, cumplimiento, evolucion, filtrarActividades, indicadores, inscriptosPorCiudad, inscriptosVsAsistentes, participantesPor, porZona, resumenEscuela } from "@/lib/domain/metricas";
 import { conclusionesEstadisticas } from "@/lib/domain/resumen";
 import { MarcandoHuellasStats } from "@/components/huellas";
 import { esMarcandoHuellas, resumenHuellas } from "@/lib/huellas";
@@ -15,7 +15,7 @@ import { opcionesZona, titulo, zonaLabel } from "@/lib/labels";
 import { actividadesVisibles, puede, zonaForzada } from "@/lib/permisos";
 import { ESTADOS_ACTIVIDAD, ZONAS } from "@/lib/schema";
 import { ambitoDe, parseRegiones } from "@/lib/territorio";
-import { addMonths, formatMoney, MESES, nombreMes, titleCase, today } from "@/lib/util";
+import { addMonths, formatMoney, fullName, MESES, nombreMes, titleCase, today } from "@/lib/util";
 import { periodo, sp, type SP } from "@/lib/view";
 
 export const metadata = { title: "Estadísticas" };
@@ -105,6 +105,9 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
   const costosTop = noCanceladas.map((a) => ({ label: a.nombre, value: a.costo_real || a.costo_estimado })).filter((d) => d.value > 0).sort((x, y) => y.value - x.value).slice(0, 10);
   const participantesZona = participantesPor(delPeriodo, s, "zona").map((d) => ({ ...d, label: zonaLabel(d.label === "Sin zona" ? "" : d.label) }));
   const participantesBarrio = participantesPor(delPeriodo, s, "barrio").map((d) => ({ ...d, label: d.label === "Sin barrio" ? "Sin barrio cargado" : titleCase(d.label) }));
+  const escuela = resumenEscuela(delPeriodo, s);
+  const porCiudad = inscriptosPorCiudad(delPeriodo, s);
+  const nombres = new Map(s.participantes.map((p) => [p.id, fullName(p)]));
   const insVsAsis = inscriptosVsAsistentes(delPeriodo, s).filter((d) => d.value || d.value2).map((d) => ({ ...d, label: zonaLabel(d.label === "Sin zona" ? "" : d.label) }));
 
   return (
@@ -198,6 +201,44 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
           </Tarjeta>
         </Bloque>
 
+        {/* Escuela: respuestas del formulario de inscripción a talleres */}
+        {(escuela.respondieron > 0 || porCiudad.length > 0) && (
+          <Bloque
+            id="escuela"
+            titulo="Escuela de Mujeres Emprendedoras"
+            resumen={`${escuela.respondieron} ${escuela.respondieron === 1 ? "persona respondió" : "personas respondieron"} las preguntas del formulario`}
+          >
+            <Tarjeta titulo="Quiénes se inscriben" nota="Cada persona cuenta una vez, con su respuesta más reciente.">
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { valor: escuela.exAlumnas, texto: escuela.exAlumnas === 1 ? "ex alumna" : "ex alumnas" },
+                  { valor: escuela.nuevas, texto: "primera vez en la Escuela" },
+                  { valor: escuela.profes.length, texto: escuela.profes.length === 1 ? "quiere ser profe" : "quieren ser profes" },
+                  { valor: escuela.espacios.length, texto: escuela.espacios.length === 1 ? "ofrece un espacio" : "ofrecen espacios" },
+                ].map((c) => (
+                  <div key={c.texto} className="rounded-xl bg-fondo p-3">
+                    <p className="font-titulo text-3xl leading-none font-extrabold text-petroleo-600">{c.valor}</p>
+                    <p className="mt-1 text-sm leading-tight font-semibold text-gris">{c.texto}</p>
+                  </div>
+                ))}
+              </div>
+            </Tarjeta>
+            <Tarjeta titulo="Personas inscriptas, por ciudad" nota="Según lo que cargaron en el formulario.">
+              <TopBarras data={porCiudad} color="#106985" verTodos="Ver todas las ciudades" />
+            </Tarjeta>
+            {escuela.profes.length > 0 && (
+              <Tarjeta titulo="Posibles profes: qué enseñarían">
+                <ListaRespuestas items={escuela.profes} nombres={nombres} enlazar={puede.verParticipantes(yo)} />
+              </Tarjeta>
+            )}
+            {escuela.espacios.length > 0 && (
+              <Tarjeta titulo="Espacios ofrecidos para talleres">
+                <ListaRespuestas items={escuela.espacios} nombres={nombres} enlazar={puede.verParticipantes(yo)} />
+              </Tarjeta>
+            )}
+          </Bloque>
+        )}
+
         {/* Marcando Huellas: modelo propio (atenciones y animales), separado de inscripción y asistencia. */}
         {operativosHuellas.length > 0 && (
           <Bloque
@@ -248,5 +289,30 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
         )}
       </div>
     </div>
+  );
+}
+
+/** Respuestas abiertas (qué enseñarían, qué espacio ofrecen), con el nombre de la persona. */
+function ListaRespuestas({ items, nombres, enlazar }: { items: { participante_id: string; texto: string }[]; nombres: Map<string, string>; enlazar: boolean }) {
+  const fila = (x: { participante_id: string; texto: string }) => (
+    <li key={x.participante_id} className="py-2">
+      <p className="text-[15px] font-semibold">{x.texto || "Sin detalle (contactarla para saber más)"}</p>
+      {enlazar ? (
+        <Link href={`/participantes/${x.participante_id}`} className="text-sm text-petroleo hover:underline">{nombres.get(x.participante_id) ?? "—"}</Link>
+      ) : (
+        <p className="text-sm text-gris">{nombres.get(x.participante_id) ?? "—"}</p>
+      )}
+    </li>
+  );
+  return (
+    <>
+      <ul className="divide-y divide-linea">{items.slice(0, 5).map(fila)}</ul>
+      {items.length > 5 && (
+        <details className="mt-1">
+          <summary className="cursor-pointer text-sm font-bold text-petroleo hover:underline">Ver todas ({items.length})</summary>
+          <ul className="divide-y divide-linea">{items.slice(5).map(fila)}</ul>
+        </details>
+      )}
+    </>
   );
 }

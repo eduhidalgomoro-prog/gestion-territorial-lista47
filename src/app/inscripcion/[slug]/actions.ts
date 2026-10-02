@@ -2,6 +2,7 @@
 
 import { checkSpam } from "@/lib/antispam";
 import { toActionError, type ActionResult } from "@/lib/errors";
+import { OTRO, siNo } from "@/lib/inscripcion-publica";
 import { inscribirPublico } from "@/lib/services/inscripciones";
 import { inscribirFeriaPublico } from "@/lib/services/ferias";
 
@@ -23,10 +24,18 @@ export async function inscribirAction(slug: string, _: InscripcionState, fd: For
       apellido: s(fd, "apellido"),
       dni: s(fd, "dni"),
       telefono: s(fd, "telefono"),
-      barrio: s(fd, "barrio") === "__otro" ? s(fd, "barrio_otro") : s(fd, "barrio"),
+      ciudad: s(fd, "ciudad") === OTRO ? s(fd, "ciudad_otra") : s(fd, "ciudad"),
+      barrio: s(fd, "barrio") === OTRO ? s(fd, "barrio_otro") : s(fd, "barrio"),
       direccion: s(fd, "direccion"),
       fecha_nacimiento: s(fd, "fecha_nacimiento"),
       respuestas,
+      escuela: {
+        ex_alumna: siNo(s(fd, "ex_alumna")),
+        quiere_ser_profe: siNo(s(fd, "quiere_ser_profe")),
+        ensenaria: s(fd, "ensenaria"),
+        conoce_espacio: siNo(s(fd, "conoce_espacio")),
+        espacio: s(fd, "espacio"),
+      },
       consentimiento: fd.get("consentimiento") === "on",
     });
     if (r.status === "cerrada") return { ok: false, message: r.motivo, data: { status: r.status, nombre: "", motivo: r.motivo } };

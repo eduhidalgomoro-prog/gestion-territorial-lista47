@@ -27,6 +27,8 @@ export default async function FichaParticipante({ params }: { params: Promise<{ 
     .sort((x, y) => (y.a!.fecha || "").localeCompare(x.a!.fecha || ""));
   const presentes = historial.filter((h) => asis.get(h.a!.id) === "PRESENTE").length;
   const dup = p.posible_duplicado_de ? s.participantes.find((x) => x.id === p.posible_duplicado_de) : undefined;
+  // Respuesta más reciente a las preguntas de la Escuela.
+  const escuela = inscripciones.filter((i) => i.ex_alumna || i.quiere_ser_profe || i.conoce_espacio).sort((x, y) => y.creado.localeCompare(x.creado))[0];
   const primera = p.fecha_primera ? `${nombreMes(Number(p.fecha_primera.slice(5, 7)))} ${p.fecha_primera.slice(0, 4)}` : "—";
 
   return (
@@ -46,6 +48,7 @@ export default async function FichaParticipante({ params }: { params: Promise<{ 
           <Fila k="Apellido" v={p.apellido} />
           <Fila k="DNI" v={!p.dni ? "Sin DNI (se completa cuando se inscriba con DNI)" : puede.verDniCompleto(yo) ? formatDni(p.dni) : maskDni(p.dni)} />
           <Fila k="Teléfono" v={p.telefono ? formatPhone(p.telefono) : "—"} />
+          <Fila k="Ciudad" v={p.ciudad || "—"} />
           <Fila k="Barrio" v={titleCase(p.barrio) || "—"} />
           <Fila k="Dirección" v={p.direccion || "—"} />
           <Fila k="Edad" v={edad(p.fecha_nacimiento) !== null ? `${edad(p.fecha_nacimiento)} años (${formatDate(p.fecha_nacimiento)})` : "—"} />
@@ -62,6 +65,18 @@ export default async function FichaParticipante({ params }: { params: Promise<{ 
           </div>
         </div>
       </Card>
+
+      {escuela && (
+        <section className="mt-4 rounded-2xl border border-linea bg-white p-4 sm:p-5">
+          <h2 className="mb-1 text-lg font-bold">Escuela</h2>
+          <p className="mb-3 text-sm text-gris">Lo que respondió en el formulario de inscripción ({formatDate(escuela.fecha)}).</p>
+          <dl className="grid gap-y-2 text-[15px]">
+            {escuela.ex_alumna && <Fila k="Ex alumna ESME" v={escuela.ex_alumna === "SI" ? "Sí" : "No"} />}
+            {escuela.quiere_ser_profe && <Fila k="Quiere ser profe" v={escuela.quiere_ser_profe === "SI" ? `Sí${escuela.ensenaria ? ` · ${escuela.ensenaria}` : ""}` : "No"} />}
+            {escuela.conoce_espacio && <Fila k="Conoce un espacio" v={escuela.conoce_espacio === "SI" ? `Sí${escuela.espacio ? ` · ${escuela.espacio}` : ""}` : "No"} />}
+          </dl>
+        </section>
+      )}
 
       <section className="mt-4 rounded-2xl border border-linea bg-white p-4 sm:p-5">
         <h2 className="mb-3 text-lg font-bold">Historial</h2>

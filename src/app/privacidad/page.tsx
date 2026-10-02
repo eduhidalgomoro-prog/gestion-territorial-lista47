@@ -5,9 +5,13 @@ export default function Privacidad() {
     <main className="mx-auto max-w-2xl px-5 py-10 text-[16px] leading-relaxed">
       <h1 className="mb-4 text-2xl font-extrabold">Aviso de privacidad</h1>
       <p className="mb-3">
-        Los datos que completás en los formularios de inscripción (nombre, apellido, DNI, teléfono y barrio) se usan únicamente para
-        organizar las actividades de la Coalición Cívica ARI · Lista 47 en la ciudad de Corrientes: registrar tu inscripción, tomar
-        asistencia y contactarte por esta u otras actividades del espacio.
+        Los datos que completás en los formularios de inscripción (nombre, apellido, DNI, ciudad, barrio, dirección, fecha de
+        nacimiento y teléfono) se usan únicamente para organizar las actividades de la Coalición Cívica ARI · Lista 47 en Corrientes:
+        registrar tu inscripción, tomar asistencia y contactarte por esta u otras actividades del espacio.
+      </p>
+      <p className="mb-3">
+        Si contás que te gustaría ser profe o que conocés un espacio para talleres, lo usamos solo para ponernos en contacto con vos
+        por eso.
       </p>
       <p className="mb-3">
         Los datos no se venden ni se ceden a terceros. Solo acceden a ellos las personas de la organización habilitadas para

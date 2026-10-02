@@ -9,6 +9,7 @@ import { ambitoDe, SIN_REGION } from "@/lib/territorio";
 
 const normalizar = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 import type { ActividadInput, InsumoInput } from "@/lib/services/actividades";
+import { esTallerEscuela } from "@/lib/inscripcion-publica";
 import { PREGUNTAS_ESME } from "@/lib/preguntas";
 import { ESTADOS_FLYER } from "@/lib/schema";
 import { IconArrowLeft, IconArrowRight, IconCheck, IconPin, IconPlus, IconTarget, IconX } from "./icons";
@@ -570,12 +571,16 @@ export function ActividadWizard({
           </SiNo>
           <SiNo label="¿Generar formulario de inscripción propio?" value={d.generar_formulario} onChange={(v) => set("generar_formulario", v)}>
             <p className="mb-3 text-sm text-gris">
-              Se crea un link público (sin usuario ni contraseña) para compartir o publicar en la página de Cuqui Calvano. Pide nombre, apellido, DNI, teléfono y barrio.
+              Se crea un link público (sin usuario ni contraseña) para compartir o publicar en la página de Cuqui Calvano. Pide nombre, apellido, DNI, ciudad, barrio, dirección, fecha de nacimiento y WhatsApp.
             </p>
-            <p className="mb-3 text-sm text-gris">También pide dirección y fecha de nacimiento (opcionales).</p>
+            {esTallerEscuela({ tipo: d.tipo, mesa: d.mesa, preguntas_extra: d.preguntas_extra }) && (
+              <p className="mb-3 rounded-xl bg-verde-50 px-3 py-2 text-sm text-marca-600">
+                Como es un taller de la Escuela, el formulario ya pregunta si fue alumna, si quiere ser profe (y qué enseñaría) y si conoce un espacio para talleres.
+              </p>
+            )}
             <Campo label="Preguntas adicionales" optional htmlFor="pe" hint="Una pregunta por línea. Para elegir entre opciones, ponelas entre corchetes: ¿Trae materiales? [Sí / No]">
               <textarea id="pe" rows={4} className={inputCls} value={d.preguntas_extra} onChange={(e) => set("preguntas_extra", e.target.value)} />
-              {!d.preguntas_extra.includes("Escuela de Mujeres Emprendedoras") && (
+              {!d.preguntas_extra.includes("Escuela de Mujeres Emprendedoras") && !esTallerEscuela({ tipo: d.tipo, mesa: d.mesa, preguntas_extra: d.preguntas_extra }) && (
                 <button type="button" onClick={() => set("preguntas_extra", [d.preguntas_extra.trim(), PREGUNTAS_ESME].filter(Boolean).join("\n"))} className="mt-2 text-sm font-bold text-petroleo hover:underline">
                   + Agregar las preguntas de ESME (alumna, profesión u oficio, ¿enseñarlo?)
                 </button>

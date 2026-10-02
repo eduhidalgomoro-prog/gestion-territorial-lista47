@@ -24,6 +24,13 @@ import { MemoryStore } from "@/lib/store/memory";
 const admin: Yo = { email: "admin@lista47.test", nombre: "Admin", rol: "ADMINISTRADOR", zona: "", usuarioId: "" };
 const respEste: Yo = { email: "este@lista47.test", nombre: "Resp Este", rol: "RESPONSABLE", zona: "ESTE", usuarioId: "USR-E" };
 
+/** Datos completos del formulario público (cada prueba cambia los que le importan). */
+const publico = {
+  nombre: "Ana", apellido: "P", dni: "30123456", ciudad: "Corrientes", barrio: "CENTRO", direccion: "Junín 1000", fecha_nacimiento: "15/08/1965", telefono: "3794123456",
+  consentimiento: true, respuestas: [] as { pregunta: string; respuesta: string }[],
+  escuela: { ex_alumna: "" as const, quiere_ser_profe: "" as const, ensenaria: "", conoce_espacio: "" as const, espacio: "" },
+};
+
 function input(p: Partial<ActividadInput> = {}): ActividadInput {
   return {
     nombre: "Taller de Fieltro", detalle: "", responsable: "noelia cabral", zona: "ESTE", localidad: "", tipo: "ESME", publico: "MUJERES", estado: "CONFIRMADA",
@@ -307,7 +314,7 @@ describe("participantes, importación y asistencia", () => {
     expect(s.participantes[0]).toMatchObject({ apellido: "Alegre", dni: "" });
     // Se inscribe después con DNI desde el formulario público: se completa la misma ficha.
     const b = await crearActividad(input({ nombre: "Otro taller", fecha: "2099-01-10" }), admin);
-    await inscribirPublico(b.slug, { nombre: "Laura", apellido: "Alegre", dni: "30555666", telefono: "3794703283", barrio: "CENTRO", respuestas: [], consentimiento: true });
+    await inscribirPublico(b.slug, { ...publico, nombre: "Laura", apellido: "Alegre", dni: "30555666", telefono: "3794703283", barrio: "CENTRO" });
     s = await snapshot({ fresh: true });
     expect(s.participantes).toHaveLength(1);
     expect(s.participantes[0]).toMatchObject({ dni: "30555666", barrio: "CENTRO" });
@@ -316,14 +323,48 @@ describe("participantes, importación y asistencia", () => {
 
   it("formulario público reutiliza la persona por DNI", async () => {
     const a = await crearActividad(input({ fecha: "2099-01-10" }), admin);
-    const base = { nombre: "María", apellido: "G", dni: "30111111", telefono: "3794111111", barrio: "PIRAYUI", respuestas: [], consentimiento: true };
+    const base = { ...publico, nombre: "María", apellido: "G", dni: "30111111", telefono: "3794111111", barrio: "PIRAYUI" };
     expect(await inscribirPublico(a.slug, base)).toMatchObject({ status: "inscripto" });
-    expect(await inscribirPublico(a.slug, { ...base, nombre: "Otro nombre" })).toMatchObject({ status: "inscripto" });
+    // Mismo DNI en el mismo taller: no se duplica y se avisa; solo se completan respuestas vacías.
+    expect(await inscribirPublico(a.slug, { ...base, nombre: "Otro nombre", telefono: "3794999999", escuela: { ...publico.escuela, ex_alumna: "SI" } })).toMatchObject({ status: "ya_inscripto" });
     const s = await snapshot({ fresh: true });
     expect(s.participantes).toHaveLength(1);
-    expect(s.participantes[0].nombre).toBe("María"); // no se pisan los datos
+    expect(s.participantes[0]).toMatchObject({ nombre: "María", telefono: "3794111111", ciudad: "Corrientes", fecha_nacimiento: "1965-08-15" }); // no se pisan los datos
     expect(s.inscripciones).toHaveLength(1);
+    expect(s.inscripciones[0].ex_alumna).toBe("SI");
     await expect(inscribirPublico(a.slug, { ...base, consentimiento: false, dni: "30999999" })).rejects.toThrow();
+    // La misma persona en OTRO taller sí se inscribe.
+    const b = await crearActividad(input({ nombre: "Otro taller", fecha: "2099-02-10" }), admin);
+    expect(await inscribirPublico(b.slug, base)).toMatchObject({ status: "inscripto" });
+  });
+
+  it("formulario público: preguntas de la Escuela guardadas en columnas propias", async () => {
+    const a = await crearActividad(input({ fecha: "2099-01-10" }), admin);
+    await inscribirPublico(a.slug, {
+      ...publico,
+      ciudad: "goya",
+      barrio: "San Ramón",
+      escuela: { ex_alumna: "NO", quiere_ser_profe: "SI", ensenaria: "Repostería", conoce_espacio: "NO", espacio: "esto no se guarda" },
+    });
+    const s = await snapshot({ fresh: true });
+    expect(s.participantes[0]).toMatchObject({ ciudad: "Goya", barrio: "SAN RAMÓN" });
+    expect(s.inscripciones[0]).toMatchObject({ ex_alumna: "NO", quiere_ser_profe: "SI", ensenaria: "Repostería", conoce_espacio: "NO", espacio: "" });
+    // Actividades que no son de la Escuela (ej. deportes) no guardan estas respuestas.
+    const d = await crearActividad(input({ nombre: "Clínica", tipo: "MESA DE DEPORTES", fecha: "2099-01-11" }), admin);
+    await inscribirPublico(d.slug, { ...publico, escuela: { ...publico.escuela, quiere_ser_profe: "SI", ensenaria: "x" } });
+    const s2 = await snapshot({ fresh: true });
+    expect(s2.inscripciones.find((i) => i.actividad_id === d.id)).toMatchObject({ quiere_ser_profe: "", ensenaria: "" });
+  });
+
+  it("formulario público: mensajes simples por campo", async () => {
+    const a = await crearActividad(input({ fecha: "2099-01-10" }), admin);
+    const err = await inscribirPublico(a.slug, { ...publico, nombre: "", dni: "30.123.45x", fecha_nacimiento: "15/08/65", telefono: "12" }).catch((e) => e);
+    expect(err.fields).toMatchObject({
+      nombre: "Nos falta tu nombre.",
+      dni: expect.stringContaining("sin puntos"),
+      fecha_nacimiento: expect.stringContaining("15/08/1965"),
+      telefono: expect.stringContaining("WhatsApp"),
+    });
   });
 
   it("asistencia, persona sin inscripción y cierre", async () => {

@@ -24,6 +24,9 @@ export const ORIGENES_INSCRIPCION = ["FORMULARIO PROPIO", "GOOGLE FORMS", "CARGA
 export const ESTADOS_INSCRIPCION = ["INSCRIPTO", "DADO DE BAJA"] as const;
 /** Respuesta al mensaje de confirmación por WhatsApp ("" = sin respuesta). */
 export const CONFIRMACIONES = ["CONFIRMÓ", "NO VA"] as const;
+/** Respuestas Sí/No del formulario («» = no respondió). */
+export const SI_NO = ["SI", "NO"] as const;
+export type SiNo = (typeof SI_NO)[number];
 export const ESTADOS_ASISTENCIA = ["PRESENTE", "AUSENTE"] as const;
 export const ESTADOS_REQUERIMIENTO = ["PENDIENTE", "CONSEGUIDO", "ANULADO"] as const;
 export const ESTADOS_ASIGNACION = ["ACTIVA", "QUITADA"] as const;
@@ -185,6 +188,7 @@ export interface Participante extends Meta {
   apellido: string;
   dni: string; // solo dígitos
   telefono: string; // solo dígitos, sin 0 ni 15 cuando se puede
+  ciudad: string; // «Corrientes» = Capital; "" = sin dato (personas cargadas antes)
   barrio: string;
   direccion: string;
   fecha_nacimiento: string; // YYYY-MM-DD
@@ -202,6 +206,12 @@ export interface Inscripcion extends Meta {
   estado: EstadoInscripcion;
   respuestas: string; // preguntas adicionales: "Pregunta: respuesta" por línea
   confirmacion: Confirmacion | "";
+  // Preguntas de la Escuela (formulario público de talleres). «» = no respondió.
+  ex_alumna: SiNo | "";
+  quiere_ser_profe: SiNo | "";
+  ensenaria: string;
+  conoce_espacio: SiNo | "";
+  espacio: string;
 }
 
 export interface Asistencia extends Meta {
@@ -387,6 +397,7 @@ export const TABLES: Record<TableName, TableDef> = {
       ["apellido", "Apellido"],
       ["dni", "DNI"],
       ["telefono", "Teléfono"],
+      ["ciudad", "Ciudad"],
       ["barrio", "Barrio"],
       ["direccion", "Dirección"],
       ["fecha_nacimiento", "Fecha de nacimiento"],
@@ -410,9 +421,17 @@ export const TABLES: Record<TableName, TableDef> = {
       ["estado", "Estado"],
       ["respuestas", "Respuestas adicionales"],
       ["confirmacion", "Confirmación"],
+      ["ex_alumna", "Ex alumna ESME"],
+      ["quiere_ser_profe", "Quiere ser profe"],
+      ["ensenaria", "Qué enseñaría"],
+      ["conoce_espacio", "Conoce espacio para talleres"],
+      ["espacio", "Espacio ofrecido"],
       ...META,
     ],
-    enums: { origen: ORIGENES_INSCRIPCION, estado: ESTADOS_INSCRIPCION, confirmacion: CONFIRMACIONES },
+    enums: {
+      origen: ORIGENES_INSCRIPCION, estado: ESTADOS_INSCRIPCION, confirmacion: CONFIRMACIONES,
+      ex_alumna: SI_NO, quiere_ser_profe: SI_NO, conoce_espacio: SI_NO,
+    },
   },
   asistencias: {
     sheet: "ASISTENCIAS",

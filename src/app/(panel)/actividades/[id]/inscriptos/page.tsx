@@ -7,6 +7,7 @@ import { Badge, btn, cx, Empty, PageHeader } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { completarMensaje, whatsappA } from "@/lib/compartir";
 import { snapshot } from "@/lib/db";
+import { esCapital } from "@/lib/inscripcion-publica";
 import { puede } from "@/lib/permisos";
 import { formatDate, formatDni, formatPhone, fullName, maskDni, maskPhone, normalizeText, titleCase } from "@/lib/util";
 import { qs, sp, type SP } from "@/lib/view";
@@ -162,7 +163,18 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
                       {p?.dni ? `DNI ${dni ? formatDni(p.dni) : maskDni(p.dni)}` : "Sin DNI"}
                       {p?.telefono && ` · Tel. ${tel ? formatPhone(p.telefono) : maskPhone(p.telefono)}`}
                       {p?.barrio && ` · ${titleCase(p.barrio)}`}
+                      {p?.ciudad && !esCapital(p.ciudad) && ` · ${p.ciudad}`}
                     </p>
+                    {(i.ex_alumna || i.quiere_ser_profe || i.conoce_espacio) && (
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {i.ex_alumna === "SI" && <Badge color="petroleo">EX ALUMNA</Badge>}
+                        {i.ex_alumna === "NO" && <Badge color="gris">PRIMERA VEZ EN LA ESCUELA</Badge>}
+                        {i.quiere_ser_profe === "SI" && <Badge color="verde">QUIERE SER PROFE</Badge>}
+                        {i.conoce_espacio === "SI" && <Badge color="naranja">OFRECE ESPACIO</Badge>}
+                      </div>
+                    )}
+                    {i.ensenaria && <p className="mt-1 text-sm"><b>Enseñaría:</b> {i.ensenaria}</p>}
+                    {i.espacio && <p className="mt-1 text-sm"><b>Espacio:</b> {i.espacio}</p>}
                     <p className="text-xs text-gris">
                       Inscripción {formatDate(i.fecha)} · {i.origen.toLowerCase()}
                     </p>

@@ -77,13 +77,13 @@ async function main() {
   const personas = await insertMany(
     "participantes",
     nombres.map((n, i) => ({
-      id: pids[i], nombre: n, apellido: apellidos[i], dni: String(30000000 + i * 1111), telefono: `37940000${String(i).padStart(2, "0")}`,
+      id: pids[i], nombre: n, apellido: apellidos[i], dni: String(30000000 + i * 1111), telefono: `37940000${String(i).padStart(2, "0")}`, ciudad: "Corrientes",
       barrio: barrios[i % barrios.length][0], direccion: "", fecha_nacimiento: "", fecha_primera: f(prev.anio, prev.mes, 1), origen: "GOOGLE FORMS" as const, consentimiento: "", posible_duplicado_de: "",
     })),
     U,
   );
   const insc = (act: number, desde: number, hasta: number) =>
-    personas.slice(desde, hasta).map((p) => ({ actividad_id: creadas[act].id, participante_id: p.id, fecha: f(prev.anio, prev.mes, 1), origen: "GOOGLE FORMS" as const, estado: "INSCRIPTO" as const, respuestas: "", confirmacion: "" as const }));
+    personas.slice(desde, hasta).map((p) => ({ actividad_id: creadas[act].id, participante_id: p.id, fecha: f(prev.anio, prev.mes, 1), origen: "GOOGLE FORMS" as const, estado: "INSCRIPTO" as const, respuestas: "", confirmacion: "" as const, ex_alumna: "" as const, quiere_ser_profe: "" as const, ensenaria: "", conoce_espacio: "" as const, espacio: "" }));
   await insertMany("inscripciones", [...insc(0, 0, 8), ...insc(3, 4, 12), ...insc(4, 0, 6)], U);
   const reg = new Date().toISOString();
   await insertMany(
