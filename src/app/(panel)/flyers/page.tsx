@@ -12,7 +12,7 @@ import { ambitoDe, parseRegiones } from "@/lib/territorio";
 import { actividadesVisibles, esResponsable, puede } from "@/lib/permisos";
 import { ESTADOS_FLYER, type Actividad, type EstadoFlyer, type Usuario } from "@/lib/schema";
 import { formatDate, MESES, nombreMes, normalizePhone, titleCase, today } from "@/lib/util";
-import { periodo, sp, type SP } from "@/lib/view";
+import { periodo, qs, sp, type SP } from "@/lib/view";
 import { flyerAction } from "../actions";
 
 export const metadata = { title: "Flyers" };
@@ -39,12 +39,18 @@ export default async function Flyers({ searchParams }: { searchParams: Promise<S
   const q = await searchParams;
   const { anio, mes } = periodo(q);
   const zona = sp(q, "zona");
+  // Capital / Interior / Toda la provincia (el responsable ve solo su zona).
+  const ambito = !esResponsable(yo) && ["capital", "interior"].includes(sp(q, "ambito")) ? sp(q, "ambito") : "";
   const s = await snapshot();
-  const lista = actividadesVisibles(yo, s.actividades, s.asignaciones)
-    .filter((a) => a.requiere_flyer && a.estado !== "CANCELADA" && a.estado !== "BORRADOR")
+  const delPeriodo = actividadesVisibles(yo, s.actividades, s.asignaciones)
+    .filter((a) => a.estado !== "CANCELADA" && a.estado !== "BORRADOR")
     .filter((a) => a.anio === anio && (!mes || a.mes === mes))
     .filter((a) => !zona || a.zona === zona)
+    .filter((a) => !ambito || ambitoDe(a.zona) === ambito)
     .sort((a, b) => (a.fecha + a.hora_inicio).localeCompare(b.fecha + b.hora_inicio));
+  const lista = delPeriodo.filter((a) => a.requiere_flyer);
+  // Actividades que nadie marcó con «Requiere flyer» (por ejemplo, muchas del interior): Diseño puede empezar el flyer igual.
+  const sinPedido = puede.editarFlyer(yo) ? delPeriodo.filter((a) => !a.requiere_flyer) : [];
   const responsables = s.usuarios.filter((u) => u.estado === "ACTIVO" && u.rol === "RESPONSABLE");
   const porEstado = new Map<EstadoFlyer, Actividad[]>(ORDEN.map((e) => [e, []]));
   for (const a of lista) porEstado.get((a.estado_flyer || "SOLICITADO") as EstadoFlyer)!.push(a);
@@ -59,7 +65,26 @@ export default async function Flyers({ searchParams }: { searchParams: Promise<S
         subtitle={`${lista.length} ${lista.length === 1 ? "actividad pide" : "actividades piden"} flyer ${mes ? `en ${nombreMes(mes).toLowerCase()}` : `en ${anio}`}${pendientes ? ` · ${pendientes} sin publicar` : ""}`}
       />
 
+      {!esResponsable(yo) && (
+        <nav className="mb-3 flex flex-wrap gap-2" aria-label="Capital o interior">
+          {([["", "Toda la provincia"], ["capital", "Capital"], ["interior", "Interior"]] as const).map(([id, label]) => (
+            <Link
+              key={id}
+              href={`/flyers${qs({ ambito: id, mes, anio })}`}
+              aria-current={ambito === id ? "page" : undefined}
+              className={cx(
+                "inline-flex h-10 items-center rounded-full border px-4 text-sm font-bold",
+                ambito === id ? "border-marca bg-verde-50 text-marca-600" : "border-linea bg-white text-gris hover:border-petroleo",
+              )}
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
+      )}
+
       <FiltrosForm action="/flyers" className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:max-w-2xl">
+        {ambito && <input type="hidden" name="ambito" value={ambito} />}
         <FiltroSelect name="mes" label="Mes" value={mes} options={[[0, "Todo el año"] as const, ...MESES.map((m, i) => [i + 1, m] as const)]} />
         <FiltroSelect name="anio" label="Año" value={anio} options={[anioActual - 1, anioActual, anioActual + 1].map((a) => [a, String(a)] as const)} />
         {!esResponsable(yo) && (
@@ -151,6 +176,35 @@ export default async function Flyers({ searchParams }: { searchParams: Promise<S
             </section>
           ))}
         </div>
+      )}
+
+      {sinPedido.length > 0 && (
+        <details className="mt-8 rounded-2xl border border-linea bg-white p-4" open={ambito === "interior" || lista.length === 0}>
+          <summary className="cursor-pointer text-[17px] font-bold">
+            Sin flyer pedido <span className="text-sm font-semibold text-gris">{sinPedido.length}</span>
+            <span className="mt-0.5 block text-sm font-normal text-gris">
+              Actividades del período que nadie marcó con «Requiere flyer». Con «Armar flyer» pasan a «En diseño» y se suman arriba.
+            </span>
+          </summary>
+          <ul className="mt-3 divide-y divide-linea">
+            {sinPedido.map((a) => (
+              <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                <div className="min-w-0">
+                  <Link href={`/actividades/${a.id}`} className="font-bold hover:text-petroleo hover:underline">{a.nombre}</Link>
+                  <p className="text-sm text-gris">
+                    {a.fecha ? formatDate(a.fecha, { weekday: "short", day: "numeric", month: "short" }) : "Sin fecha"}
+                    {a.hora_inicio && ` · ${a.hora_inicio}`} · {ubicacionLabel(a)}
+                  </p>
+                </div>
+                <ActionForm action={flyerAction.bind(null, a.id)}>
+                  <input type="hidden" name="estado_flyer" value="EN DISEÑO" />
+                  <input type="hidden" name="link_flyer" value={a.link_flyer} />
+                  <SubmitButton size="sm" pendingText="…">Armar flyer</SubmitButton>
+                </ActionForm>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
     </>
   );
