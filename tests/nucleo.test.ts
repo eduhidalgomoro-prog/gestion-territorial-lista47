@@ -362,7 +362,7 @@ describe("participantes, importación y asistencia", () => {
     expect(err.fields).toMatchObject({
       nombre: "Nos falta tu nombre.",
       dni: expect.stringContaining("sin puntos"),
-      fecha_nacimiento: expect.stringContaining("15/08/1965"),
+      fecha_nacimiento: expect.stringContaining("año completo"),
       telefono: expect.stringContaining("WhatsApp"),
     });
   });

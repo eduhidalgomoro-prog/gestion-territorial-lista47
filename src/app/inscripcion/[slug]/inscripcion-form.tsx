@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
 import { useSubmitWithoutReset } from "@/components/forms";
 import { IconAlert, IconCalendar, IconCheck, IconClock, IconPin, IconShare, IconWhatsApp } from "@/components/icons";
 import { formatPhone, normalizePhone, titleCase } from "@/lib/format";
@@ -84,22 +84,7 @@ function Bloque({ numero, titulo, texto, listo, children }: { numero: number; ti
   );
 }
 
-/** «15081965» → «15/08/1965»; si escriben «1/8/1965» completa los ceros. */
-function mascaraFecha(raw: string, anterior: string): string {
-  let v = raw.replace(/[.\-\s]/g, "/");
-  v = v.replace(/^(\d)\//, "0$1/").replace(/^(\d{2}\/)(\d)\//, "$10$2/");
-  const d = v.replace(/\D/g, "").slice(0, 8);
-  let out = d.slice(0, 2);
-  if (d.length > 2) out += `/${d.slice(2, 4)}`;
-  if (d.length > 4) out += `/${d.slice(4)}`;
-  // Si escribió la barra a mano, se respeta (pero no al borrar).
-  if (raw.length > anterior.length && raw.endsWith("/") && (d.length === 2 || d.length === 4)) out += "/";
-  return out;
-}
-
-const sinSuscripcion = () => () => {};
-
-type Valores = Record<"nombre" | "apellido" | "dni" | "ciudad" | "ciudad_otra" | "barrio" | "barrio_otro" | "direccion" | "fecha_nacimiento" | "telefono", string>;
+type Valores = Record<"nombre" | "apellido" | "dni" | "ciudad" | "ciudad_otra" | "barrio" | "barrio_otro" | "direccion" | "fn_dia" | "fn_mes" | "fn_anio" | "telefono", string>;
 
 export function InscripcionForm({
   slug, token, preguntas, barrios, ciudades, ciudadInicial, escuela, taller,
@@ -116,7 +101,7 @@ export function InscripcionForm({
   const [state, action, pending] = useActionState<InscripcionState, FormData>(inscribirAction.bind(null, slug), { ok: true });
   const onSubmitServidor = useSubmitWithoutReset(action);
   const [v, setV] = useState<Valores>({
-    nombre: "", apellido: "", dni: "", ciudad: ciudadInicial, ciudad_otra: "", barrio: "", barrio_otro: "", direccion: "", fecha_nacimiento: "", telefono: "",
+    nombre: "", apellido: "", dni: "", ciudad: ciudadInicial, ciudad_otra: "", barrio: "", barrio_otro: "", direccion: "", fn_dia: "", fn_mes: "", fn_anio: "", telefono: "",
   });
   const [consentimiento, setConsentimiento] = useState(false);
   const [r, setR] = useState({ ex_alumna: "", quiere_ser_profe: "", ensenaria: "", conoce_espacio: "", espacio: "" });
@@ -124,14 +109,14 @@ export function InscripcionForm({
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [intento, setIntento] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
-  const fechaPicker = useRef<HTMLInputElement>(null);
-  // El calendario es solo una ayuda: aparece si el navegador lo permite (la fecha siempre se puede escribir).
-  const conPicker = useSyncExternalStore(sinSuscripcion, () => "showPicker" in HTMLInputElement.prototype, () => false);
+  const mesRef = useRef<HTMLInputElement>(null);
+  const anioRef = useRef<HTMLInputElement>(null);
 
   const ciudadReal = v.ciudad === OTRO ? v.ciudad_otra : v.ciudad;
   const capital = esCapital(ciudadReal) && v.ciudad !== OTRO;
   const barrioReal = capital ? (v.barrio === OTRO ? v.barrio_otro : v.barrio) : v.barrio_otro;
-  const datos = { ...v, ciudad: ciudadReal, barrio: barrioReal, consentimiento };
+  const fechaNacimiento = v.fn_dia || v.fn_mes || v.fn_anio ? `${v.fn_dia}/${v.fn_mes}/${v.fn_anio}` : "";
+  const datos = { ...v, fecha_nacimiento: fechaNacimiento, ciudad: ciudadReal, barrio: barrioReal, consentimiento };
 
   const e = errores;
 
@@ -140,7 +125,7 @@ export function InscripcionForm({
     const f = formRef.current;
     if (!f) return;
     const escrito: Partial<Valores> = {};
-    for (const k of ["nombre", "apellido", "dni", "direccion", "fecha_nacimiento", "telefono"] as const) {
+    for (const k of ["nombre", "apellido", "dni", "direccion", "fn_dia", "fn_mes", "fn_anio", "telefono"] as const) {
       const el = f.elements.namedItem(k);
       if (el instanceof HTMLInputElement && el.value) escrito[k] = el.value;
     }
@@ -166,7 +151,7 @@ export function InscripcionForm({
     if (!primero) return;
     const el = formRef.current?.querySelector<HTMLElement>(`[data-campo="${primero}"]`);
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
-    el?.querySelector<HTMLElement>("input, select")?.focus({ preventScroll: true });
+    el?.querySelector<HTMLElement>("input:not([type=hidden]), select")?.focus({ preventScroll: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intento]);
 
@@ -293,34 +278,42 @@ export function InscripcionForm({
           <input id="direccion" name="direccion" value={v.direccion} onChange={(x) => set("direccion", x.target.value)} autoComplete="street-address" placeholder="Calle y altura, o manzana y casa" aria-invalid={!!e.direccion} className={field} />
         </Campo>
 
-        <Campo label="Fecha de nacimiento" name="fecha_nacimiento" error={e.fecha_nacimiento} ayuda="Día / mes / año. Por ejemplo: 15/08/1965">
-          <div className="relative">
-            <input
-              id="fecha_nacimiento" name="fecha_nacimiento" value={v.fecha_nacimiento}
-              onChange={(x) => set("fecha_nacimiento", mascaraFecha(x.target.value, v.fecha_nacimiento))}
-              inputMode="numeric" autoComplete="bday" placeholder="DD/MM/AAAA" maxLength={10}
-              aria-invalid={!!e.fecha_nacimiento} aria-describedby={e.fecha_nacimiento ? "fecha_nacimiento-err" : "fecha_nacimiento-ayuda"}
-              className={`${field} ${conPicker ? "pr-16" : ""} tracking-wide`}
-            />
-            {conPicker && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => { try { fechaPicker.current?.showPicker(); } catch { /* sin calendario: se escribe */ } }}
-                  className="absolute top-1/2 right-1.5 flex size-11 -translate-y-1/2 items-center justify-center rounded-xl text-petroleo hover:bg-petroleo-50"
-                  aria-label="Elegir la fecha en un calendario"
-                >
-                  <IconCalendar size={24} />
-                </button>
+        {/* Fecha de nacimiento: tres casillas con números (lo más fácil para personas grandes, sin calendario ni barras). */}
+        <fieldset className="mb-5" data-campo="fecha_nacimiento" aria-describedby={e.fecha_nacimiento ? "fecha_nacimiento-err" : "fecha_nacimiento-ayuda"}>
+          <legend className="mb-1.5 block text-[17px] font-bold text-tinta">
+            Fecha de nacimiento <span className="text-peligro" aria-hidden>*</span>
+          </legend>
+          <input type="hidden" name="fecha_nacimiento" value={fechaNacimiento} />
+          <div className="grid grid-cols-[1fr_1fr_1.5fr] gap-2.5">
+            {([
+              ["fn_dia", "Día", "15", 2, "bday-day", mesRef],
+              ["fn_mes", "Mes", "08", 2, "bday-month", anioRef],
+              ["fn_anio", "Año", "1965", 4, "bday-year", null],
+            ] as const).map(([k, label, ej, max, ac, siguiente], idx) => (
+              <div key={k}>
+                <label htmlFor={idx === 0 ? "fecha_nacimiento" : k} className="mb-1 block text-center text-[16px] font-semibold text-gris">{label}</label>
                 <input
-                  ref={fechaPicker} type="date" tabIndex={-1} aria-hidden className="pointer-events-none absolute right-0 bottom-0 size-px opacity-0"
-                  max={new Date().toISOString().slice(0, 10)}
-                  onChange={(x) => { const [y, m, d] = x.target.value.split("-"); if (y) set("fecha_nacimiento", `${d}/${m}/${y}`); }}
+                  id={idx === 0 ? "fecha_nacimiento" : k}
+                  ref={k === "fn_mes" ? mesRef : k === "fn_anio" ? anioRef : undefined}
+                  name={k}
+                  value={v[k]}
+                  onChange={(x) => {
+                    const d = x.target.value.replace(/\D/g, "").slice(0, max);
+                    set(k, d);
+                    if (errores.fecha_nacimiento) setErrores((p) => ({ ...p, fecha_nacimiento: "" }));
+                    // Al completar día o mes, pasa sola a la casilla siguiente.
+                    if (d.length === max && siguiente) siguiente.current?.focus();
+                  }}
+                  inputMode="numeric" pattern="[0-9]*" autoComplete={ac} placeholder={ej} maxLength={max}
+                  aria-invalid={!!e.fecha_nacimiento}
+                  className={`${field} px-2 text-center text-[19px] font-bold tracking-wider`}
                 />
-              </>
-            )}
+              </div>
+            ))}
           </div>
-        </Campo>
+          {!e.fecha_nacimiento && <p id="fecha_nacimiento-ayuda" className="mt-1.5 text-[15px] text-gris">Por ejemplo: 15 / 08 / 1965</p>}
+          {e.fecha_nacimiento && <MensajeError id="fecha_nacimiento-err">{e.fecha_nacimiento}</MensajeError>}
+        </fieldset>
 
         <Campo label="Número de WhatsApp" name="telefono" error={e.telefono} ayuda="Con la característica, sin 0 ni 15.">
           <input

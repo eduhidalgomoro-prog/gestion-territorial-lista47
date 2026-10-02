@@ -40,6 +40,20 @@ export function fechaNacimientoPublica(s: string): string {
   return parseFechaNacimiento(t);
 }
 
+/** Qué le falta a la fecha, dicho simple (el formulario la arma con tres casillas: día / mes / año). */
+function errorFecha(s: string): string {
+  const t = s.trim();
+  if (!t.replace(/\//g, "")) return "Completá tu fecha de nacimiento.";
+  const [dia = "", mes = "", anio = ""] = t.split(/[/.-]/).map((x) => x.trim());
+  const faltan = [!dia && "el día", !mes && "el mes", !anio && "el año"].filter(Boolean) as string[];
+  if (faltan.length) return `Te falta ${faltan.join(" y ")}.`;
+  if (Number(dia) < 1 || Number(dia) > 31) return "Revisá el día: es un número del 1 al 31.";
+  if (Number(mes) < 1 || Number(mes) > 12) return "Revisá el mes: es un número del 1 al 12. Por ejemplo, agosto es 8.";
+  if (anio.length !== 4) return "Escribí el año completo, con 4 números. Por ejemplo 1965.";
+  if (!fechaNacimientoPublica(t)) return "Revisá la fecha. Por ejemplo: 15 / 08 / 1965.";
+  return "";
+}
+
 export function validarInscripcion(d: DatosInscripcion): Record<string, string> {
   const e: Record<string, string> = {};
   if (!d.nombre.trim()) e.nombre = "Nos falta tu nombre.";
@@ -49,8 +63,8 @@ export function validarInscripcion(d: DatosInscripcion): Record<string, string> 
   if (!d.ciudad.trim()) e.ciudad = "Elegí tu ciudad.";
   if (!d.barrio.trim()) e.barrio = esCapital(d.ciudad) || !d.ciudad.trim() ? "Elegí tu barrio." : "Escribí tu barrio.";
   if (!d.direccion.trim()) e.direccion = "Nos falta tu dirección.";
-  if (!d.fecha_nacimiento.trim()) e.fecha_nacimiento = "Completá tu fecha de nacimiento.";
-  else if (!fechaNacimientoPublica(d.fecha_nacimiento)) e.fecha_nacimiento = "Revisá la fecha: día, mes y año. Por ejemplo 15/08/1965.";
+  const fecha = errorFecha(d.fecha_nacimiento);
+  if (fecha) e.fecha_nacimiento = fecha;
   if (!d.telefono.trim()) e.telefono = "Nos falta tu número de WhatsApp.";
   else if (normalizePhone(d.telefono).length !== 10) e.telefono = "Revisá tu número de WhatsApp. Escribilo con la característica, por ejemplo 379 4123456.";
   if (!d.consentimiento) e.consentimiento = "Para inscribirte, marcá esta casilla.";
