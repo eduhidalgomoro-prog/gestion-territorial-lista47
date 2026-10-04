@@ -1,3 +1,4 @@
+import { revalidateTag, unstable_cache } from "next/cache";
 import { withLock } from "./lock";
 import {
   ENTITY_TABLES, TABLES, fromRow, header, toRow,
@@ -45,13 +46,54 @@ export class NotFoundError extends Error {
 }
 
 // ---------------------------------------------------------------------------
-// Lectura con caché corta (ahorra cuota de la API de Google)
+// Lectura con caché (velocidad y cuota de la API de Google)
+//
+// Dos niveles:
+// 1. Memoria del servidor, unos segundos (varias lecturas dentro de un mismo pedido).
+// 2. Copia compartida entre todos los servidores de Vercel (caché de datos de Next).
+//    Cada vez que la app guarda algo se renueva en todos a la vez (invalidate → revalidateTag),
+//    y además se refresca sola cada minuto por si alguien tocara la planilla a mano.
+// Antes de escribir se sigue leyendo la planilla al momento (readFresh): nunca se guarda sobre datos viejos.
 // ---------------------------------------------------------------------------
-const CACHE_MS = 5_000;
-const g = globalThis as unknown as { __gtSnap?: { at: number; p: Promise<Snapshot> } };
+const CACHE_MS = 3_000;
+const TAG = "datos";
+const REVALIDAR_S = 60;
+const MAX_BYTES = 1_800_000; // la caché de datos no guarda piezas de más de ~2 MB
+const g = globalThis as unknown as { __gtSnap?: { at: number; p: Promise<Snapshot> }; __gtSinCompartida?: boolean };
 
 export function invalidate() {
   g.__gtSnap = undefined;
+  try {
+    // Expira ya mismo (no «servir lo viejo mientras tanto»): quien guardó ve su cambio al instante.
+    revalidateTag(TAG, { expire: 0 });
+  } catch {
+    // Fuera de Next (scripts, pruebas) no hay caché compartida: no hace falta.
+  }
+}
+
+class DemasiadoGrande extends Error {}
+
+const snapshotCompartido = unstable_cache(
+  async () => {
+    const s = await loadSnapshot();
+    if (JSON.stringify(s).length > MAX_BYTES) throw new DemasiadoGrande(); // no se guarda: se lee directo
+    return s;
+  },
+  ["snapshot-v1"],
+  { tags: [TAG], revalidate: REVALIDAR_S },
+);
+
+async function cargar(): Promise<Snapshot> {
+  if (g.__gtSinCompartida) return loadSnapshot();
+  try {
+    return await snapshotCompartido();
+  } catch (e) {
+    // Datos demasiado grandes para la copia compartida: de acá en más, lectura directa (como antes).
+    if (e instanceof DemasiadoGrande) g.__gtSinCompartida = true;
+    else if (!(e instanceof Error && /incrementalCache|static generation store|outside a request/i.test(e.message))) throw e;
+    // Fuera de Next (scripts, pruebas): lectura directa.
+    return loadSnapshot();
+  }
 }
 
 function parseTable<T extends EntityTable>(t: T, rows: Record<string, string | number>[] | undefined): EntityMap[T][] {
@@ -79,11 +121,11 @@ async function loadSnapshot(): Promise<Snapshot> {
   };
 }
 
-/** Todos los datos. Una sola llamada a la API cada pocos segundos. */
+/** Todos los datos. Casi siempre salen de la copia compartida; `fresh` lee la planilla al momento. */
 export async function snapshot(opts: { fresh?: boolean } = {}): Promise<Snapshot> {
   const now = Date.now();
   if (!opts.fresh && g.__gtSnap && now - g.__gtSnap.at < CACHE_MS) return g.__gtSnap.p;
-  const p = loadSnapshot();
+  const p = opts.fresh ? loadSnapshot() : cargar();
   g.__gtSnap = { at: now, p };
   p.catch(() => invalidate());
   return p;
