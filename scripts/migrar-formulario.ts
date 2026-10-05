@@ -199,6 +199,7 @@ async function main() {
       hora_fin: parseHoraFlexible(col(r, I.hf)),
       fecha_alt: parseFechaFlexible(col(r, I.fechaAlt)),
       hora_alt: parseHoraFlexible(col(r, I.horaAlt)),
+      fechas_clases: "",
       barrio,
       direccion: col(r, I.direccion),
       entre_calles: vacio(entre) ? "" : entre.replace(/^entre\s+/i, ""),

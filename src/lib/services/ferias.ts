@@ -56,7 +56,7 @@ export async function crearFeria(datos: NuevaFeriaInput, yo: Yo): Promise<Activi
   const a = await crearActividad(
     {
       nombre: input.nombre, detalle: "", responsable: yo.nombre, zona: input.zona, localidad: input.localidad, tipo: "FERIAS DE ESME", publico: "EMPRENDEDORES",
-      estado: "PROGRAMADA", fecha: input.fecha, hora_inicio: input.hora_inicio, hora_fin: input.hora_fin, fecha_alt: "", hora_alt: "",
+      estado: "PROGRAMADA", fecha: input.fecha, hora_inicio: input.hora_inicio, hora_fin: input.hora_fin, fecha_alt: "", hora_alt: "", clases_extra: [],
       barrio: input.barrio, direccion: "", entre_calles: "", lugar: input.lugar, lat: 0, lng: 0,
       articula: false, tipo_articulacion: "", mesa: "", institucion_id: "", institucion_nueva: "", institucion_nueva_tipo: "",
       requiere_flyer: false, estado_flyer: "", link_flyer: "", gazebo: false, gazebo_cant: 0, mesas: false, mesas_cant: 0, sillas: false, sillas_cant: 0,

@@ -79,6 +79,7 @@ export interface Actividad extends Meta {
   hora_fin: string;
   fecha_alt: string;
   hora_alt: string;
+  fechas_clases: string; // talleres de varias clases: fechas YYYY-MM-DD separadas por coma ("" = una sola clase)
   barrio: string;
   direccion: string;
   entre_calles: string;
@@ -206,8 +207,9 @@ export interface Inscripcion extends Meta {
   estado: EstadoInscripcion;
   respuestas: string; // preguntas adicionales: "Pregunta: respuesta" por línea
   confirmacion: Confirmacion | "";
-  // Preguntas de la Escuela (formulario público de talleres). «» = no respondió.
-  ex_alumna: SiNo | "";
+  // Preguntas del formulario público de inscripción. «» = no respondió.
+  participo_antes: SiNo | ""; // ¿Participaste alguna vez de nuestras actividades?
+  ex_alumna: SiNo | ""; // pregunta anterior (¿fuiste alumna de la Escuela?): se conserva lo ya respondido
   quiere_ser_profe: SiNo | "";
   ensenaria: string;
   conoce_espacio: SiNo | "";
@@ -218,6 +220,7 @@ export interface Asistencia extends Meta {
   actividad_id: string;
   participante_id: string;
   estado: EstadoAsistencia | ""; // "" = se volvió a «sin marcar» (corrección en la toma de asistencia)
+  clase: number; // talleres de varias clases: 1, 2, 3… (0 = marcas viejas = clase 1)
   registrado: string; // fecha/hora ISO del registro
   usuario: string;
 }
@@ -332,6 +335,7 @@ export const TABLES: Record<TableName, TableDef> = {
       ["hora_fin", "Hora finalización"],
       ["fecha_alt", "Fecha alternativa"],
       ["hora_alt", "Horario alternativo"],
+      ["fechas_clases", "Fechas de clases"],
       ["barrio", "Barrio"],
       ["direccion", "Dirección"],
       ["entre_calles", "Entre calles"],
@@ -421,6 +425,7 @@ export const TABLES: Record<TableName, TableDef> = {
       ["estado", "Estado"],
       ["respuestas", "Respuestas adicionales"],
       ["confirmacion", "Confirmación"],
+      ["participo_antes", "Participó antes"],
       ["ex_alumna", "Ex alumna ESME"],
       ["quiere_ser_profe", "Quiere ser profe"],
       ["ensenaria", "Qué enseñaría"],
@@ -430,7 +435,7 @@ export const TABLES: Record<TableName, TableDef> = {
     ],
     enums: {
       origen: ORIGENES_INSCRIPCION, estado: ESTADOS_INSCRIPCION, confirmacion: CONFIRMACIONES,
-      ex_alumna: SI_NO, quiere_ser_profe: SI_NO, conoce_espacio: SI_NO,
+      participo_antes: SI_NO, ex_alumna: SI_NO, quiere_ser_profe: SI_NO, conoce_espacio: SI_NO,
     },
   },
   asistencias: {
@@ -441,10 +446,12 @@ export const TABLES: Record<TableName, TableDef> = {
       ["actividad_id", "ID Actividad"],
       ["participante_id", "ID Participante"],
       ["estado", "Estado"],
+      ["clase", "Clase"],
       ["registrado", "Fecha/hora registro"],
       ["usuario", "Usuario que registró"],
       ...META,
     ],
+    numeric: ["clase"],
     enums: { estado: ESTADOS_ASISTENCIA },
   },
   requerimientos: {

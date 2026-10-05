@@ -20,6 +20,7 @@ interface Persona {
 interface Marca {
   participanteId: string;
   estado: EstadoAsistencia | ""; // "" = volver a «sin marcar»
+  clase: number;
   ts: string;
 }
 
@@ -34,8 +35,9 @@ const coincide = (estado: Persona["estado"], f: Filtro) => f === "todos" || (f =
  * - Un toque marca y se ve al instante; las marcas se envían solas en lote.
  * - Sin señal, quedan guardadas en el celular y se envían al volver (nunca se muestran como guardadas si no lo están).
  */
-export function TomaAsistencia({ actividadId, titulo, inicial, barrios, puedeCerrar }: { actividadId: string; titulo: string; inicial: Persona[]; barrios: string[]; puedeCerrar: boolean }) {
-  const KEY = `gt47-asis-${actividadId}`;
+export function TomaAsistencia({ actividadId, titulo, clase = 1, inicial, barrios, puedeCerrar }: { actividadId: string; titulo: string; clase?: number; inicial: Persona[]; barrios: string[]; puedeCerrar: boolean }) {
+  // Lo pendiente sin conexión se guarda aparte por clase (la clase 1 conserva el nombre de siempre).
+  const KEY = clase > 1 ? `gt47-asis-${actividadId}-c${clase}` : `gt47-asis-${actividadId}`;
   const [personas, setPersonas] = useState<Persona[]>(inicial);
   const [pendientes, setPendientes] = useState<Marca[]>([]);
   const [estadoEnvio, setEstadoEnvio] = useState<Envio>("ok");
@@ -153,7 +155,7 @@ export function TomaAsistencia({ actividadId, titulo, inicial, barrios, puedeCer
     const antes = personas.find((p) => p.id === id);
     setPersonas((ps) => ps.map((p) => (p.id === id ? { ...p, estado } : p)));
     setEditando(null);
-    const m: Marca = { participanteId: id, estado: estado ?? "", ts: new Date().toISOString() };
+    const m: Marca = { participanteId: id, estado: estado ?? "", clase, ts: new Date().toISOString() };
     // Si había una marca anterior de la misma persona sin enviar, se reemplaza.
     setPend([...pendRef.current.filter((x) => x.participanteId !== id), m]);
     // Si con el filtro elegido ya no corresponde mostrarla, se va suave (después de ver el cambio).
@@ -424,6 +426,7 @@ export function TomaAsistencia({ actividadId, titulo, inicial, barrios, puedeCer
       {agregar && (
         <AgregarPersona
           actividadId={actividadId}
+          clase={clase}
           barrios={barrios}
           inicial={agregar}
           onClose={() => setAgregar(null)}
@@ -624,9 +627,10 @@ const inputCls = "block w-full min-h-12 rounded-xl border border-linea bg-white 
 
 /** Llegó alguien que no estaba inscripto: primero el DNI (para no duplicar), después los datos si es nueva. */
 function AgregarPersona({
-  actividadId, barrios, inicial, onClose, onAgregada,
+  actividadId, clase, barrios, inicial, onClose, onAgregada,
 }: {
   actividadId: string;
+  clase: number;
   barrios: string[];
   inicial: { dni?: string; nombre?: string };
   onClose: () => void;
@@ -670,6 +674,7 @@ function AgregarPersona({
         <p className="rounded-xl bg-alerta-50 p-4 text-[15px] text-alerta">Para agregar personas nuevas hace falta conexión. Anotá los datos y cargalos cuando vuelva la señal.</p>
       ) : (
         <form action={action} noValidate className="max-h-[70dvh] overflow-y-auto">
+          <input type="hidden" name="clase" value={clase} />
           {!state.ok && state.message && <p role="alert" className="mb-3 rounded-xl bg-peligro-50 px-3 py-2 text-sm text-peligro">{state.message}</p>}
           <label className="mb-1.5 block text-[15px] font-bold" htmlFor="dni">DNI</label>
           <div className="mb-3 flex gap-2">

@@ -10,7 +10,6 @@ import { ambitoDe, SIN_REGION } from "@/lib/territorio";
 const normalizar = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 import type { ActividadInput, InsumoInput } from "@/lib/services/actividades";
 import { esTallerEscuela } from "@/lib/inscripcion-publica";
-import { PREGUNTAS_ESME } from "@/lib/preguntas";
 import { ESTADOS_FLYER } from "@/lib/schema";
 import { IconArrowLeft, IconArrowRight, IconCheck, IconPin, IconPlus, IconTarget, IconX } from "./icons";
 import { SelectorUbicacion } from "./mapa";
@@ -360,10 +359,55 @@ export function ActividadWizard({
               </Campo>
             </div>
           ) : (
-            <button type="button" onClick={() => setAltVisible(true)} className="mb-4 text-sm font-bold text-petroleo hover:underline">
+            <button type="button" onClick={() => setAltVisible(true)} className="mb-4 block text-sm font-bold text-petroleo hover:underline">
               + Agregar fecha alternativa (por lluvia u otro motivo)
             </button>
           )}
+
+          {/* Talleres de varias clases: cada clase tiene su propia asistencia. */}
+          <div className="mb-4 rounded-xl bg-fondo p-3">
+            <p className="text-sm font-bold">¿Es un taller de varias clases?</p>
+            <p className="mb-2 text-sm text-gris">
+              {(d.clases_extra ?? []).length
+                ? `${(d.clases_extra ?? []).length + 1} clases: la primera es la fecha programada. En «Tomar asistencia» se elige la clase.`
+                : "Agregá las fechas de las clases siguientes (la primera es la fecha programada)."}
+            </p>
+            {(d.clases_extra ?? []).map((f, i) => (
+              <div key={i} className="mb-2 flex items-center gap-2">
+                <span className="w-16 shrink-0 text-sm font-semibold text-gris">Clase {i + 2}</span>
+                <input
+                  type="date"
+                  aria-label={`Fecha de la clase ${i + 2}`}
+                  className={inputCls}
+                  value={f}
+                  min={d.fecha || undefined}
+                  onChange={(e) => set("clases_extra", (d.clases_extra ?? []).map((x, j) => (j === i ? e.target.value : x)))}
+                />
+                <button
+                  type="button"
+                  onClick={() => set("clases_extra", (d.clases_extra ?? []).filter((_, j) => j !== i))}
+                  className="shrink-0 rounded-lg px-2 py-2 text-sm font-bold text-gris hover:text-peligro"
+                  aria-label={`Quitar la clase ${i + 2}`}
+                >
+                  Quitar
+                </button>
+              </div>
+            ))}
+            {errores.clases_extra && <p className="mb-2 text-sm font-semibold text-peligro">{errores.clases_extra}</p>}
+            <button
+              type="button"
+              onClick={() => {
+                const lista = d.clases_extra ?? [];
+                // Propone el mismo día de la semana siguiente a la última clase.
+                const base = lista[lista.length - 1] || d.fecha;
+                const sig = base ? new Date(Date.parse(`${base}T12:00:00Z`) + 7 * 86_400_000).toISOString().slice(0, 10) : "";
+                set("clases_extra", [...lista, sig]);
+              }}
+              className="text-sm font-bold text-petroleo hover:underline"
+            >
+              + Agregar otra clase
+            </button>
+          </div>
 
           <div className="my-2 h-px bg-linea" />
 
@@ -571,20 +615,15 @@ export function ActividadWizard({
           </SiNo>
           <SiNo label="¿Generar formulario de inscripción propio?" value={d.generar_formulario} onChange={(v) => set("generar_formulario", v)}>
             <p className="mb-3 text-sm text-gris">
-              Se crea un link público (sin usuario ni contraseña) para compartir o publicar en la página de Cuqui Calvano. Pide nombre, apellido, DNI, ciudad, barrio, dirección, fecha de nacimiento y WhatsApp.
+              Se crea un link público (sin usuario ni contraseña) para compartir o publicar en la página de Cuqui Calvano. Pide nombre, apellido, DNI, ciudad o localidad, barrio (opcional en el interior), dirección, fecha de nacimiento y WhatsApp.
             </p>
-            {esTallerEscuela({ tipo: d.tipo, mesa: d.mesa, preguntas_extra: d.preguntas_extra }) && (
+            {esTallerEscuela({ tipo: d.tipo, nombre: d.nombre }) && (
               <p className="mb-3 rounded-xl bg-verde-50 px-3 py-2 text-sm text-marca-600">
-                Como es un taller de la Escuela, el formulario ya pregunta si fue alumna, si quiere ser profe (y qué enseñaría) y si conoce un espacio para talleres.
+                Todos los formularios preguntan además si ya participó de nuestras actividades, si quiere ser profe (y qué enseñaría) y si conoce un espacio para talleres.
               </p>
             )}
             <Campo label="Preguntas adicionales" optional htmlFor="pe" hint="Una pregunta por línea. Para elegir entre opciones, ponelas entre corchetes: ¿Trae materiales? [Sí / No]">
               <textarea id="pe" rows={4} className={inputCls} value={d.preguntas_extra} onChange={(e) => set("preguntas_extra", e.target.value)} />
-              {!d.preguntas_extra.includes("Escuela de Mujeres Emprendedoras") && !esTallerEscuela({ tipo: d.tipo, mesa: d.mesa, preguntas_extra: d.preguntas_extra }) && (
-                <button type="button" onClick={() => set("preguntas_extra", [d.preguntas_extra.trim(), PREGUNTAS_ESME].filter(Boolean).join("\n"))} className="mt-2 text-sm font-bold text-petroleo hover:underline">
-                  + Agregar las preguntas de ESME (alumna, profesión u oficio, ¿enseñarlo?)
-                </button>
-              )}
             </Campo>
           </SiNo>
           <p className="mt-2 rounded-xl bg-petroleo-50 px-4 py-3 text-sm text-petroleo-600">

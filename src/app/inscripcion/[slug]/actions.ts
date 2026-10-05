@@ -30,7 +30,8 @@ export async function inscribirAction(slug: string, _: InscripcionState, fd: For
       fecha_nacimiento: s(fd, "fecha_nacimiento"),
       respuestas,
       escuela: {
-        ex_alumna: siNo(s(fd, "ex_alumna")),
+        participo_antes: siNo(s(fd, "participo_antes")),
+        ex_alumna: "",
         quiere_ser_profe: siNo(s(fd, "quiere_ser_profe")),
         ensenaria: s(fd, "ensenaria"),
         conoce_espacio: siNo(s(fd, "conoce_espacio")),

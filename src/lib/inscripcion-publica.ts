@@ -24,7 +24,8 @@ export interface DatosInscripcion {
 }
 
 export interface RespuestasEscuela {
-  ex_alumna: SiNo | "";
+  participo_antes: SiNo | "";
+  ex_alumna: SiNo | ""; // pregunta anterior: el formulario ya no la hace (queda vacía)
   quiere_ser_profe: SiNo | "";
   ensenaria: string;
   conoce_espacio: SiNo | "";
@@ -60,8 +61,9 @@ export function validarInscripcion(d: DatosInscripcion): Record<string, string> 
   if (!d.apellido.trim()) e.apellido = "Nos falta tu apellido.";
   if (!d.dni.trim()) e.dni = "Nos falta tu DNI.";
   else if (!normalizeDni(d.dni) || /[^\d.\s-]/.test(d.dni)) e.dni = "Escribí tu DNI sin puntos, solo los números.";
-  if (!d.ciudad.trim()) e.ciudad = "Elegí tu ciudad.";
-  if (!d.barrio.trim()) e.barrio = esCapital(d.ciudad) || !d.ciudad.trim() ? "Elegí tu barrio." : "Escribí tu barrio.";
+  if (!d.ciudad.trim()) e.ciudad = "Elegí tu ciudad o localidad.";
+  // En el interior el barrio es opcional; en Capital se pide.
+  if (!d.barrio.trim() && (esCapital(d.ciudad) || !d.ciudad.trim())) e.barrio = "Elegí tu barrio.";
   if (!d.direccion.trim()) e.direccion = "Nos falta tu dirección.";
   const fecha = errorFecha(d.fecha_nacimiento);
   if (fecha) e.fecha_nacimiento = fecha;
@@ -82,7 +84,8 @@ export function limpiarEscuela(r: RespuestasEscuela, limpiar: (s: string) => str
   const quiere_ser_profe = siNo(r.quiere_ser_profe);
   const conoce_espacio = siNo(r.conoce_espacio);
   return {
-    ex_alumna: siNo(r.ex_alumna),
+    participo_antes: siNo(r.participo_antes),
+    ex_alumna: "",
     quiere_ser_profe,
     ensenaria: quiere_ser_profe === "SI" ? limpiar(r.ensenaria) : "",
     conoce_espacio,
@@ -91,17 +94,13 @@ export function limpiarEscuela(r: RespuestasEscuela, limpiar: (s: string) => str
 }
 
 /**
- * Talleres de la Escuela de Mujeres Emprendedoras: llevan los bloques «Queremos conocerte» y «Sumate a la escuela».
- * Se reconocen por el tipo (ESME, taller, capacitación), la mesa o las preguntas que ya tenían cargadas.
- * Ferias, Marcando Huellas, deportes, salud, etc. quedan con el formulario corto.
+ * Todos los formularios de inscripción son iguales (bloques «Queremos conocerte» y «Sumate a la escuela»),
+ * salvo Marcando Huellas (no tiene inscripción) y las ferias (tienen su propio formulario de feriantes).
  */
-export function esTallerEscuela(a: { tipo: string; mesa?: string; preguntas_extra?: string; es_feria?: boolean }): boolean {
+export function esTallerEscuela(a: { tipo: string; nombre?: string; es_feria?: boolean }): boolean {
   if (a.es_feria) return false;
-  const tipo = normalizeText(a.tipo);
-  if (tipo.includes("feria") || tipo.includes("marcando huellas")) return false;
-  if (["esme", "taller", "capacitacion"].some((k) => tipo.includes(k))) return true;
-  if (normalizeText(a.mesa ?? "").includes("esme")) return true;
-  return normalizeText(a.preguntas_extra ?? "").includes("escuela de mujeres emprendedoras");
+  const t = normalizeText(`${a.tipo} ${a.nombre ?? ""}`);
+  return !t.includes("marcando huellas") && !normalizeText(a.tipo).includes("feria");
 }
 
 const ESME = new Set(PREGUNTAS_ESME.split("\n").map((l) => normalizeText(l.replace(/\s*\[[^\]]*\]\s*$/, ""))));

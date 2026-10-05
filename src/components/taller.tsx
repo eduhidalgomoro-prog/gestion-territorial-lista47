@@ -96,6 +96,46 @@ export function AccionAsistencia({ id, registrada, presentes }: { id: string; re
   );
 }
 
+/** Taller de varias clases: cada clase con su asistencia y un acceso directo (la de hoy, destacada). */
+export function ClasesTaller({ id, clases, actual }: { id: string; clases: { clase: number; fecha: string; presentes: number; ausentes: number }[]; actual: number }) {
+  return (
+    <section className="rounded-2xl bg-white p-3 shadow-[0_1px_2px_rgba(16,105,133,0.05)] ring-1 ring-linea" aria-label="Clases del taller">
+      <p className="px-1 pb-2 text-[12px] font-extrabold tracking-[0.14em] text-gris uppercase">{clases.length} clases · asistencia</p>
+      <ul className="space-y-1.5">
+        {clases.map((c) => {
+          const tomada = c.presentes + c.ausentes > 0;
+          const esActual = c.clase === actual;
+          return (
+            <li key={c.clase} className={cx("flex items-center gap-3 rounded-xl px-3 py-2", esActual ? "bg-verde-50" : "bg-fondo")}>
+              <span className={cx("flex size-8 shrink-0 items-center justify-center rounded-full text-[14px] font-extrabold", tomada ? "bg-marca text-white" : "bg-white text-gris ring-1 ring-linea")}>
+                {tomada ? <IconCheck size={16} /> : c.clase}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[15px] font-bold">
+                  Clase {c.clase}
+                  <span className="font-semibold text-gris"> · {c.fecha ? formatDate(c.fecha, { weekday: "short", day: "numeric", month: "short" }).replace(/[.,]/g, "") : "sin fecha"}</span>
+                </span>
+                <span className={cx("block text-[13.5px]", tomada ? "font-semibold text-marca-600" : "text-gris")}>
+                  {tomada ? `${c.presentes} ${c.presentes === 1 ? "presente" : "presentes"}` : esActual ? "Hoy / próxima clase" : "Sin tomar"}
+                </span>
+              </span>
+              <Link
+                href={`/actividades/${id}/asistencia?clase=${c.clase}`}
+                className={cx(
+                  "inline-flex min-h-10 shrink-0 items-center rounded-xl px-3 text-[14px] font-bold",
+                  esActual && !tomada ? "bg-marca text-white hover:bg-marca-600" : "bg-white text-petroleo ring-1 ring-linea hover:ring-petroleo",
+                )}
+              >
+                {tomada ? "Revisar" : "Tomar"}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 /** Botón secundario de la ficha (más chico y neutro que la acción principal). */
 export function AccionSec({ href, Icon, children, externo }: { href: string; Icon: typeof IconUsers; children: ReactNode; externo?: boolean }) {
   const cls = "flex min-h-12 items-center justify-center gap-1.5 rounded-xl bg-white px-2 text-[14px] font-bold text-petroleo ring-1 ring-linea transition hover:ring-petroleo active:scale-[0.98]";

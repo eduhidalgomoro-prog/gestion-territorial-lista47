@@ -256,7 +256,7 @@ export async function buscarDniAction(actividadId: string, dni: string) {
 export async function agregarPresenteAction(actividadId: string, _: ActionResult, fd: FormData) {
   return act(
     (yo) =>
-      agregarPresente(actividadId, { nombre: str(fd, "nombre"), apellido: str(fd, "apellido"), dni: str(fd, "dni"), telefono: str(fd, "telefono"), barrio: str(fd, "barrio") }, yo),
+      agregarPresente(actividadId, { nombre: str(fd, "nombre"), apellido: str(fd, "apellido"), dni: str(fd, "dni"), telefono: str(fd, "telefono"), barrio: str(fd, "barrio") }, yo, num(fd, "clase") || 1),
     { ok: "Persona agregada y marcada como presente." },
   );
 }

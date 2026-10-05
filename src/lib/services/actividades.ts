@@ -9,6 +9,7 @@ import {
   ESTADOS_ACTIVIDAD, ESTADOS_FLYER, ZONAS,
   type Actividad, type EstadoActividad, type EstadoFlyer, type Requerimiento,
 } from "../schema";
+import { cantidadClases, claseDeMarca, estadoPorPersona, fechasDeClases } from "../clases";
 import { ambitoDe, buscarLocalidad, nombrePropio, parseRegiones, SIN_REGION, zonaValida, type Region } from "../territorio";
 import { cleanString, isValidDate, isValidTime, mesAnio, normalizeBarrio, nowIso, nowLocal, pct, slugify, titleCase } from "../util";
 
@@ -35,6 +36,8 @@ export interface ActividadInput {
   hora_fin: string;
   fecha_alt: string;
   hora_alt: string;
+  /** Talleres de varias clases: fechas de las clases que siguen a la primera (la primera es «fecha»). */
+  clases_extra?: string[];
   barrio: string;
   direccion: string;
   entre_calles: string;
@@ -98,6 +101,11 @@ function validar(input: ActividadInput, yo: Yo, regiones: Region[]) {
   if (fechaAlt && !isValidDate(fechaAlt)) f.fecha_alt = "Fecha inválida.";
   const horaAlt = cleanString(input.hora_alt, 5);
   if (horaAlt && !isValidTime(horaAlt)) f.hora_alt = "Hora inválida.";
+  // Varias clases: se guardan todas las fechas (la primera incluida), ordenadas y sin repetir.
+  const extra = (input.clases_extra ?? []).map((x) => cleanString(x, 10)).filter(Boolean).slice(0, 30);
+  if (extra.some((x) => !isValidDate(x))) f.clases_extra = "Revisá las fechas de las clases.";
+  else if (extra.some((x) => isValidDate(fecha) && x < fecha)) f.clases_extra = "Las clases siguientes tienen que ser después de la primera.";
+  const fechasClases = isValidDate(fecha) && extra.length ? [...new Set([fecha, ...extra])].sort().join(",") : "";
   if (!cleanString(input.responsable, 120) && !borrador) f.responsable = "Indicá quién es responsable.";
   if (Object.keys(f).length) throw new UserError("Revisá los campos marcados.", f);
 
@@ -140,6 +148,7 @@ function validar(input: ActividadInput, yo: Yo, regiones: Region[]) {
       hora_fin: isValidTime(hf) ? hf : "",
       fecha_alt: fechaAlt,
       hora_alt: horaAlt,
+      fechas_clases: fechasClases,
       barrio: normalizeBarrio(cleanString(input.barrio, 80)),
       direccion: cleanString(input.direccion, 150),
       entre_calles: cleanString(input.entre_calles, 150),
@@ -339,34 +348,57 @@ export interface CierreInput {
   fotos: string;
 }
 
-/** Números de asistencia calculados a partir de lo cargado. */
-export function resumenAsistencia(actividadId: string, s: { inscripciones: { actividad_id: string; participante_id: string; estado: string }[]; asistencias: { actividad_id: string; participante_id: string; estado: string }[] }) {
+type MarcaAsis = { actividad_id: string; participante_id: string; estado: string; clase?: number };
+
+/**
+ * Números de asistencia calculados a partir de lo cargado.
+ * Talleres de varias clases: cada persona cuenta una vez (presente si vino a alguna clase).
+ */
+export function resumenAsistencia(actividadId: string, s: { inscripciones: { actividad_id: string; participante_id: string; estado: string }[]; asistencias: MarcaAsis[] }) {
   const inscriptos = s.inscripciones.filter((i) => i.actividad_id === actividadId && i.estado === "INSCRIPTO");
-  const asis = new Map(s.asistencias.filter((a) => a.actividad_id === actividadId).map((a) => [a.participante_id, a.estado]));
+  const asis = estadoPorPersona(s.asistencias.filter((a) => a.actividad_id === actividadId));
   const presentes = inscriptos.filter((i) => asis.get(i.participante_id) === "PRESENTE").length;
   const ausentesMarcados = inscriptos.filter((i) => asis.get(i.participante_id) === "AUSENTE").length;
   const sinMarcar = inscriptos.length - presentes - ausentesMarcados;
   return { inscriptos: inscriptos.length, presentes, ausentes: inscriptos.length - presentes, ausentesMarcados, sinMarcar, pct: pct(presentes, inscriptos.length) };
 }
 
+/** Asistencia de cada clase (talleres de varias clases). */
+export function asistenciaPorClase(a: { id: string; fecha: string; fechas_clases?: string }, s: { inscripciones: { actividad_id: string; participante_id: string; estado: string }[]; asistencias: MarcaAsis[] }) {
+  const inscriptos = new Set(s.inscripciones.filter((i) => i.actividad_id === a.id && i.estado === "INSCRIPTO").map((i) => i.participante_id));
+  const marcas = s.asistencias.filter((x) => x.actividad_id === a.id && inscriptos.has(x.participante_id));
+  return fechasDeClases(a).map((fecha, i) => {
+    const deLaClase = marcas.filter((m) => claseDeMarca(m) === i + 1);
+    const presentes = deLaClase.filter((m) => m.estado === "PRESENTE").length;
+    const ausentes = deLaClase.filter((m) => m.estado === "AUSENTE").length;
+    return { clase: i + 1, fecha, presentes, ausentes, sinMarcar: inscriptos.size - presentes - ausentes };
+  });
+}
+
 /**
- * Cierre: quien estaba inscripto y no se marcó queda AUSENTE, se congelan los números
- * y la actividad pasa a REALIZADA.
+ * Cierre: quien estaba inscripto y no se marcó queda AUSENTE (en cada clase, si son varias),
+ * se congelan los números y la actividad pasa a REALIZADA.
  */
 export async function cerrarActividad(id: string, input: CierreInput, yo: Yo) {
   const a = await actividadEditable(id, yo, puede.cerrarActividad);
   if (a.estado === "CANCELADA") throw new UserError("La actividad está cancelada: no se puede cerrar.");
   return withLock(`asis:${id}`, async () => {
     const [inscripciones, asistencias] = await Promise.all([readFresh("inscripciones"), readFresh("asistencias")]);
-    const filas = new Map(asistencias.filter((x) => x.actividad_id === id).map((x) => [x.participante_id, x]));
-    const faltan = inscripciones.filter((i) => i.actividad_id === id && i.estado === "INSCRIPTO" && !filas.get(i.participante_id)?.estado);
+    const clave = (p: string, c: number) => `${p}|${c}`;
+    const filas = new Map(asistencias.filter((x) => x.actividad_id === id).map((x) => [clave(x.participante_id, claseDeMarca(x)), x]));
+    const inscriptos = inscripciones.filter((i) => i.actividad_id === id && i.estado === "INSCRIPTO");
+    const faltan = Array.from({ length: cantidadClases(a) }, (_, k) => k + 1).flatMap((clase) =>
+      inscriptos.filter((i) => !filas.get(clave(i.participante_id, clase))?.estado).map((i) => ({ participante_id: i.participante_id, clase })),
+    );
     const registrado = nowIso();
     // Quien se había vuelto a «sin marcar» ya tiene fila: se actualiza (no se duplica).
-    const vacias = faltan.map((i) => filas.get(i.participante_id)).filter((x) => x !== undefined);
+    const vacias = faltan.map((f) => filas.get(clave(f.participante_id, f.clase))).filter((x) => x !== undefined);
     await updateMany("asistencias", vacias.map((x) => ({ id: x.id, patch: { estado: "AUSENTE" as const, registrado, usuario: yo.email } })), yo.email, "ausentes automáticos al cerrar");
     const nuevas = await insertMany(
       "asistencias",
-      faltan.filter((i) => !filas.has(i.participante_id)).map((i) => ({ actividad_id: id, participante_id: i.participante_id, estado: "AUSENTE" as const, registrado, usuario: yo.email })),
+      faltan
+        .filter((f) => !filas.has(clave(f.participante_id, f.clase)))
+        .map((f) => ({ actividad_id: id, participante_id: f.participante_id, estado: "AUSENTE" as const, clase: f.clase, registrado, usuario: yo.email })),
       yo.email,
       "ausentes automáticos al cerrar",
     );

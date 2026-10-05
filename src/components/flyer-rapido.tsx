@@ -53,7 +53,7 @@ export function FlyerRapido({
     return (
       <section className="flex flex-wrap items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-[0_1px_2px_rgba(16,105,133,0.05)] ring-1 ring-linea" aria-label="Flyer de la actividad">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-fondo text-gris" aria-hidden><IconImage size={22} /></span>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-[11rem] flex-1">
           <p className="text-[12px] font-extrabold tracking-[0.14em] text-gris uppercase">Flyer de la actividad</p>
           <p className="text-[15px] font-semibold">{texto}</p>
         </div>

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Badge, Card, Notice, PageHeader } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { snapshot } from "@/lib/db";
+import { cantidadClases, estadoPorPersona } from "@/lib/clases";
 import { zonaLabel } from "@/lib/labels";
 import { actividadesVisibles, esAdmin, puede } from "@/lib/permisos";
 import { edad, formatDate, formatDni, formatPhone, fullName, maskDni, nombreMes, titleCase } from "@/lib/util";
@@ -20,7 +21,10 @@ export default async function FichaParticipante({ params }: { params: Promise<{ 
   const inscripciones = s.inscripciones.filter((i) => i.participante_id === id && i.estado === "INSCRIPTO");
   // Un responsable solo puede ver personas que participaron en su zona.
   if (!esAdmin(yo) && !inscripciones.some((i) => visibles.has(i.actividad_id))) notFound();
-  const asis = new Map(s.asistencias.filter((a) => a.participante_id === id).map((a) => [a.actividad_id, a.estado]));
+  const suyas = s.asistencias.filter((a) => a.participante_id === id);
+  // Por actividad: presente si vino a alguna clase (talleres de varias clases).
+  const asis = estadoPorPersona(suyas.map((a) => ({ ...a, participante_id: a.actividad_id })));
+  const clasesPresente = (actividadId: string) => suyas.filter((x) => x.actividad_id === actividadId && x.estado === "PRESENTE").length;
   const historial = inscripciones
     .map((i) => ({ i, a: visibles.get(i.actividad_id) }))
     .filter((x) => x.a)
@@ -28,7 +32,7 @@ export default async function FichaParticipante({ params }: { params: Promise<{ 
   const presentes = historial.filter((h) => asis.get(h.a!.id) === "PRESENTE").length;
   const dup = p.posible_duplicado_de ? s.participantes.find((x) => x.id === p.posible_duplicado_de) : undefined;
   // Respuesta más reciente a las preguntas de la Escuela.
-  const escuela = inscripciones.filter((i) => i.ex_alumna || i.quiere_ser_profe || i.conoce_espacio).sort((x, y) => y.creado.localeCompare(x.creado))[0];
+  const escuela = inscripciones.filter((i) => i.participo_antes || i.ex_alumna || i.quiere_ser_profe || i.conoce_espacio).sort((x, y) => y.creado.localeCompare(x.creado))[0];
   const primera = p.fecha_primera ? `${nombreMes(Number(p.fecha_primera.slice(5, 7)))} ${p.fecha_primera.slice(0, 4)}` : "—";
 
   return (
@@ -71,6 +75,7 @@ export default async function FichaParticipante({ params }: { params: Promise<{ 
           <h2 className="mb-1 text-lg font-bold">Escuela</h2>
           <p className="mb-3 text-sm text-gris">Lo que respondió en el formulario de inscripción ({formatDate(escuela.fecha)}).</p>
           <dl className="grid gap-y-2 text-[15px]">
+            {escuela.participo_antes && <Fila k="Ya participó antes" v={escuela.participo_antes === "SI" ? "Sí" : "No"} />}
             {escuela.ex_alumna && <Fila k="Ex alumna ESME" v={escuela.ex_alumna === "SI" ? "Sí" : "No"} />}
             {escuela.quiere_ser_profe && <Fila k="Quiere ser profe" v={escuela.quiere_ser_profe === "SI" ? `Sí${escuela.ensenaria ? ` · ${escuela.ensenaria}` : ""}` : "No"} />}
             {escuela.conoce_espacio && <Fila k="Conoce un espacio" v={escuela.conoce_espacio === "SI" ? `Sí${escuela.espacio ? ` · ${escuela.espacio}` : ""}` : "No"} />}
@@ -92,6 +97,7 @@ export default async function FichaParticipante({ params }: { params: Promise<{ 
                     <Link href={`/actividades/${a!.id}`} className="font-bold hover:text-petroleo hover:underline">{a!.nombre}</Link>
                     <p className="text-sm text-gris">
                       {a!.fecha ? formatDate(a!.fecha) : "Sin fecha"} · {zonaLabel(a!.zona)} · inscripción {i.origen.toLowerCase()}
+                      {cantidadClases(a!) > 1 && ` · vino a ${clasesPresente(a!.id)} de ${cantidadClases(a!)} clases`}
                     </p>
                   </div>
                   {e === "PRESENTE" ? <Badge color="verde">PRESENTE</Badge> : e === "AUSENTE" ? <Badge color="gris">AUSENTE</Badge> : <Badge color="azul">{a!.estado === "REALIZADA" ? "SIN REGISTRO" : "INSCRIPTA"}</Badge>}

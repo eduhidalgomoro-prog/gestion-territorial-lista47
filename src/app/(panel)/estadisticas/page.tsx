@@ -178,18 +178,18 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
           </Tarjeta>
         </Bloque>
 
-        {/* Escuela: respuestas del formulario de inscripción a talleres */}
+        {/* Lo que cuentan las personas al inscribirse */}
         {(escuela.respondieron > 0 || porCiudad.length > 0) && (
           <Bloque
             id="escuela"
-            titulo="Escuela de Mujeres Emprendedoras"
+            titulo="Quiénes se inscriben"
             resumen={`${escuela.respondieron} ${escuela.respondieron === 1 ? "persona respondió" : "personas respondieron"} las preguntas del formulario`}
           >
-            <Tarjeta titulo="Quiénes se inscriben" nota="Cada persona cuenta una vez, con su respuesta más reciente.">
+            <Tarjeta titulo="Lo que nos cuentan al inscribirse" nota="Cada persona cuenta una vez, con su respuesta más reciente.">
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { valor: escuela.exAlumnas, texto: escuela.exAlumnas === 1 ? "ex alumna" : "ex alumnas" },
-                  { valor: escuela.nuevas, texto: "primera vez en la Escuela" },
+                  { valor: escuela.yaParticiparon, texto: escuela.yaParticiparon === 1 ? "ya participó antes" : "ya participaron antes" },
+                  { valor: escuela.primeraVez, texto: "participan por primera vez" },
                   { valor: escuela.profes.length, texto: escuela.profes.length === 1 ? "quiere ser profe" : "quieren ser profes" },
                   { valor: escuela.espacios.length, texto: escuela.espacios.length === 1 ? "ofrece un espacio" : "ofrecen espacios" },
                 ].map((c) => (

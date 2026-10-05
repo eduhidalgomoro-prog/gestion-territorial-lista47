@@ -8,7 +8,7 @@ import { cleanString, normalizeDni, nowIso, parseFechaFlexible, phoneKey, today 
 import { parsePreguntas } from "../preguntas";
 import { CIUDAD_CAPITAL, esCapital, esTallerEscuela, fechaNacimientoPublica, limpiarEscuela, preguntasSinRepetir, validarInscripcion, type DatosInscripcion, type RespuestasEscuela } from "../inscripcion-publica";
 
-const SIN_RESPUESTAS_ESCUELA: RespuestasEscuela = { ex_alumna: "", quiere_ser_profe: "", ensenaria: "", conoce_espacio: "", espacio: "" };
+const SIN_RESPUESTAS_ESCUELA: RespuestasEscuela = { participo_antes: "", ex_alumna: "", quiere_ser_profe: "", ensenaria: "", conoce_espacio: "", espacio: "" };
 import { ajustarPrimeraFecha, clavePersona, limpiarPersona, upsertParticipantes, type PersonaInput, type PersonaLimpia } from "./participantes";
 
 /**
@@ -262,7 +262,7 @@ export async function inscribirPublico(slug: string, input: InscripcionPublicaIn
   if (Object.keys(errores).length) throw new UserError("Revisá los datos marcados en rojo.", errores);
   const persona = limpiarPersona(
     { ...input, ciudad: esCapital(input.ciudad) ? CIUDAD_CAPITAL : input.ciudad, fecha_nacimiento: fechaNacimientoPublica(input.fecha_nacimiento) },
-    { telefonoObligatorio: true, barrioObligatorio: true },
+    { telefonoObligatorio: true, barrioObligatorio: esCapital(input.ciudad) }, // en el interior el barrio es opcional
   );
   const escuela = esTallerEscuela(a) ? limpiarEscuela(input.escuela, (t) => cleanString(t, 500)) : SIN_RESPUESTAS_ESCUELA;
   const preguntas = parsePreguntas(a.preguntas_extra);

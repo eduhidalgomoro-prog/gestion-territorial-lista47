@@ -23,11 +23,11 @@ export interface TallerInfo {
 const field =
   "block w-full h-14 rounded-2xl border-2 border-linea bg-white px-4 text-[17px] text-tinta placeholder:text-gris/80 focus:outline-none focus:border-petroleo aria-[invalid=true]:border-peligro aria-[invalid=true]:bg-peligro-50/40";
 
-function Campo({ label, name, error, ayuda, children }: { label: string; name: string; error?: string; ayuda?: string; children: ReactNode }) {
+function Campo({ label, name, error, ayuda, opcional, children }: { label: string; name: string; error?: string; ayuda?: string; opcional?: boolean; children: ReactNode }) {
   return (
     <div className="mb-5" data-campo={name}>
       <label htmlFor={name} className="mb-1.5 block text-[17px] font-bold text-tinta">
-        {label} <span className="text-peligro" aria-hidden>*</span>
+        {label} {opcional ? <span className="font-semibold text-gris">(opcional)</span> : <span className="text-peligro" aria-hidden>*</span>}
       </label>
       {children}
       {ayuda && !error && <p id={`${name}-ayuda`} className="mt-1.5 text-[15px] text-gris">{ayuda}</p>}
@@ -104,7 +104,7 @@ export function InscripcionForm({
     nombre: "", apellido: "", dni: "", ciudad: ciudadInicial, ciudad_otra: "", barrio: "", barrio_otro: "", direccion: "", fn_dia: "", fn_mes: "", fn_anio: "", telefono: "",
   });
   const [consentimiento, setConsentimiento] = useState(false);
-  const [r, setR] = useState({ ex_alumna: "", quiere_ser_profe: "", ensenaria: "", conoce_espacio: "", espacio: "" });
+  const [r, setR] = useState({ participo_antes: "", quiere_ser_profe: "", ensenaria: "", conoce_espacio: "", espacio: "" });
   const [extra, setExtra] = useState<Record<number, string>>({});
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [intento, setIntento] = useState(0);
@@ -177,7 +177,7 @@ export function InscripcionForm({
   }
 
   const datosListos = ORDEN_CAMPOS.filter((k) => k !== "consentimiento").every((k) => !validarInscripcion(datos)[k]);
-  const conocerteListo = escuela ? !!r.ex_alumna : preguntas.length > 0 && preguntas.every((q) => extra[q.indice]);
+  const conocerteListo = escuela ? !!r.participo_antes : preguntas.length > 0 && preguntas.every((q) => extra[q.indice]);
   const escuelaLista = !!r.quiere_ser_profe && !!r.conoce_espacio;
   const pasos = escuela
     ? [{ n: 1, t: "Tus datos", ok: datosListos }, { n: 2, t: "Conocerte", ok: conocerteListo }, { n: 3, t: "Escuela", ok: escuelaLista }]
@@ -245,17 +245,18 @@ export function InscripcionForm({
           />
         </Campo>
 
-        <Campo label="Ciudad" name="ciudad" error={e.ciudad}>
+        <Campo label="Ciudad o localidad" name="ciudad" error={e.ciudad}>
           <select id="ciudad" name="ciudad" value={v.ciudad} onChange={(x) => { set("ciudad", x.target.value); set("barrio", ""); }} aria-invalid={!!e.ciudad} className={field}>
             {ciudades.map((c) => <option key={c} value={c}>{c}</option>)}
-            <option value={OTRO}>Otra ciudad</option>
+            <option value={OTRO}>Otra localidad</option>
           </select>
           {v.ciudad === OTRO && (
-            <input name="ciudad_otra" value={v.ciudad_otra} onChange={(x) => set("ciudad_otra", x.target.value)} placeholder="Escribí tu ciudad" aria-label="Nombre de tu ciudad" aria-invalid={!!e.ciudad} className={`${field} mt-3`} autoFocus />
+            <input name="ciudad_otra" value={v.ciudad_otra} onChange={(x) => set("ciudad_otra", x.target.value)} placeholder="Escribí tu localidad" aria-label="Nombre de tu localidad" aria-invalid={!!e.ciudad} className={`${field} mt-3`} autoFocus />
           )}
         </Campo>
 
-        <Campo label="Barrio" name="barrio" error={e.barrio}>
+        {/* En el interior el barrio es opcional. */}
+        <Campo label="Barrio" name="barrio" error={e.barrio} opcional={!capital}>
           {capital && barrios.length > 0 ? (
             <>
               <select id="barrio" name="barrio" value={v.barrio} onChange={(x) => set("barrio", x.target.value)} aria-invalid={!!e.barrio} className={field}>
@@ -326,7 +327,7 @@ export function InscripcionForm({
       {escuela ? (
         <>
           <Bloque numero={2} titulo="Queremos conocerte" texto="Son preguntas cortitas. Nos ayudan a armar mejores talleres." listo={conocerteListo}>
-            <SiNo name="ex_alumna" label="¿Fuiste alumna de la Escuela de Mujeres Emprendedoras?" value={r.ex_alumna} onChange={(x) => setR((p) => ({ ...p, ex_alumna: x }))} />
+            <SiNo name="participo_antes" label="¿Participaste alguna vez de nuestras actividades?" value={r.participo_antes} onChange={(x) => setR((p) => ({ ...p, participo_antes: x }))} />
             {preguntasExtra}
           </Bloque>
 

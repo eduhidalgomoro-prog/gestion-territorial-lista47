@@ -15,7 +15,7 @@ import { normalizeDni, normalizePhone, parseFechaFlexible, parseFechaNacimiento,
 import { parsePreguntas } from "@/lib/preguntas";
 import type { Yo } from "@/lib/permisos";
 import { puede } from "@/lib/permisos";
-import { cerrarActividad, crearActividad, type ActividadInput } from "@/lib/services/actividades";
+import { asistenciaPorClase, cerrarActividad, crearActividad, resumenAsistencia, type ActividadInput } from "@/lib/services/actividades";
 import { agregarPresente, guardarAsistencia } from "@/lib/services/asistencia";
 import { confirmarImportacion, inscribirPublico, vistaPreviaImportacion } from "@/lib/services/inscripciones";
 import { setStore } from "@/lib/store";
@@ -28,7 +28,7 @@ const respEste: Yo = { email: "este@lista47.test", nombre: "Resp Este", rol: "RE
 const publico = {
   nombre: "Ana", apellido: "P", dni: "30123456", ciudad: "Corrientes", barrio: "CENTRO", direccion: "Junín 1000", fecha_nacimiento: "15/08/1965", telefono: "3794123456",
   consentimiento: true, respuestas: [] as { pregunta: string; respuesta: string }[],
-  escuela: { ex_alumna: "" as const, quiere_ser_profe: "" as const, ensenaria: "", conoce_espacio: "" as const, espacio: "" },
+  escuela: { participo_antes: "" as const, ex_alumna: "" as const, quiere_ser_profe: "" as const, ensenaria: "", conoce_espacio: "" as const, espacio: "" },
 };
 
 function input(p: Partial<ActividadInput> = {}): ActividadInput {
@@ -326,34 +326,37 @@ describe("participantes, importación y asistencia", () => {
     const base = { ...publico, nombre: "María", apellido: "G", dni: "30111111", telefono: "3794111111", barrio: "PIRAYUI" };
     expect(await inscribirPublico(a.slug, base)).toMatchObject({ status: "inscripto" });
     // Mismo DNI en el mismo taller: no se duplica y se avisa; solo se completan respuestas vacías.
-    expect(await inscribirPublico(a.slug, { ...base, nombre: "Otro nombre", telefono: "3794999999", escuela: { ...publico.escuela, ex_alumna: "SI" } })).toMatchObject({ status: "ya_inscripto" });
+    expect(await inscribirPublico(a.slug, { ...base, nombre: "Otro nombre", telefono: "3794999999", escuela: { ...publico.escuela, participo_antes: "SI" } })).toMatchObject({ status: "ya_inscripto" });
     const s = await snapshot({ fresh: true });
     expect(s.participantes).toHaveLength(1);
     expect(s.participantes[0]).toMatchObject({ nombre: "María", telefono: "3794111111", ciudad: "Corrientes", fecha_nacimiento: "1965-08-15" }); // no se pisan los datos
     expect(s.inscripciones).toHaveLength(1);
-    expect(s.inscripciones[0].ex_alumna).toBe("SI");
+    expect(s.inscripciones[0].participo_antes).toBe("SI");
     await expect(inscribirPublico(a.slug, { ...base, consentimiento: false, dni: "30999999" })).rejects.toThrow();
     // La misma persona en OTRO taller sí se inscribe.
     const b = await crearActividad(input({ nombre: "Otro taller", fecha: "2099-02-10" }), admin);
     expect(await inscribirPublico(b.slug, base)).toMatchObject({ status: "inscripto" });
   });
 
-  it("formulario público: preguntas de la Escuela guardadas en columnas propias", async () => {
+  it("formulario público: las preguntas van en columnas propias y en todos los formularios", async () => {
     const a = await crearActividad(input({ fecha: "2099-01-10" }), admin);
     await inscribirPublico(a.slug, {
       ...publico,
       ciudad: "goya",
-      barrio: "San Ramón",
-      escuela: { ex_alumna: "NO", quiere_ser_profe: "SI", ensenaria: "Repostería", conoce_espacio: "NO", espacio: "esto no se guarda" },
+      barrio: "", // en el interior el barrio es opcional
+      escuela: { ...publico.escuela, participo_antes: "NO", quiere_ser_profe: "SI", ensenaria: "Repostería", conoce_espacio: "NO", espacio: "esto no se guarda" },
     });
     const s = await snapshot({ fresh: true });
-    expect(s.participantes[0]).toMatchObject({ ciudad: "Goya", barrio: "SAN RAMÓN" });
-    expect(s.inscripciones[0]).toMatchObject({ ex_alumna: "NO", quiere_ser_profe: "SI", ensenaria: "Repostería", conoce_espacio: "NO", espacio: "" });
-    // Actividades que no son de la Escuela (ej. deportes) no guardan estas respuestas.
+    expect(s.participantes[0]).toMatchObject({ ciudad: "Goya", barrio: "" });
+    expect(s.inscripciones[0]).toMatchObject({ participo_antes: "NO", quiere_ser_profe: "SI", ensenaria: "Repostería", conoce_espacio: "NO", espacio: "" });
+    // En Capital el barrio sigue siendo obligatorio.
+    const err = await inscribirPublico(a.slug, { ...publico, dni: "30999888", barrio: "" }).catch((e) => e);
+    expect(err.fields?.barrio).toBeTruthy();
+    // Todos los formularios son iguales (ej. deportes también guarda estas respuestas).
     const d = await crearActividad(input({ nombre: "Clínica", tipo: "MESA DE DEPORTES", fecha: "2099-01-11" }), admin);
-    await inscribirPublico(d.slug, { ...publico, escuela: { ...publico.escuela, quiere_ser_profe: "SI", ensenaria: "x" } });
+    await inscribirPublico(d.slug, { ...publico, escuela: { ...publico.escuela, participo_antes: "SI", quiere_ser_profe: "SI", ensenaria: "x" } });
     const s2 = await snapshot({ fresh: true });
-    expect(s2.inscripciones.find((i) => i.actividad_id === d.id)).toMatchObject({ quiere_ser_profe: "", ensenaria: "" });
+    expect(s2.inscripciones.find((i) => i.actividad_id === d.id)).toMatchObject({ participo_antes: "SI", quiere_ser_profe: "SI", ensenaria: "x" });
   });
 
   it("formulario público: mensajes simples por campo", async () => {
@@ -394,6 +397,31 @@ describe("participantes, importación y asistencia", () => {
     expect(s.asistencias.filter((x) => x.estado === "AUSENTE")).toHaveLength(1); // el no marcado quedó ausente
     const ind = indicadores(s.actividades, s, { anio: 2026, mes: 10 });
     expect(ind).toMatchObject({ realizadas: 1, inscriptos: 4, asistentes: 3, pctAsistencia: 75, costoReal: 20000 });
+  });
+
+  it("taller de varias clases: asistencia por clase, cada persona cuenta una vez y el cierre completa cada clase", async () => {
+    const a = await crearActividad(input({ fecha: "2026-10-02", clases_extra: ["2026-10-16", "2026-10-09", "2026-10-09"] }), admin);
+    expect(a.fechas_clases).toBe("2026-10-02,2026-10-09,2026-10-16");
+    await confirmarImportacion(a.id, [
+      { nombre: "A", apellido: "Uno", dni: "30000001", telefono: "", barrio: "" },
+      { nombre: "B", apellido: "Dos", dni: "30000002", telefono: "", barrio: "" },
+    ], admin);
+    let s = await snapshot({ fresh: true });
+    const [p1, p2] = s.participantes;
+    // Clase 1 sin número (como las marcas de antes) y clase 2 con número.
+    await guardarAsistencia(a.id, [{ participanteId: p1.id, estado: "PRESENTE" }, { participanteId: p2.id, estado: "AUSENTE" }], admin);
+    await guardarAsistencia(a.id, [{ participanteId: p1.id, estado: "PRESENTE", clase: 2 }, { participanteId: p2.id, estado: "PRESENTE", clase: 2 }], admin);
+    await guardarAsistencia(a.id, [{ participanteId: p1.id, estado: "PRESENTE", clase: 9 }], admin); // clase inexistente: se ignora
+    s = await snapshot({ fresh: true });
+    expect(s.asistencias).toHaveLength(4);
+    expect(asistenciaPorClase(a, s).map((c) => [c.clase, c.presentes, c.ausentes])).toEqual([[1, 1, 1], [2, 2, 0], [3, 0, 0]]);
+    expect(resumenAsistencia(a.id, s)).toMatchObject({ inscriptos: 2, presentes: 2, ausentesMarcados: 0 }); // vinieron a alguna clase
+    expect(conteosPorActividad(s).get(a.id)).toEqual({ inscriptos: 2, presentes: 2, ausentes: 0 });
+    // Al cerrar, la clase 3 (sin tomar) queda con ausentes, sin tocar las otras.
+    await cerrarActividad(a.id, { costo_real: 0, observaciones: "", resultados: "", incidencias: "", fotos: "" }, admin);
+    s = await snapshot({ fresh: true });
+    expect(s.asistencias).toHaveLength(6);
+    expect(s.asistencias.filter((x) => x.clase === 3).every((x) => x.estado === "AUSENTE")).toBe(true);
   });
 
   it("corregir a «sin marcar»: no cuenta y al cerrar queda ausente sin duplicar filas", async () => {

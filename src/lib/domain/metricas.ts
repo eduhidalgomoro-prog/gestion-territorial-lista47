@@ -60,10 +60,18 @@ export function conteosPorActividad(d: Pick<Datos, "inscripciones" | "asistencia
     get(i.actividad_id).inscriptos++;
     activos.add(`${i.actividad_id}|${i.participante_id}`);
   }
+  // Cada persona cuenta una vez por actividad (talleres de varias clases: presente si vino a alguna).
+  const porPersona = new Map<string, string>();
   for (const a of d.asistencias) {
-    if (!activos.has(`${a.actividad_id}|${a.participante_id}`)) continue;
-    if (a.estado === "PRESENTE") get(a.actividad_id).presentes++;
-    else if (a.estado === "AUSENTE") get(a.actividad_id).ausentes++;
+    const k = `${a.actividad_id}|${a.participante_id}`;
+    if (!activos.has(k)) continue;
+    if (a.estado === "PRESENTE") porPersona.set(k, "PRESENTE");
+    else if (a.estado === "AUSENTE" && !porPersona.has(k)) porPersona.set(k, "AUSENTE");
+  }
+  for (const [k, estado] of porPersona) {
+    const actividadId = k.slice(0, k.indexOf("|"));
+    if (estado === "PRESENTE") get(actividadId).presentes++;
+    else get(actividadId).ausentes++;
   }
   return out;
 }
@@ -242,23 +250,25 @@ export function participantesPor(acts: Actividad[], d: Datos, por: "zona" | "bar
 }
 
 /**
- * Preguntas de la Escuela (formulario de talleres): cada persona cuenta una vez, con su respuesta más reciente.
- * Sirve para encontrar ex alumnas, posibles profes (y qué enseñarían) y lugares para nuevos talleres.
+ * Preguntas del formulario de inscripción: cada persona cuenta una vez, con su respuesta más reciente.
+ * Sirve para ver quién ya participó antes, posibles profes (y qué enseñarían) y lugares para nuevos talleres.
+ * «Ya participó» también toma la pregunta anterior (¿fuiste alumna de la Escuela?) de quienes la respondieron.
  */
 export function resumenEscuela(acts: Actividad[], d: Pick<Datos, "inscripciones">) {
   const ids = new Set(acts.map((a) => a.id));
   const porPersona = new Map<string, Datos["inscripciones"][number]>();
   for (const i of d.inscripciones) {
     if (i.estado !== "INSCRIPTO" || !ids.has(i.actividad_id)) continue;
-    if (!i.ex_alumna && !i.quiere_ser_profe && !i.conoce_espacio) continue;
+    if (!i.participo_antes && !i.ex_alumna && !i.quiere_ser_profe && !i.conoce_espacio) continue;
     const prev = porPersona.get(i.participante_id);
     if (!prev || i.creado > prev.creado) porPersona.set(i.participante_id, i);
   }
   const r = [...porPersona.values()];
+  const antes = (i: (typeof r)[number]) => i.participo_antes || i.ex_alumna;
   return {
     respondieron: r.length,
-    exAlumnas: r.filter((i) => i.ex_alumna === "SI").length,
-    nuevas: r.filter((i) => i.ex_alumna === "NO").length,
+    yaParticiparon: r.filter((i) => antes(i) === "SI").length,
+    primeraVez: r.filter((i) => antes(i) === "NO").length,
     profes: r.filter((i) => i.quiere_ser_profe === "SI").map((i) => ({ participante_id: i.participante_id, texto: i.ensenaria })),
     espacios: r.filter((i) => i.conoce_espacio === "SI").map((i) => ({ participante_id: i.participante_id, texto: i.espacio })),
   };

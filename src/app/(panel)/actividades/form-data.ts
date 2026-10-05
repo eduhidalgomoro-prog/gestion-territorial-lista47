@@ -1,5 +1,6 @@
 import "server-only";
 import type { WizardOpciones } from "@/components/actividad-wizard";
+import { fechasDeClases } from "@/lib/clases";
 import type { Snapshot } from "@/lib/db";
 import { esResponsable, puede, type Yo } from "@/lib/permisos";
 import type { ActividadInput } from "@/lib/services/actividades";
@@ -38,7 +39,7 @@ export function opcionesWizard(s: Snapshot, yo: Yo, actual?: Actividad): WizardO
 export function inputVacio(yo: Yo): ActividadInput {
   return {
     nombre: "", detalle: "", responsable: yo.rol === "ADMINISTRADOR" ? "" : yo.nombre, zona: esResponsable(yo) ? yo.zona : "", localidad: "", tipo: "", publico: "",
-    estado: "PROGRAMADA", fecha: "", hora_inicio: "", hora_fin: "", fecha_alt: "", hora_alt: "", barrio: "", direccion: "", entre_calles: "", lugar: "",
+    estado: "PROGRAMADA", fecha: "", hora_inicio: "", hora_fin: "", fecha_alt: "", hora_alt: "", clases_extra: [], barrio: "", direccion: "", entre_calles: "", lugar: "",
     lat: 0, lng: 0, articula: false, tipo_articulacion: "", mesa: "", institucion_id: "", institucion_nueva: "", institucion_nueva_tipo: "",
     requiere_flyer: false, estado_flyer: "", link_flyer: "", gazebo: false, gazebo_cant: 0, mesas: false, mesas_cant: 0, sillas: false, sillas_cant: 0,
     luz: false, sonido: false, insumos: [], costo_estimado: null, costo_real: 0, obs_logistica: "", generar_formulario: false, preguntas_extra: "", observaciones: "",
@@ -53,6 +54,7 @@ export function inputDesde(a: Actividad, s: Snapshot): ActividadInput {
   return {
     nombre: a.nombre, detalle: a.detalle, responsable: a.responsable, zona: a.zona, localidad: a.localidad, tipo: a.tipo, publico: a.publico, estado: a.estado,
     fecha: a.fecha, hora_inicio: a.hora_inicio, hora_fin: a.hora_fin, fecha_alt: a.fecha_alt, hora_alt: a.hora_alt,
+    clases_extra: fechasDeClases(a).filter((f) => f && f !== a.fecha),
     barrio: a.barrio, direccion: a.direccion, entre_calles: a.entre_calles, lugar: a.lugar, lat: a.lat, lng: a.lng,
     articula: a.articula, tipo_articulacion: a.tipo_articulacion, mesa: a.mesa, institucion_id: a.institucion_id, institucion_nueva: "", institucion_nueva_tipo: "",
     requiere_flyer: a.requiere_flyer, estado_flyer: a.estado_flyer, link_flyer: a.link_flyer,

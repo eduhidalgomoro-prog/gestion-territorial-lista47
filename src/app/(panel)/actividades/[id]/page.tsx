@@ -15,13 +15,14 @@ import { ESTADO_COLOR, FLYER_COLOR, zonaLabel } from "@/lib/labels";
 import { ambitoDe } from "@/lib/territorio";
 import { MarcandoHuellasHeader, MarcandoHuellasStats } from "@/components/huellas";
 import { CambiarEstado } from "@/components/cambiar-estado";
-import { AccionAsistencia, AccionSec, TallerEncabezado } from "@/components/taller";
+import { AccionAsistencia, AccionSec, ClasesTaller, TallerEncabezado } from "@/components/taller";
+import { cantidadClases, claseActual, fechasDeClases } from "@/lib/clases";
 import { IconArrowLeft } from "@/components/icons";
 import { esMarcandoHuellas, resumenHuellas } from "@/lib/huellas";
 import { esAgenda, puede } from "@/lib/permisos";
 import { ESTADOS_FLYER, type EstadoActividad } from "@/lib/schema";
-import { linkInscripcion, resumenAsistencia } from "@/lib/services/actividades";
-import { formatDate, formatDateLong, formatMoney, titleCase } from "@/lib/util";
+import { asistenciaPorClase, linkInscripcion, resumenAsistencia } from "@/lib/services/actividades";
+import { formatDate, formatDateLong, formatMoney, titleCase, today } from "@/lib/util";
 import { sp, type SP } from "@/lib/view";
 import { asignarOperadorAction, flyerAction, formularioAction, quitarOperadorAction } from "../../actions";
 
@@ -74,6 +75,8 @@ export default async function FichaActividad({ params, searchParams }: { params:
   const estadosPosibles = (["PROGRAMADA", "CONFIRMADA", "SUSPENDIDA", "CANCELADA"] as EstadoActividad[]).filter((e) => e !== a.estado);
   const asistenciaTomada = a.estado === "REALIZADA" || r.presentes + r.ausentesMarcados > 0;
   const abrir = sp(q, "abrir");
+  // Taller de varias clases: asistencia de cada clase.
+  const clasesTaller = cantidadClases(a) > 1 ? asistenciaPorClase(a, s) : [];
   // Acceso rápido al flyer (mismos archivos que «Comunicación»). Si la actividad no pide flyer ni tiene uno, no se muestra.
   const flyerRapido =
     a.requiere_flyer || a.link_flyer || a.link_flyer_historia ? (
@@ -113,7 +116,12 @@ export default async function FichaActividad({ params, searchParams }: { params:
             }}
           />
           <div className="mt-4 space-y-2">
-            {asistencia && a.estado !== "CANCELADA" && <AccionAsistencia id={a.id} registrada={asistenciaTomada} presentes={r.presentes} />}
+            {asistencia && a.estado !== "CANCELADA" &&
+              (clasesTaller.length > 1 ? (
+                <ClasesTaller id={a.id} clases={clasesTaller} actual={claseActual(fechasDeClases(a), today())} />
+              ) : (
+                <AccionAsistencia id={a.id} registrada={asistenciaTomada} presentes={r.presentes} />
+              ))}
             {flyerRapido}
             <nav className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Acciones de la actividad">
               {verInscriptos && <AccionSec href={`/actividades/${a.id}/inscriptos`} Icon={IconUsers}>Ver inscriptos</AccionSec>}

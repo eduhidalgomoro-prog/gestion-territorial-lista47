@@ -44,7 +44,7 @@ async function main() {
   const prev = addMonths(anio, mes, -1);
   const f = (a: number, m: number, d: number) => `${a}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   const base = {
-    detalle: "", localidad: "", publico: "FAMILIAS EN GENERAL", fecha_alt: "", hora_alt: "", entre_calles: "", lugar: "Salón", articula: false,
+    detalle: "", localidad: "", publico: "FAMILIAS EN GENERAL", fecha_alt: "", hora_alt: "", fechas_clases: "", entre_calles: "", lugar: "Salón", articula: false,
     tipo_articulacion: "", mesa: "", institucion_id: "", institucion_nombre: "", requiere_flyer: true, estado_flyer: "PUBLICADO" as const, link_flyer: "", link_flyer_historia: "", link_grupo: "", mensaje_confirmacion: "", mensaje_grupo: "",
     gazebo: false, gazebo_cant: 0, mesas: true, mesas_cant: 2, sillas: true, sillas_cant: 30, luz: false, sonido: false, otros_insumos: "",
     costo_real: 0, obs_logistica: "", slug: "", link_inscripcion: "", inscripcion_abierta: false, preguntas_extra: "",
@@ -83,14 +83,14 @@ async function main() {
     U,
   );
   const insc = (act: number, desde: number, hasta: number) =>
-    personas.slice(desde, hasta).map((p) => ({ actividad_id: creadas[act].id, participante_id: p.id, fecha: f(prev.anio, prev.mes, 1), origen: "GOOGLE FORMS" as const, estado: "INSCRIPTO" as const, respuestas: "", confirmacion: "" as const, ex_alumna: "" as const, quiere_ser_profe: "" as const, ensenaria: "", conoce_espacio: "" as const, espacio: "" }));
+    personas.slice(desde, hasta).map((p) => ({ actividad_id: creadas[act].id, participante_id: p.id, fecha: f(prev.anio, prev.mes, 1), origen: "GOOGLE FORMS" as const, estado: "INSCRIPTO" as const, respuestas: "", confirmacion: "" as const, participo_antes: "" as const, ex_alumna: "" as const, quiere_ser_profe: "" as const, ensenaria: "", conoce_espacio: "" as const, espacio: "" }));
   await insertMany("inscripciones", [...insc(0, 0, 8), ...insc(3, 4, 12), ...insc(4, 0, 6)], U);
   const reg = new Date().toISOString();
   await insertMany(
     "asistencias",
     [
-      ...personas.slice(4, 12).map((p, i) => ({ actividad_id: creadas[3].id, participante_id: p.id, estado: (i < 6 ? "PRESENTE" : "AUSENTE") as "PRESENTE" | "AUSENTE", registrado: reg, usuario: U })),
-      ...personas.slice(0, 6).map((p, i) => ({ actividad_id: creadas[4].id, participante_id: p.id, estado: (i < 5 ? "PRESENTE" : "AUSENTE") as "PRESENTE" | "AUSENTE", registrado: reg, usuario: U })),
+      ...personas.slice(4, 12).map((p, i) => ({ actividad_id: creadas[3].id, participante_id: p.id, estado: (i < 6 ? "PRESENTE" : "AUSENTE") as "PRESENTE" | "AUSENTE", clase: 0, registrado: reg, usuario: U })),
+      ...personas.slice(0, 6).map((p, i) => ({ actividad_id: creadas[4].id, participante_id: p.id, estado: (i < 5 ? "PRESENTE" : "AUSENTE") as "PRESENTE" | "AUSENTE", clase: 0, registrado: reg, usuario: U })),
     ],
     U,
   );

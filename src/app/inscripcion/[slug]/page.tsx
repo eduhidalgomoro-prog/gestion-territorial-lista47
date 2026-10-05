@@ -11,6 +11,7 @@ import { lugaresLibres } from "@/lib/services/ferias";
 import { IconosFeria } from "@/components/feria-ui";
 import { IconCalendar, IconClock, IconHeart, IconPin } from "@/components/icons";
 import { rubroDe } from "@/components/taller";
+import { fechasDeClases } from "@/lib/clases";
 import { linkCalendario } from "@/lib/compartir";
 import { CIUDAD_CAPITAL, esTallerEscuela, preguntasSinRepetir } from "@/lib/inscripcion-publica";
 import type { Actividad } from "@/lib/schema";
@@ -104,7 +105,7 @@ export default async function FormularioPublico({ params }: { params: Promise<{ 
             {a.detalle && <p className="mt-4 text-[16px] leading-relaxed whitespace-pre-line text-gris">{a.detalle}</p>}
           </article>
         ) : (
-          <TarjetaTaller a={a} escuela={escuela} cuando={cuando} horario={horario} />
+          <TarjetaTaller a={a} cuando={cuando} horario={horario} />
         )}
 
         <section className="mt-6" aria-labelledby={a.es_feria ? "form-titulo" : undefined}>
@@ -161,7 +162,7 @@ export default async function FormularioPublico({ params }: { params: Promise<{ 
 }
 
 /** Encabezado del taller: qué es, cuándo y dónde, bien grande y fácil de leer. */
-function TarjetaTaller({ a, escuela, cuando, horario }: { a: Actividad; escuela: boolean; cuando: string; horario: string }) {
+function TarjetaTaller({ a, cuando, horario }: { a: Actividad; cuando: string; horario: string }) {
   const { Icon } = rubroDe(a);
   const mapa = a.lat && a.lng ? `https://www.google.com/maps/search/?api=1&query=${a.lat},${a.lng}` : "";
   return (
@@ -170,13 +171,20 @@ function TarjetaTaller({ a, escuela, cuando, horario }: { a: Actividad; escuela:
         <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-verde-50 text-marca" aria-hidden>
           <Icon size={26} />
         </span>
-        <p className="text-[14px] font-extrabold tracking-[0.18em] text-marca uppercase">{escuela || !a.tipo ? "Taller" : titleCase(a.tipo)}</p>
+        <p className="text-[14px] font-extrabold tracking-[0.18em] text-marca uppercase">{!a.tipo || /esme|taller|capacitaci/i.test(a.tipo) ? "Taller" : titleCase(a.tipo)}</p>
       </div>
       <h1 className="mt-3 font-titulo text-[30px] leading-[1.12] font-black text-petroleo-600 sm:text-[34px]">{a.nombre}</h1>
       <ul className="mt-5 space-y-3.5 text-[17px] leading-snug">
         <li className="flex items-start gap-3">
           <IconCalendar size={22} className="mt-0.5 shrink-0 text-petroleo" />
-          <span className="font-bold first-letter:uppercase">{cuando || "Fecha a confirmar"}</span>
+          <span>
+            <span className="block font-bold first-letter:uppercase">{cuando || "Fecha a confirmar"}</span>
+            {fechasDeClases(a).length > 1 && (
+              <span className="block text-[15px] text-gris">
+                {fechasDeClases(a).length} clases: {fechasDeClases(a).map((f) => formatDate(f, { weekday: "short", day: "numeric", month: "short" }).replace(/[.,]/g, "")).join(" · ")}
+              </span>
+            )}
+          </span>
         </li>
         {horario && (
           <li className="flex items-start gap-3">
