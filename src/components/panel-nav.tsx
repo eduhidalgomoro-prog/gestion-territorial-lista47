@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { IconCalendar, IconChart, IconGazebo, IconGear, IconHome, IconImage, IconList, IconLogout, IconMap, IconMore, IconPlus, IconUsers } from "./icons";
+import { CargandoLink } from "./cargando-link";
 import { InstallButton } from "./install-button";
 import { cx, SelloLista47 } from "./ui";
 
@@ -69,6 +70,7 @@ export function Sidebar({ nombre, rol, permisos }: { nombre: string; rol: string
             className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-verde font-bold text-white shadow-md transition-colors hover:bg-[#58a53c]"
           >
             <IconPlus size={20} /> Nueva actividad
+            <CargandoLink />
           </Link>
         </div>
       )}
@@ -85,6 +87,7 @@ export function Sidebar({ nombre, rol, permisos }: { nombre: string; rol: string
           >
             <Icon size={20} />
             {label}
+            <CargandoLink />
           </Link>
         ))}
       </nav>
@@ -128,6 +131,7 @@ export function MobileNav({ permisos }: { permisos: NavPermisos }) {
     >
       <Icon />
       {label}
+      <CargandoLink />
     </Link>
   );
 
@@ -147,6 +151,7 @@ export function MobileNav({ permisos }: { permisos: NavPermisos }) {
             {resto.map(({ href, label, Icon }) => (
               <Link key={href} href={href} className="flex items-center gap-3 rounded-xl px-3 py-3.5 text-[16px] font-semibold hover:bg-fondo">
                 <Icon /> {label}
+                <CargandoLink />
               </Link>
             ))}
             <div className="px-1 py-2">
@@ -168,6 +173,7 @@ export function MobileNav({ permisos }: { permisos: NavPermisos }) {
                 <IconPlus size={28} />
               </span>
               Nueva
+              <CargandoLink />
             </Link>
           )}
           {derecha.map((i) => (
