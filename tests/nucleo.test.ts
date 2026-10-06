@@ -298,27 +298,35 @@ describe("participantes, importación y asistencia", () => {
     expect(sectoresDe(ps)).toEqual([{ tipo: "INDIVIDUAL", cantidad: 2 }, { tipo: "COMPARTIDO", cantidad: 1 }, { tipo: "COMPARTIDO", cantidad: 2 }]);
   });
 
-  it("importa listas sin DNI (por teléfono) y después completa el DNI sin duplicar", async () => {
+  it("importa listas sin DNI (nombre y teléfono), no fusiona familiares y después completa el DNI sin duplicar", async () => {
     const a = await crearActividad(input(), admin);
     const filas = [
       { nombre: "Laura Liliana", apellido: "Alegre.", dni: "", telefono: "3794703283", barrio: "" },
-      { nombre: "Laura", apellido: "Alegre", dni: "", telefono: "379 470-3283", barrio: "" }, // repetida
-      { nombre: "Sin", apellido: "Datos", dni: "", telefono: "", barrio: "" }, // sin DNI ni teléfono: no se puede
+      { nombre: "Laura", apellido: "Alegre", dni: "", telefono: "379 470-3283", barrio: "" }, // misma persona repetida
+      { nombre: "Victoria", apellido: "Alegre", dni: "", telefono: "3794703283", barrio: "" }, // familiar con el mismo teléfono: va aparte
+      { nombre: "Sin", apellido: "Telefono", dni: "", telefono: "", barrio: "" }, // solo nombre: alcanza para la asistencia
+      { nombre: "", apellido: "Sin nombre", dni: "", telefono: "", barrio: "" }, // sin nombre: no se puede
     ];
     const previa = await vistaPreviaImportacion(a.id, filas, admin);
-    expect(previa).toMatchObject({ total: 3, validas: 2, nuevos: 1, repetidosEnArchivo: 1 });
+    expect(previa).toMatchObject({ total: 5, validas: 4, nuevos: 3, repetidosEnArchivo: 1 });
     expect(previa.errores).toHaveLength(1);
     await confirmarImportacion(a.id, filas, admin);
     let s = await snapshot({ fresh: true });
-    expect(s.participantes).toHaveLength(1);
-    expect(s.participantes[0]).toMatchObject({ apellido: "Alegre", dni: "" });
-    // Se inscribe después con DNI desde el formulario público: se completa la misma ficha.
+    expect(s.participantes.map((p) => p.nombre).sort()).toEqual(["Laura Liliana", "Sin", "Victoria"]);
+    const victoria = s.participantes.find((p) => p.nombre === "Victoria")!;
+    expect(victoria.posible_duplicado_de).toBeTruthy(); // comparte teléfono: queda marcada para revisar
+    expect(s.inscripciones.filter((i) => i.actividad_id === a.id)).toHaveLength(3);
+    // Volver a importar el mismo archivo no duplica a nadie.
+    await confirmarImportacion(a.id, filas, admin);
+    s = await snapshot({ fresh: true });
+    expect(s.participantes).toHaveLength(3);
+    // Se inscribe después con DNI desde el formulario público: se completa la ficha de Laura (no la de Victoria).
     const b = await crearActividad(input({ nombre: "Otro taller", fecha: "2099-01-10" }), admin);
     await inscribirPublico(b.slug, { ...publico, nombre: "Laura", apellido: "Alegre", dni: "30555666", telefono: "3794703283", barrio: "CENTRO" });
     s = await snapshot({ fresh: true });
-    expect(s.participantes).toHaveLength(1);
-    expect(s.participantes[0]).toMatchObject({ dni: "30555666", barrio: "CENTRO" });
-    expect(s.inscripciones).toHaveLength(2);
+    expect(s.participantes).toHaveLength(3);
+    expect(s.participantes.find((p) => p.dni === "30555666")).toMatchObject({ nombre: "Laura Liliana", barrio: "CENTRO" });
+    expect(s.participantes.find((p) => p.nombre === "Victoria")?.dni).toBe("");
   });
 
   it("formulario público reutiliza la persona por DNI", async () => {

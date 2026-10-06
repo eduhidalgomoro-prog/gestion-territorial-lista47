@@ -128,8 +128,8 @@ export function Importador({ actividadId }: { actividadId: string }) {
   const usadas = new Set(Object.values(map).filter((i) => i >= 0));
   const otrasColumnas = headers.map((_, i) => i).filter((i) => !usadas.has(i) && headers[i] && !IGNORAR.test(normalizeText(headers[i])));
 
-  // Mínimo: nombre y apellido, y además DNI o teléfono (para reconocer a la persona y no duplicarla).
-  const faltanMinimos = (map.dni < 0 && map.telefono < 0) || (map.nombre < 0 && map.completo < 0) || (map.apellido < 0 && map.completo < 0);
+  // Mínimo: nombre y apellido (DNI y teléfono son opcionales; con ellos se reconoce mejor a la persona).
+  const faltanMinimos = (map.nombre < 0 && map.completo < 0) || (map.apellido < 0 && map.completo < 0);
 
   function verificar() {
     setError("");
@@ -204,10 +204,11 @@ export function Importador({ actividadId }: { actividadId: string }) {
               </label>
             ))}
           </div>
-          {faltanMinimos && <p className="mt-3 text-sm font-semibold text-alerta">Como mínimo hacen falta nombre, apellido y DNI o teléfono.</p>}
+          {faltanMinimos && <p className="mt-3 text-sm font-semibold text-alerta">Como mínimo hacen falta el nombre y el apellido.</p>}
           {!faltanMinimos && map.dni < 0 && (
-            <p className="mt-3 text-sm text-gris">
-              El archivo no tiene DNI: cada persona se va a reconocer por su teléfono. Si después se inscribe con DNI, se completa su ficha (no se duplica).
+            <p className="mt-3 rounded-xl bg-petroleo-50 px-3 py-2 text-sm text-petroleo-600">
+              El archivo no tiene DNI: no hay problema. Cada persona se reconoce por su <b>nombre y teléfono</b> (o solo el nombre, si no hay teléfono).
+              Familiares que comparten teléfono se cargan <b>por separado</b>. Si después alguien se inscribe con DNI, se completa su ficha (no se duplica).
             </p>
           )}
           {otrasColumnas.length > 0 && (
@@ -255,9 +256,9 @@ export function Importador({ actividadId }: { actividadId: string }) {
           </div>
           <ul className="mt-3 space-y-1 text-sm text-gris">
             {previa.yaInscriptos > 0 && <li>• {previa.yaInscriptos} ya estaban inscriptos en esta actividad: no se duplican.</li>}
-            {previa.repetidosEnArchivo > 0 && <li>• {previa.repetidosEnArchivo} filas repiten un DNI del mismo archivo: se cuentan una sola vez.</li>}
-            {previa.alertasTelefono > 0 && <li className="text-alerta">• {previa.alertasTelefono} personas nuevas tienen un teléfono que ya usa otra persona: quedan marcadas como «posible duplicado» para revisar.</li>}
-            <li>• Las personas ya existentes se reconocen por DNI y no se modifican sus datos (solo se completan los vacíos).</li>
+            {previa.repetidosEnArchivo > 0 && <li>• {previa.repetidosEnArchivo} filas están repetidas en el archivo (mismo DNI, o mismo nombre y teléfono): se cuentan una sola vez.</li>}
+            {previa.alertasTelefono > 0 && <li>• {previa.alertasTelefono} personas nuevas comparten teléfono con otra persona (por ejemplo, familiares): se cargan por separado y quedan marcadas para revisar.</li>}
+            <li>• Las personas ya existentes se reconocen por DNI (o nombre y teléfono) y no se modifican sus datos (solo se completan los vacíos).</li>
           </ul>
           {previa.errores.length > 0 && (
             <details className="mt-3 rounded-xl bg-alerta-50 p-3 text-sm">

@@ -35,7 +35,7 @@ function limpiarNombre(s: string): string {
 
 /**
  * Valida los datos mínimos de una persona. Lanza UserError con el detalle por campo.
- * `dniOpcional`: se acepta sin DNI si hay teléfono (ej. listas viejas de Google Forms).
+ * `dniOpcional`: se acepta sin DNI (ej. listas de Google Forms o de un operativo): alcanza con nombre y apellido.
  */
 export function limpiarPersona(
   p: PersonaInput,
@@ -52,7 +52,6 @@ export function limpiarPersona(
   if (!apellido) f.apellido = "Falta el apellido.";
   if (dniCrudo && !dni) f.dni = "El DNI no parece válido (solo números, 7 u 8 dígitos).";
   else if (!dni && !opts.dniOpcional) f.dni = "Falta el DNI.";
-  else if (!dni && telefono.length < 8) f.dni = "Sin DNI hace falta al menos un teléfono.";
   if (opts.telefonoObligatorio && telefono.length < 8) f.telefono = "Poné un teléfono válido (con característica).";
   if (opts.barrioObligatorio && !barrio) f.barrio = "Indicá el barrio.";
   if (Object.keys(f).length) throw new UserError("Revisá los datos de la persona.", f);
@@ -62,12 +61,57 @@ export function limpiarPersona(
   return { nombre, apellido, dni, telefono, ciudad, barrio, direccion, fecha_nacimiento };
 }
 
-/** Clave para reconocer a una persona dentro de un lote: DNI, o si no tiene, su teléfono. */
+/**
+ * Nombre para comparar personas sin DNI: primer apellido + primer nombre, sin tildes ni mayúsculas.
+ * («Laura Liliana Alegre» y «Laura Alegre» son la misma; «Victoria Cardozo» y «Guadalupe Cardozo», no.)
+ */
+export function nombreClave(p: { nombre?: string; apellido?: string }): string {
+  const primero = (s: string) => normalizeText(s).replace(/[^a-zñ ]/g, " ").trim().split(/\s+/)[0] ?? "";
+  return `${primero(p.apellido ?? "")}|${primero(p.nombre ?? "")}`;
+}
+
+/**
+ * Clave para reconocer a una persona dentro de un lote: DNI; sin DNI, teléfono + nombre
+ * (familiares que comparten teléfono son personas distintas); sin nada, el nombre completo.
+ */
 export function clavePersona(p: { dni: string; telefono: string; nombre?: string; apellido?: string }): string {
   if (p.dni) return `dni:${p.dni}`;
   const k = phoneKey(p.telefono);
-  if (k) return `tel:${k}`;
+  if (k) return `tel:${k}:${nombreClave(p)}`;
   return `nom:${normalizeText(`${p.nombre ?? ""} ${p.apellido ?? ""}`)}`;
+}
+
+/**
+ * Busca a una persona en la base sin duplicarla y sin confundir familiares:
+ * - Con DNI: por DNI. Si no está, alguien SIN DNI con el mismo teléfono y el mismo nombre (se le completa el DNI).
+ * - Sin DNI: mismo teléfono y mismo nombre; sin teléfono, mismo nombre completo (de alguien sin DNI).
+ * `mismoTelefono` devuelve a quienes ya usan ese teléfono (para marcar «posible duplicado»).
+ */
+export function crearBuscador(existentes: Participante[]) {
+  const porDni = new Map(existentes.filter((p) => p.dni).map((p) => [p.dni, p]));
+  const porTel = new Map<string, Participante[]>();
+  const porNombre = new Map<string, Participante>();
+  const agregar = (p: Participante) => {
+    const k = phoneKey(p.telefono);
+    if (k) porTel.set(k, [...(porTel.get(k) ?? []), p]);
+    const n = normalizeText(`${p.nombre} ${p.apellido}`);
+    if (!p.dni && n && !porNombre.has(n)) porNombre.set(n, p);
+  };
+  existentes.forEach(agregar);
+  const buscar = (p: { dni: string; telefono: string; nombre: string; apellido: string }): Participante | undefined => {
+    const k = phoneKey(p.telefono);
+    const mismoNombre = (x: Participante) => nombreClave(x) === nombreClave(p);
+    if (p.dni) return porDni.get(p.dni) ?? (k ? porTel.get(k)?.find((x) => !x.dni && mismoNombre(x)) : undefined);
+    if (k) return porTel.get(k)?.find(mismoNombre);
+    return porNombre.get(normalizeText(`${p.nombre} ${p.apellido}`));
+  };
+  return {
+    buscar,
+    mismoTelefono: (tel: string) => (phoneKey(tel) ? porTel.get(phoneKey(tel)) ?? [] : []),
+    /** Para que las personas nuevas del mismo lote también cuenten. */
+    agregar,
+    asignarDni: (p: Participante) => porDni.set(p.dni, p),
+  };
 }
 
 export interface UpsertResultado {
@@ -76,11 +120,9 @@ export interface UpsertResultado {
 }
 
 /**
- * Crea o recupera personas SIN duplicar (la base de participantes es única).
- * - Con DNI: se busca por DNI. Si no existe pero hay alguien SIN DNI con el mismo teléfono, es esa persona: se le completa el DNI.
- * - Sin DNI: se busca por teléfono.
+ * Crea o recupera personas SIN duplicar (la base de participantes es única). Cómo se reconoce: ver crearBuscador.
  * - Si ya existe: solo se completan datos que estaban vacíos (nunca se pisan).
- * - Si el teléfono coincide con otra persona de distinto DNI: se marca «Posible duplicado de» para revisar.
+ * - Si el teléfono coincide con otra persona (otro DNI u otro nombre): se marca «Posible duplicado de» para revisar.
  * Todo dentro de un bloqueo, así dos inscripciones simultáneas no crean la misma persona dos veces.
  */
 export async function upsertParticipantes(
@@ -91,20 +133,8 @@ export async function upsertParticipantes(
 ): Promise<UpsertResultado[]> {
   return withLock("participantes", async () => {
     const existentes = await readFresh("participantes");
-    const porDni = new Map(existentes.filter((p) => p.dni).map((p) => [p.dni, p]));
-    const porTel = new Map<string, Participante>();
-    const sinDniPorTel = new Map<string, Participante>();
-    for (const p of existentes) {
-      const k = phoneKey(p.telefono);
-      if (!k) continue;
-      if (!porTel.has(k)) porTel.set(k, p);
-      if (!p.dni && !sinDniPorTel.has(k)) sinDniPorTel.set(k, p);
-    }
-    const buscar = (p: PersonaLimpia): Participante | undefined => {
-      const k = phoneKey(p.telefono);
-      if (p.dni) return porDni.get(p.dni) ?? (k ? sinDniPorTel.get(k) : undefined);
-      return k ? porTel.get(k) : undefined;
-    };
+    const base = crearBuscador(existentes);
+    const buscar = base.buscar;
     const resultado: (UpsertResultado | { pendiente: PersonaLimpia; clave: string })[] = [];
     const completar = new Map<string, Partial<Participante>>();
     const nuevosPorClave = new Map<string, number>(); // la misma persona repetida dentro del lote
@@ -121,11 +151,7 @@ export async function upsertParticipantes(
         if (Object.keys(patch).length) {
           completar.set(ex.id, { ...completar.get(ex.id), ...patch });
           Object.assign(ex, patch);
-          if (patch.dni) {
-            porDni.set(patch.dni, ex);
-            const k = phoneKey(ex.telefono);
-            if (k) sinDniPorTel.delete(k);
-          }
+          if (patch.dni) base.asignarDni(ex);
         }
         resultado.push({ participante: ex, nuevo: false });
         continue;
@@ -143,17 +169,17 @@ export async function upsertParticipantes(
     const creados = await insertMany(
       "participantes",
       aCrear.map((p, i) => {
-        const k = phoneKey(p.telefono);
-        const dup = k ? porTel.get(k) : undefined;
+        // Mismo teléfono que otra persona (familiares, o la misma con otro dato): se crea igual y se marca para revisar.
+        const dup = base.mismoTelefono(p.telefono).find((x) => x.dni !== p.dni || !p.dni);
         // También cuenta si el teléfono se repite entre personas nuevas del mismo lote.
-        if (k && !dup) porTel.set(k, { id: ids[i], dni: p.dni } as Participante);
+        base.agregar({ ...p, id: ids[i] } as Participante);
         return {
           id: ids[i],
           ...p,
           fecha_primera: fecha,
           origen,
           consentimiento: extra.consentimiento ?? "",
-          posible_duplicado_de: dup && dup.dni !== p.dni ? dup.id : "",
+          posible_duplicado_de: dup ? dup.id : "",
         };
       }),
       user,
