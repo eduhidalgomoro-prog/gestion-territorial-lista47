@@ -14,7 +14,7 @@ import { ubicacionLabel } from "@/lib/labels";
 import { normalizeDni, normalizePhone, parseFechaFlexible, parseFechaNacimiento, parseHoraFlexible, phoneKey } from "@/lib/format";
 import { parsePreguntas } from "@/lib/preguntas";
 import type { Yo } from "@/lib/permisos";
-import { puede } from "@/lib/permisos";
+import { aplicarVerComo, puede } from "@/lib/permisos";
 import { asistenciaPorClase, cerrarActividad, crearActividad, resumenAsistencia, type ActividadInput } from "@/lib/services/actividades";
 import { agregarPresente, guardarAsistencia } from "@/lib/services/asistencia";
 import { anularLote, marcarPreparando, registrarMovimiento } from "@/lib/services/logistica";
@@ -469,6 +469,26 @@ describe("roles de solo lectura", () => {
     expect(msg).toContain("30 inscriptos");
     expect(msg).toContain("google.com/maps");
     expect(msg).not.toMatch(/\$|costo/i);
+  });
+});
+
+describe("ver la app como…", () => {
+  const usuarios = [
+    { id: "USR-1", nombre: "Gaby", apellido: "Gauna", email: "g@x", telefono: "", rol: "RESPONSABLE", zona: "ESTE", estado: "ACTIVO" },
+    { id: "USR-2", nombre: "Ina", apellido: "Activa", email: "i@x", telefono: "", rol: "OPERADOR", zona: "", estado: "INACTIVO" },
+    { id: "USR-3", nombre: "Otro", apellido: "Admin", email: "o@x", telefono: "", rol: "ADMINISTRADOR", zona: "", estado: "ACTIVO" },
+  ] as unknown as Parameters<typeof aplicarVerComo>[2];
+
+  it("solo un administrador puede ver como otra persona; nunca como administrador ni como alguien inactivo", () => {
+    const gaby = aplicarVerComo(admin, "u:USR-1", usuarios);
+    expect(gaby).toMatchObject({ rol: "RESPONSABLE", zona: "ESTE", usuarioId: "USR-1", email: admin.email });
+    expect(gaby.vistaPrevia?.etiqueta).toContain("Gaby Gauna");
+    expect(aplicarVerComo(admin, "r:LOGISTICA:", usuarios)).toMatchObject({ rol: "LOGISTICA", usuarioId: "" });
+    expect(aplicarVerComo(respEste, "r:LOGISTICA:", usuarios)).toBe(respEste); // no es administrador: se ignora
+    expect(aplicarVerComo(admin, "u:USR-2", usuarios)).toBe(admin); // inactivo
+    expect(aplicarVerComo(admin, "u:USR-3", usuarios)).toBe(admin); // otro administrador
+    expect(aplicarVerComo(admin, "r:ADMINISTRADOR:", usuarios)).toBe(admin);
+    expect(aplicarVerComo(admin, "basura", usuarios)).toBe(admin);
   });
 });
 

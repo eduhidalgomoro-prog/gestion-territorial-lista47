@@ -13,11 +13,13 @@ import { ambitoDe, parseRegiones, regionLabel } from "@/lib/territorio";
 import { titleCase } from "@/lib/util";
 import { sp, type SP } from "@/lib/view";
 import { barrioAction, configAction, institucionAction, usuarioAction } from "../actions";
+import { verComoAction } from "../ver-como-actions";
 
 export const metadata = { title: "Configuración" };
 
 const TABS = [
   { id: "usuarios", label: "Usuarios" },
+  { id: "ver-como", label: "Ver como" },
   { id: "barrios", label: "Zonas y regiones" },
   { id: "listas", label: "Listas" },
   { id: "instituciones", label: "Instituciones" },
@@ -70,6 +72,8 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
           </Link>
         ))}
       </nav>
+
+      {tab === "ver-como" && <VerComo usuarios={s.usuarios} />}
 
       {tab === "usuarios" && (
         <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
@@ -297,5 +301,60 @@ function UsuarioForm({ u, regiones }: { u?: Usuario; regiones: string[] }) {
       {u && <Field label="Estado" name="estado"><Select name="estado" defaultValue={u.estado} options={[["ACTIVO", "Activo"], ["INACTIVO", "Inactivo (no puede ingresar)"]]} /></Field>}
       <SubmitButton size="md">{u ? "Guardar cambios" : "Agregar usuario"}</SubmitButton>
     </ActionForm>
+  );
+}
+
+/**
+ * «Ver la app como…»: el administrador elige a una persona (o un rol genérico si todavía no hay nadie con ese rol)
+ * y recorre la app tal como la ve. Es solo para mirar: mientras está activo no se guarda nada.
+ */
+function VerComo({ usuarios }: { usuarios: Usuario[] }) {
+  const activos = usuarios.filter((u) => u.estado === "ACTIVO" && u.rol !== "ADMINISTRADOR");
+  const roles = ROLES.filter((r) => r !== "ADMINISTRADOR");
+  const boton = "flex min-h-12 w-full items-center justify-between gap-2 rounded-xl bg-white px-3.5 py-2 text-left ring-1 ring-linea hover:ring-petroleo";
+  return (
+    <div className="max-w-3xl">
+      <Notice className="mb-4">
+        Elegí a una persona para ver la app exactamente como la ve ella: su menú, sus pantallas y sus actividades.
+        Es <b>solo para mirar</b>: mientras estés en esa vista no se guarda ningún cambio. Arriba vas a ver una franja naranja para volver a administrador.
+      </Notice>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {roles.map((rol) => {
+          const deEsteRol = activos.filter((u) => u.rol === rol).sort((a, b) => `${a.nombre} ${a.apellido}`.localeCompare(`${b.nombre} ${b.apellido}`));
+          // Sin nadie con ese rol: una vista genérica (los responsables, una por zona de Capital).
+          const genericos = deEsteRol.length ? [] : rol === "RESPONSABLE" ? ZONAS.map((z) => ({ valor: `r:${rol}:${z}`, texto: `Genérico · ${zonaLabel(z)}` })) : [{ valor: `r:${rol}:`, texto: "Genérico" }];
+          return (
+            <section key={rol} className="rounded-2xl bg-fondo p-3">
+              <h3 className="mb-2 px-1 text-[15px] font-extrabold">{ROL_LABEL[rol]}</h3>
+              <ul className="space-y-1.5">
+                {deEsteRol.map((u) => (
+                  <li key={u.id}>
+                    <form action={verComoAction.bind(null, `u:${u.id}`)}>
+                      <button type="submit" className={boton}>
+                        <span className="min-w-0">
+                          <span className="block truncate text-[15px] font-bold">{u.nombre} {u.apellido}</span>
+                          {u.zona && <span className="block text-[13px] text-gris">{zonaLabel(u.zona)}</span>}
+                        </span>
+                        <span className="shrink-0 text-[13px] font-bold text-petroleo">Ver como →</span>
+                      </button>
+                    </form>
+                  </li>
+                ))}
+                {genericos.map((g) => (
+                  <li key={g.valor}>
+                    <form action={verComoAction.bind(null, g.valor)}>
+                      <button type="submit" className={boton}>
+                        <span className="text-[15px] font-semibold text-gris">{g.texto}</span>
+                        <span className="shrink-0 text-[13px] font-bold text-petroleo">Ver como →</span>
+                      </button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          );
+        })}
+      </div>
+    </div>
   );
 }

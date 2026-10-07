@@ -35,7 +35,7 @@ const coincide = (estado: Persona["estado"], f: Filtro) => f === "todos" || (f =
  * - Un toque marca y se ve al instante; las marcas se envían solas en lote.
  * - Sin señal, quedan guardadas en el celular y se envían al volver (nunca se muestran como guardadas si no lo están).
  */
-export function TomaAsistencia({ actividadId, titulo, clase = 1, inicial, barrios, puedeCerrar }: { actividadId: string; titulo: string; clase?: number; inicial: Persona[]; barrios: string[]; puedeCerrar: boolean }) {
+export function TomaAsistencia({ actividadId, titulo, clase = 1, inicial, barrios, puedeCerrar, soloMirar = false }: { actividadId: string; titulo: string; clase?: number; inicial: Persona[]; barrios: string[]; puedeCerrar: boolean; soloMirar?: boolean }) {
   // Lo pendiente sin conexión se guarda aparte por clase (la clase 1 conserva el nombre de siempre).
   const KEY = clase > 1 ? `gt47-asis-${actividadId}-c${clase}` : `gt47-asis-${actividadId}`;
   const [personas, setPersonas] = useState<Persona[]>(inicial);
@@ -156,8 +156,9 @@ export function TomaAsistencia({ actividadId, titulo, clase = 1, inicial, barrio
     setPersonas((ps) => ps.map((p) => (p.id === id ? { ...p, estado } : p)));
     setEditando(null);
     const m: Marca = { participanteId: id, estado: estado ?? "", clase, ts: new Date().toISOString() };
+    // «Ver la app como…»: se ve cómo funciona, pero no se envía ni se guarda en el celular.
     // Si había una marca anterior de la misma persona sin enviar, se reemplaza.
-    setPend([...pendRef.current.filter((x) => x.participanteId !== id), m]);
+    if (!soloMirar) setPend([...pendRef.current.filter((x) => x.participanteId !== id), m]);
     // Si con el filtro elegido ya no corresponde mostrarla, se va suave (después de ver el cambio).
     if (!coincide(estado, filtro)) {
       setSaliendo((s) => new Set(s).add(id));
@@ -314,7 +315,11 @@ export function TomaAsistencia({ actividadId, titulo, clase = 1, inicial, barrio
             );
           })}
         </div>
-        <EstadoEnvio estado={estadoEnvio} pendientes={pendientes.length} recien={guardadoRecien} onRetry={enviar} />
+        {soloMirar ? (
+          <p className="mt-1.5 text-[13px] font-semibold text-alerta">Vista previa: las marcas no se guardan.</p>
+        ) : (
+          <EstadoEnvio estado={estadoEnvio} pendientes={pendientes.length} recien={guardadoRecien} onRetry={enviar} />
+        )}
       </div>
 
       <div ref={listaRef} className="scroll-mt-48 lg:scroll-mt-40">

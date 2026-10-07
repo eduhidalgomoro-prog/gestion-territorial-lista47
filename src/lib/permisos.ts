@@ -13,6 +13,29 @@ export interface Yo {
   rol: Rol;
   zona: string; // zona de Capital o región del interior
   usuarioId: string; // "" si es administrador inicial (ADMIN_EMAILS) todavía no cargado en USUARIOS
+  /** «Ver la app como…»: un administrador mirando la app con el rol de otra persona (solo lectura). */
+  vistaPrevia?: { etiqueta: string };
+}
+
+/** Cookie de «Ver la app como…» (solo cuenta si quien la tiene es administrador). */
+export const VER_COMO_COOKIE = "gt47_ver_como";
+
+/**
+ * «Ver la app como…»: el administrador elige a un usuario («u:USR-0003») o un rol genérico («r:LOGISTICA:» / «r:RESPONSABLE:ESTE»)
+ * y la app se arma exactamente con esos permisos. Si quien lo pide no es administrador, se ignora.
+ */
+export function aplicarVerComo(real: Yo, valor: string | undefined, usuarios: Usuario[]): Yo {
+  if (!valor || real.rol !== "ADMINISTRADOR") return real;
+  if (valor.startsWith("u:")) {
+    const u = usuarios.find((x) => x.id === valor.slice(2) && x.estado === "ACTIVO");
+    if (!u || u.rol === "ADMINISTRADOR") return real;
+    const nombre = `${u.nombre} ${u.apellido}`.trim();
+    return { email: real.email, nombre, rol: u.rol, zona: u.zona, usuarioId: u.id, vistaPrevia: { etiqueta: `${nombre} · ${ROL_LABEL[u.rol]}` } };
+  }
+  const [tipo, rol = "", zona = ""] = valor.split(":");
+  if (tipo !== "r" || !(rol in ROL_LABEL) || rol === "ADMINISTRADOR") return real;
+  const r = rol as Rol;
+  return { email: real.email, nombre: ROL_LABEL[r], rol: r, zona, usuarioId: "", vistaPrevia: { etiqueta: `${ROL_LABEL[r]}${zona ? ` · ${zona}` : ""} (genérico)` } };
 }
 
 /** Resuelve el usuario a partir de la hoja USUARIOS (+ administradores iniciales de ADMIN_EMAILS). */

@@ -1,4 +1,4 @@
-import { ConflictError, NotFoundError } from "./db";
+import { ConflictError, NotFoundError, SoloLecturaError } from "./db";
 import { BusyError } from "./lock";
 import { StoreError } from "./store";
 
@@ -28,7 +28,7 @@ export interface ActionResult<T = unknown> {
 /** Convierte cualquier error en un mensaje comprensible (y registra los inesperados). */
 export function toActionError(err: unknown): ActionResult<never> {
   if (err instanceof UserError) return { ok: false, message: err.message, fields: err.fields };
-  if (err instanceof ConflictError || err instanceof NotFoundError || err instanceof BusyError || err instanceof StoreError) {
+  if (err instanceof ConflictError || err instanceof NotFoundError || err instanceof SoloLecturaError || err instanceof BusyError || err instanceof StoreError) {
     if (err instanceof StoreError) console.error("[store]", err.cause ?? err);
     return { ok: false, message: err.message };
   }

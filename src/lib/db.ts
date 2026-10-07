@@ -1,4 +1,6 @@
 import { revalidateTag, unstable_cache } from "next/cache";
+import { cookies } from "next/headers";
+import { VER_COMO_COOKIE } from "./permisos";
 import { withLock } from "./lock";
 import {
   ENTITY_TABLES, TABLES, fromRow, header, toRow,
@@ -37,6 +39,25 @@ export class ConflictError extends Error {
     super("Alguien modificó este registro mientras lo editabas. Recargá la página y volvé a intentarlo.");
     this.name = "ConflictError";
   }
+}
+
+/** «Ver la app como…»: el administrador está mirando con otro rol; no se guarda nada. */
+export class SoloLecturaError extends Error {
+  constructor() {
+    super("Estás en «Ver la app como…»: es solo para mirar. Volvé a administrador para guardar cambios.");
+    this.name = "SoloLecturaError";
+  }
+}
+
+/** Antes de cualquier escritura: en la vista previa de otro rol no se modifica nada. */
+async function asegurarEscritura() {
+  let enVistaPrevia = false;
+  try {
+    enVistaPrevia = !!(await cookies()).get(VER_COMO_COOKIE)?.value;
+  } catch {
+    return; // fuera de un pedido web (scripts, pruebas)
+  }
+  if (enVistaPrevia) throw new SoloLecturaError();
 }
 
 export class NotFoundError extends Error {
@@ -175,6 +196,7 @@ export async function nextSeq(table: "actividades" | "participantes", count = 1,
 }
 
 export async function insert<T extends EntityTable>(table: T, data: NewEntity<T>, user: string): Promise<EntityMap[T]> {
+  await asegurarEscritura();
   const entity = buildEntity(table, data, user);
   await getStore().append(table, [toRow(table, entity)]);
   invalidate();
@@ -184,6 +206,7 @@ export async function insert<T extends EntityTable>(table: T, data: NewEntity<T>
 
 export async function insertMany<T extends EntityTable>(table: T, list: NewEntity<T>[], user: string, detalle = ""): Promise<EntityMap[T][]> {
   if (!list.length) return [];
+  await asegurarEscritura();
   const entities = list.map((d) => buildEntity(table, d, user));
   await getStore().append(table, entities.map((e) => toRow(table, e)));
   invalidate();
@@ -202,6 +225,7 @@ export async function update<T extends EntityTable>(
   user: string,
   opts: { expectedVersion?: number; lock?: boolean; accion?: string } = {},
 ): Promise<EntityMap[T]> {
+  await asegurarEscritura();
   const run = async () => {
     const rows = await readFresh(table);
     const current = rows.find((r) => r.id === id);
@@ -236,6 +260,7 @@ export async function updateMany<T extends EntityTable>(
   accion = "editar",
 ): Promise<void> {
   if (!patches.length) return;
+  await asegurarEscritura();
   const rows = await readFresh(table);
   const byId = new Map(rows.map((r) => [r.id, r]));
   const now = nowIso();
@@ -254,6 +279,7 @@ export async function updateMany<T extends EntityTable>(
 // ---------------------------------------------------------------------------
 
 export async function upsertBarrio(b: ZonaBarrio, user: string) {
+  await asegurarEscritura();
   const store = getStore();
   await withLock("barrios", async () => {
     const data = await store.read(["zonas_barrios"]);
@@ -267,6 +293,7 @@ export async function upsertBarrio(b: ZonaBarrio, user: string) {
 }
 
 export async function setConfigValue(clave: string, valor: string, descripcion: string, user: string) {
+  await asegurarEscritura();
   const store = getStore();
   await withLock("config", async () => {
     const data = await store.read(["config"]);

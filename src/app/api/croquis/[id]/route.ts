@@ -15,6 +15,8 @@ import { slugify } from "@/lib/util";
 async function feriaConPermiso(id: string) {
   const yo = await usuarioActual();
   if (!yo) return { error: NextResponse.json({ error: "Tenés que iniciar sesión." }, { status: 401 }) };
+  // «Ver la app como…»: solo para mirar (no se suben ni borran imágenes).
+  if (yo.vistaPrevia) return { error: NextResponse.json({ error: "Estás en «Ver la app como…»: es solo para mirar." }, { status: 403 }) };
   const s = await snapshot();
   const a = s.actividades.find((x) => x.id === id);
   if (!a) return { error: NextResponse.json({ error: "La actividad no existe." }, { status: 404 }) };

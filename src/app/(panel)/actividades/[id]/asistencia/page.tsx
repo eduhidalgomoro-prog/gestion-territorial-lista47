@@ -127,6 +127,7 @@ export default async function Asistencia({ params, searchParams }: { params: Pro
         barrios={barrios}
         // Cerrar la actividad: al terminar la última clase.
         puedeCerrar={puede.cerrarActividad(yo, a) && a.estado !== "REALIZADA" && clase === total}
+        soloMirar={!!yo.vistaPrevia}
       />
     </div>
   );
