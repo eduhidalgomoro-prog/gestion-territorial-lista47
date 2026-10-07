@@ -27,7 +27,8 @@ export const ESTADOS_ELEMENTO = ["BIEN", "DAÑADO", "INCOMPLETO"] as const;
 export type EstadoElemento = (typeof ESTADOS_ELEMENTO)[number];
 export const ESTADOS_USUARIO = ["ACTIVO", "INACTIVO"] as const;
 export const ORIGENES_INSCRIPCION = ["FORMULARIO PROPIO", "GOOGLE FORMS", "CARGA MANUAL"] as const;
-export const ESTADOS_INSCRIPCION = ["INSCRIPTO", "DADO DE BAJA"] as const;
+/** «EN ESPERA»: se anotó por el formulario cuando el cupo ya estaba completo (no cuenta como inscripto). */
+export const ESTADOS_INSCRIPCION = ["INSCRIPTO", "DADO DE BAJA", "EN ESPERA"] as const;
 /** Respuesta al mensaje de confirmación por WhatsApp ("" = sin respuesta). */
 export const CONFIRMACIONES = ["CONFIRMÓ", "NO VA"] as const;
 /** Respuestas Sí/No del formulario («» = no respondió). */
@@ -132,7 +133,7 @@ export interface Actividad extends Meta {
   creado_por: string;
   // Ferias (ver services/ferias.ts)
   es_feria: boolean;
-  cupo: number; // cantidad máxima de feriantes (0 = sin límite)
+  cupo: number; // ferias: máximo de feriantes · otras actividades: máximo de inscriptos por el formulario (0 = sin límite)
   croquis: string; // imagen del lugar donde se marcan los puestos
 }
 

@@ -38,6 +38,8 @@ export interface ActividadInput {
   hora_alt: string;
   /** Talleres de varias clases: fechas de las clases que siguen a la primera (la primera es «fecha»). */
   clases_extra?: string[];
+  /** Cupo del formulario de inscripción (0 o vacío = sin límite). En las ferias se maneja aparte. */
+  cupo?: number | null;
   barrio: string;
   direccion: string;
   entre_calles: string;
@@ -106,6 +108,8 @@ function validar(input: ActividadInput, yo: Yo, regiones: Region[]) {
   if (extra.some((x) => !isValidDate(x))) f.clases_extra = "Revisá las fechas de las clases.";
   else if (extra.some((x) => isValidDate(fecha) && x < fecha)) f.clases_extra = "Las clases siguientes tienen que ser después de la primera.";
   const fechasClases = isValidDate(fecha) && extra.length ? [...new Set([fecha, ...extra])].sort().join(",") : "";
+  const cupo = Math.round(Number(input.cupo) || 0);
+  if (cupo < 0 || cupo > 5000) f.cupo = "Revisá el cupo (un número, o vacío si no hay límite).";
   if (!cleanString(input.responsable, 120) && !borrador) f.responsable = "Indicá quién es responsable.";
   if (Object.keys(f).length) throw new UserError("Revisá los campos marcados.", f);
 
@@ -130,6 +134,7 @@ function validar(input: ActividadInput, yo: Yo, regiones: Region[]) {
 
   return {
     insumos,
+    cupo,
     institucion_nueva: input.articula ? cleanString(input.institucion_nueva, 150) : "",
     institucion_nueva_tipo: cleanString(input.institucion_nueva_tipo, 60),
     data: {
@@ -269,7 +274,7 @@ export async function crearActividad(input: ActividadInput, yo: Yo, opts: { feri
         origen: "APP",
         creado_por: yo.email,
         es_feria: !!opts.feria,
-        cupo: 0,
+        cupo: opts.feria ? 0 : v.cupo, // las ferias configuran su cupo aparte
         croquis: "",
       },
       yo.email,
@@ -300,7 +305,10 @@ export async function editarActividad(id: string, input: ActividadInput, yo: Yo,
   const act = await update(
     "actividades",
     id,
-    { ...v.data, ...inst, slug, link_inscripcion: linkInscripcion(slug), inscripcion_abierta: slug ? (actual.slug ? actual.inscripcion_abierta : true) : false },
+    {
+      ...v.data, ...inst, slug, link_inscripcion: linkInscripcion(slug), inscripcion_abierta: slug ? (actual.slug ? actual.inscripcion_abierta : true) : false,
+      cupo: actual.es_feria ? actual.cupo : v.cupo, // el cupo de una feria se cambia desde Ferias
+    },
     yo.email,
     { expectedVersion: version },
   );

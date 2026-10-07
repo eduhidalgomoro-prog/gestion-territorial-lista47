@@ -622,6 +622,24 @@ export function ActividadWizard({
                 Todos los formularios preguntan además si ya participó de nuestras actividades, si quiere ser profe (y qué enseñaría) y si conoce un espacio para talleres.
               </p>
             )}
+            <Campo
+              label="Cupo de participantes"
+              optional
+              htmlFor="cupo"
+              error={errores.cupo}
+              hint="Vacío = sin límite. Cuando se completa, el formulario sigue anotando en lista de espera (no cuentan como inscriptos hasta que el equipo los pase)."
+            >
+              <input
+                id="cupo"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                className={cx(inputCls, "max-w-40")}
+                value={d.cupo ?? ""}
+                onChange={(e) => set("cupo", e.target.value === "" ? null : Math.max(0, Math.round(Number(e.target.value) || 0)))}
+                placeholder="Ej: 20"
+              />
+            </Campo>
             <Campo label="Preguntas adicionales" optional htmlFor="pe" hint="Una pregunta por línea. Para elegir entre opciones, ponelas entre corchetes: ¿Trae materiales? [Sí / No]">
               <textarea id="pe" rows={4} className={inputCls} value={d.preguntas_extra} onChange={(e) => set("preguntas_extra", e.target.value)} />
             </Campo>
@@ -661,7 +679,7 @@ export function ActividadWizard({
           </Resumen>
           <Resumen titulo="Comunicación e inscripción" onEdit={() => setPaso(4)}>
             <Dato k="Flyer" v={d.requiere_flyer ? d.estado_flyer || "SOLICITADO" : "No"} />
-            <Dato k="Formulario propio" v={d.generar_formulario ? "Sí" : "No"} />
+            <Dato k="Formulario propio" v={d.generar_formulario ? `Sí${d.cupo ? ` · cupo ${d.cupo}` : ""}` : "No"} />
           </Resumen>
           <Campo label="Observaciones" optional htmlFor="obs">
             <textarea id="obs" rows={3} className={inputCls} value={d.observaciones} onChange={(e) => set("observaciones", e.target.value)} />

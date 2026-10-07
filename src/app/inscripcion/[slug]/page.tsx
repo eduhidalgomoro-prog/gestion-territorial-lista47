@@ -6,7 +6,7 @@ import { formToken } from "@/lib/antispam";
 import { parsePreguntas } from "@/lib/preguntas";
 import { snapshot } from "@/lib/db";
 import { formatDate, titleCase } from "@/lib/util";
-import { inscripcionAbiertaPublica } from "@/lib/services/inscripciones";
+import { inscripcionAbiertaPublica, lugaresActividad } from "@/lib/services/inscripciones";
 import { lugaresLibres } from "@/lib/services/ferias";
 import { IconosFeria } from "@/components/feria-ui";
 import { IconCalendar, IconClock, IconHeart, IconPin } from "@/components/icons";
@@ -59,6 +59,8 @@ export default async function FormularioPublico({ params }: { params: Promise<{ 
   const cuando = a.fecha ? formatDate(a.fecha, { weekday: "long", day: "numeric", month: "long" }) : "";
   const horario = a.hora_inicio ? `${a.hora_inicio}${a.hora_fin ? ` a ${a.hora_fin}` : ""} h` : "";
   const libres = a.es_feria ? lugaresLibres(a, s) : null;
+  // Talleres y demás actividades con cupo: lugares que quedan (con el cupo completo, lista de espera).
+  const lugares = lugaresActividad(a, s.inscripciones);
   // Rubros que ya usaron otras feriantes (sugerencias para escribir igual).
   const rubros = a.es_feria ? [...new Set(s.feriantes.map((f) => f.rubro).filter(Boolean))].sort().slice(0, 40) : [];
 
@@ -136,6 +138,15 @@ export default async function FormularioPublico({ params }: { params: Promise<{ 
                   <p className="mt-1 text-[17px] leading-snug text-tinta">Completá tus datos para reservar tu lugar. Te va a llevar menos de 2 minutos.</p>
                 </div>
               </div>
+              {lugares.libres === 0 ? (
+                <p className="mb-5 rounded-2xl bg-alerta-50 p-4 text-[16px] leading-snug text-alerta">
+                  <b>¡Se completó el cupo!</b> Igual podés anotarte en la <b>lista de espera</b>: si se libera un lugar, te avisamos.
+                </p>
+              ) : lugares.libres !== null && lugares.libres <= 10 ? (
+                <p className="mb-5 rounded-2xl bg-verde-50 p-4 text-[16px] font-bold text-marca-600">
+                  {lugares.libres === 1 ? "¡Queda 1 lugar!" : `Quedan ${lugares.libres} lugares.`}
+                </p>
+              ) : null}
               <InscripcionForm
                 slug={a.slug}
                 token={formToken()}
@@ -144,6 +155,7 @@ export default async function FormularioPublico({ params }: { params: Promise<{ 
                 ciudades={ciudades}
                 ciudadInicial={ciudadInicial}
                 escuela={escuela}
+                listaEspera={lugares.libres === 0}
                 taller={{
                   nombre: a.nombre,
                   cuando: cuando || "Fecha a confirmar",

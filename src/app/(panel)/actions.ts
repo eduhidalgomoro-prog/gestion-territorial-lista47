@@ -16,7 +16,7 @@ import { anularLote, marcarPreparando, registrarMovimiento, type MovimientoInput
 import {
   agregarFeriante, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, configurarFeria, crearFeria, generarPuestos, quitarAsignaciones, ubicarPuestos,
 } from "@/lib/services/ferias";
-import { confirmarImportacion, darDeBaja, guardarLinkGrupo, guardarMensajes, marcarConfirmacion, vistaPreviaImportacion, type FilaImportada, type VistaPrevia } from "@/lib/services/inscripciones";
+import { confirmarImportacion, darDeBaja, pasarAInscripto, guardarLinkGrupo, guardarMensajes, marcarConfirmacion, vistaPreviaImportacion, type FilaImportada, type VistaPrevia } from "@/lib/services/inscripciones";
 import type { Yo } from "@/lib/permisos";
 import type { SectorFeria } from "@/lib/ferias";
 import { anularAtencion, buscarResponsable, editarAtencion, registrarAtencion, type AtencionInput } from "@/lib/services/huellas";
@@ -207,6 +207,10 @@ export async function agregarFerianteAction(actividadId: string, _: ActionResult
 
 export async function bajaInscripcionAction(inscripcionId: string): Promise<ActionResult> {
   return act((yo) => darDeBaja(inscripcionId, yo), { ok: "Inscripción dada de baja." });
+}
+
+export async function pasarAInscriptoAction(inscripcionId: string): Promise<ActionResult> {
+  return act((yo) => pasarAInscripto(inscripcionId, yo), { ok: "Pasó de la lista de espera a inscriptos." });
 }
 
 export async function geocodeAction(direccion: string, barrio: string, localidad = ""): Promise<Ubicacion | null> {

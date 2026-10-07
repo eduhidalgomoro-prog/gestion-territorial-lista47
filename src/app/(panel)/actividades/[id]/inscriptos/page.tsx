@@ -12,7 +12,8 @@ import { esCapital } from "@/lib/inscripcion-publica";
 import { puede } from "@/lib/permisos";
 import { formatDate, formatDni, formatPhone, fullName, maskDni, maskPhone, normalizeText, titleCase } from "@/lib/util";
 import { qs, sp, type SP } from "@/lib/view";
-import { bajaInscripcionAction, confirmacionAction, linkGrupoAction, mensajesAction } from "../../../actions";
+import { bajaInscripcionAction, confirmacionAction, linkGrupoAction, mensajesAction, pasarAInscriptoAction } from "../../../actions";
+import { lugaresActividad } from "@/lib/services/inscripciones";
 
 export const metadata = { title: "Inscriptos" };
 
@@ -56,13 +57,18 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
   const plantillaGrupo = a.mensaje_grupo || s.config.mensaje_grupo;
   const personalizado = !!(a.mensaje_confirmacion || a.mensaje_grupo);
   const ejemplo = todos.map((i) => personas.get(i.participante_id)).find(Boolean);
+  const lugares = lugaresActividad(a, s.inscripciones);
+  const espera = s.inscripciones
+    .filter((i) => i.actividad_id === id && i.estado === "EN ESPERA")
+    .sort((x, y) => x.creado.localeCompare(y.creado))
+    .map((i) => ({ i, p: personas.get(i.participante_id) }));
 
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader
         back={{ href: `/actividades/${id}`, label: a.nombre }}
         title="Inscriptos"
-        subtitle={`${todos.length} ${todos.length === 1 ? "persona" : "personas"}`}
+        subtitle={`${todos.length} ${todos.length === 1 ? "persona" : "personas"}${lugares.cupo ? ` de ${lugares.cupo} lugares` : ""}${espera.length ? ` · ${espera.length} en lista de espera` : ""}`}
         actions={
           <>
             {puede.tomarAsistencia(yo, a, s.asignaciones) && <Link href={`/actividades/${id}/asistencia`} className={btn("primario")}>Tomar asistencia</Link>}
@@ -231,6 +237,41 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
             );
           })}
         </ul>
+      )}
+
+      {/* Lista de espera: se anotaron con el cupo completo; no cuentan como inscriptos hasta que el equipo los pase. */}
+      {espera.length > 0 && (
+        <section className="mt-6 rounded-2xl border border-alerta/30 bg-white p-4">
+          <h2 className="font-bold">Lista de espera ({espera.length})</h2>
+          <p className="mb-3 text-sm text-gris">
+            {lugares.cupo ? `Cupo: ${lugares.cupo} · ${lugares.libres ? `quedan ${lugares.libres} lugares` : "completo"}. ` : ""}
+            En orden de llegada. Si se libera un lugar, pasá a la primera persona a inscriptos.
+          </p>
+          <ol className="space-y-2">
+            {espera.map(({ i, p }, n) => (
+              <li key={i.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-fondo px-3 py-2">
+                <div className="min-w-0">
+                  <p className="font-bold">{n + 1}. {fullName(p)}</p>
+                  <p className="text-sm text-gris">
+                    {p?.telefono && `Tel. ${tel ? formatPhone(p.telefono) : maskPhone(p.telefono)} · `}se anotó el {formatDate(i.fecha)}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {contactar && p && whatsappA(p.telefono, `Hola ${p.nombre} 👋 Se liberó un lugar en *${a.nombre}*. ¿Seguís con ganas de participar?`) && (
+                    <a href={whatsappA(p.telefono, `Hola ${p.nombre} 👋 Se liberó un lugar en *${a.nombre}*. ¿Seguís con ganas de participar?`)} target="_blank" rel="noopener noreferrer" className={cx(btn("secundario", "sm"), "border-[#1f8f4e]/40 text-[#1f8f4e]")}>
+                      <IconWhatsApp size={18} /> Avisar
+                    </a>
+                  )}
+                  {editar && (
+                    <ActionForm action={pasarAInscriptoAction.bind(null, i.id)}>
+                      <SubmitButton size="sm" pendingText="…">Pasar a inscriptos</SubmitButton>
+                    </ActionForm>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
       )}
     </div>
   );

@@ -19,7 +19,7 @@ import { asistenciaPorClase, cerrarActividad, crearActividad, resumenAsistencia,
 import { agregarPresente, guardarAsistencia } from "@/lib/services/asistencia";
 import { anularLote, marcarPreparando, registrarMovimiento } from "@/lib/services/logistica";
 import { resumenLogistico } from "@/lib/logistica";
-import { confirmarImportacion, inscribirPublico, vistaPreviaImportacion } from "@/lib/services/inscripciones";
+import { confirmarImportacion, inscribirPublico, lugaresActividad, pasarAInscripto, vistaPreviaImportacion } from "@/lib/services/inscripciones";
 import { setStore } from "@/lib/store";
 import { MemoryStore } from "@/lib/store/memory";
 
@@ -367,6 +367,24 @@ describe("participantes, importación y asistencia", () => {
     await inscribirPublico(d.slug, { ...publico, escuela: { ...publico.escuela, participo_antes: "SI", quiere_ser_profe: "SI", ensenaria: "x" } });
     const s2 = await snapshot({ fresh: true });
     expect(s2.inscripciones.find((i) => i.actividad_id === d.id)).toMatchObject({ participo_antes: "SI", quiere_ser_profe: "SI", ensenaria: "x" });
+  });
+
+  it("cupo: con el cupo completo el formulario anota en lista de espera (no cuenta) y el equipo la puede pasar", async () => {
+    const a = await crearActividad(input({ fecha: "2099-01-10", cupo: 2 }), admin);
+    expect(a.cupo).toBe(2);
+    const persona = (dni: string, tel: string) => ({ ...publico, dni, telefono: tel, nombre: `N${dni.slice(-2)}` });
+    expect(await inscribirPublico(a.slug, persona("30000011", "3794000011"))).toMatchObject({ status: "inscripto" });
+    expect(await inscribirPublico(a.slug, persona("30000012", "3794000012"))).toMatchObject({ status: "inscripto" });
+    expect(await inscribirPublico(a.slug, persona("30000013", "3794000013"))).toMatchObject({ status: "en_espera" });
+    expect(await inscribirPublico(a.slug, persona("30000013", "3794000013"))).toMatchObject({ status: "en_espera" }); // se vuelve a anotar: sigue en espera
+    let s = await snapshot({ fresh: true });
+    expect(lugaresActividad(a, s.inscripciones)).toEqual({ cupo: 2, inscriptos: 2, enEspera: 1, libres: 0 });
+    expect(conteosPorActividad(s).get(a.id)?.inscriptos).toBe(2); // la lista de espera no cuenta
+    const espera = s.inscripciones.find((i) => i.estado === "EN ESPERA")!;
+    await pasarAInscripto(espera.id, admin);
+    s = await snapshot({ fresh: true });
+    expect(lugaresActividad(a, s.inscripciones)).toMatchObject({ inscriptos: 3, enEspera: 0 });
+    await expect(pasarAInscripto(espera.id, respEste)).rejects.toThrow(); // ya no está en espera
   });
 
   it("formulario público: mensajes simples por campo", async () => {

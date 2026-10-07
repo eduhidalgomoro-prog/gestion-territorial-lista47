@@ -23,6 +23,7 @@ import { esMarcandoHuellas, resumenHuellas } from "@/lib/huellas";
 import { esAgenda, puede } from "@/lib/permisos";
 import { ESTADOS_FLYER, type EstadoActividad } from "@/lib/schema";
 import { asistenciaPorClase, linkInscripcion, resumenAsistencia } from "@/lib/services/actividades";
+import { lugaresActividad } from "@/lib/services/inscripciones";
 import { formatDate, formatDateLong, formatMoney, titleCase, today } from "@/lib/util";
 import { sp, type SP } from "@/lib/view";
 import { asignarOperadorAction, flyerAction, formularioAction, quitarOperadorAction } from "../../actions";
@@ -76,6 +77,8 @@ export default async function FichaActividad({ params, searchParams }: { params:
   const estadosPosibles = (["PROGRAMADA", "CONFIRMADA", "SUSPENDIDA", "CANCELADA"] as EstadoActividad[]).filter((e) => e !== a.estado);
   const asistenciaTomada = a.estado === "REALIZADA" || r.presentes + r.ausentesMarcados > 0;
   const abrir = sp(q, "abrir");
+  // Cupo del formulario y lista de espera.
+  const lugares = lugaresActividad(a, s.inscripciones);
   // Entregas y devoluciones de elementos (mismos requerimientos de la actividad).
   const logistica = resumenLogistico(a, s.requerimientos, s.logistica, today());
   // Taller de varias clases: asistencia de cada clase.
@@ -310,7 +313,11 @@ export default async function FichaActividad({ params, searchParams }: { params:
           <>
             <p className="mb-3 flex flex-wrap items-center gap-2 text-[15px]">
               {a.inscripcion_abierta ? <Badge color="verde">ABIERTO</Badge> : <Badge color="gris">CERRADO</Badge>}
-              <span><b>{r.inscriptos}</b> {r.inscriptos === 1 ? "inscripto" : "inscriptos"}</span>
+              <span><b>{r.inscriptos}</b> {r.inscriptos === 1 ? "inscripto" : "inscriptos"}{lugares.cupo ? <> de <b>{lugares.cupo}</b> lugares</> : ""}</span>
+              {lugares.cupo > 0 && lugares.libres === 0 && <Badge color="naranja">CUPO COMPLETO</Badge>}
+              {lugares.enEspera > 0 && (
+                <Link href={`/actividades/${a.id}/inscriptos`} className="text-sm font-bold text-alerta hover:underline">{lugares.enEspera} en lista de espera</Link>
+              )}
             </p>
             <p className="mb-2 text-sm text-gris">Enlace de inscripción (sin usuario ni contraseña)</p>
             <div className="flex flex-wrap gap-2">

@@ -55,6 +55,7 @@ export function inputDesde(a: Actividad, s: Snapshot): ActividadInput {
     nombre: a.nombre, detalle: a.detalle, responsable: a.responsable, zona: a.zona, localidad: a.localidad, tipo: a.tipo, publico: a.publico, estado: a.estado,
     fecha: a.fecha, hora_inicio: a.hora_inicio, hora_fin: a.hora_fin, fecha_alt: a.fecha_alt, hora_alt: a.hora_alt,
     clases_extra: fechasDeClases(a).filter((f) => f && f !== a.fecha),
+    cupo: a.es_feria ? null : a.cupo || null,
     barrio: a.barrio, direccion: a.direccion, entre_calles: a.entre_calles, lugar: a.lugar, lat: a.lat, lng: a.lng,
     articula: a.articula, tipo_articulacion: a.tipo_articulacion, mesa: a.mesa, institucion_id: a.institucion_id, institucion_nueva: "", institucion_nueva_tipo: "",
     requiere_flyer: a.requiere_flyer, estado_flyer: a.estado_flyer, link_flyer: a.link_flyer,

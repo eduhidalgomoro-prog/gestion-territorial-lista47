@@ -14,33 +14,49 @@ import { ajustarPrimeraFecha, clavePersona, crearBuscador, limpiarPersona, upser
 /**
  * Inscribe personas (ya creadas) a una actividad. Si ya estaban inscriptas no se duplica;
  * si se habían dado de baja, se reactiva la inscripción.
+ * `cupo` (formulario público): con el cupo completo, la persona queda EN ESPERA. Se calcula dentro del bloqueo,
+ * así dos personas que se anotan a la vez no pasan el límite. Sin `cupo` (carga del equipo) no hay límite
+ * y quien estaba en espera pasa a inscripto.
  */
 export async function inscribir(
   actividadId: string,
   items: { participanteId: string; fecha?: string; respuestas?: string; escuela?: RespuestasEscuela }[],
   origen: OrigenInscripcion,
   user: string,
-): Promise<{ nuevas: number; yaEstaban: number; inscripciones: Inscripcion[] }> {
+  opts: { cupo?: number } = {},
+): Promise<{ nuevas: number; yaEstaban: number; enEspera: number; yaEnEspera: number; inscripciones: Inscripcion[] }> {
   return withLock(`insc:${actividadId}`, async () => {
     const actuales = (await readFresh("inscripciones")).filter((i) => i.actividad_id === actividadId);
     const porPart = new Map(actuales.map((i) => [i.participante_id, i]));
     const reactivar: { id: string; patch: Partial<Inscripcion> }[] = [];
     const crear: Omit<Inscripcion, "id" | "creado" | "actualizado" | "actualizado_por" | "version">[] = [];
     const vistos = new Set<string>();
-    let yaEstaban = 0;
+    const conCupo = !!opts.cupo && opts.cupo > 0;
+    let libres = conCupo ? opts.cupo! - actuales.filter((i) => i.estado === "INSCRIPTO").length : Infinity;
+    let yaEstaban = 0, enEspera = 0, yaEnEspera = 0;
+    const estadoNuevo = () => {
+      if (libres > 0) {
+        libres--;
+        return "INSCRIPTO" as const;
+      }
+      enEspera++;
+      return "EN ESPERA" as const;
+    };
     for (const it of items) {
       if (vistos.has(it.participanteId)) continue;
       vistos.add(it.participanteId);
       const ex = porPart.get(it.participanteId);
+      const respuestas = Object.fromEntries(Object.entries(it.escuela ?? {}).filter(([, v]) => v));
       if (ex?.estado === "INSCRIPTO") yaEstaban++;
-      else if (ex) reactivar.push({ id: ex.id, patch: { estado: "INSCRIPTO", ...Object.fromEntries(Object.entries(it.escuela ?? {}).filter(([, v]) => v)) } });
+      else if (ex?.estado === "EN ESPERA" && conCupo) yaEnEspera++; // se volvió a anotar: sigue en la lista de espera
+      else if (ex) reactivar.push({ id: ex.id, patch: { estado: conCupo ? estadoNuevo() : "INSCRIPTO", ...respuestas } });
       else
         crear.push({
           actividad_id: actividadId,
           participante_id: it.participanteId,
           fecha: it.fecha || today(),
           origen,
-          estado: "INSCRIPTO",
+          estado: conCupo ? estadoNuevo() : "INSCRIPTO",
           respuestas: it.respuestas ?? "",
           confirmacion: "",
           ...(it.escuela ?? SIN_RESPUESTAS_ESCUELA),
@@ -49,8 +65,19 @@ export async function inscribir(
     await updateMany("inscripciones", reactivar, user, "reactivar inscripción");
     const nuevas = await insertMany("inscripciones", crear, user, origen);
     const todas = [...nuevas, ...actuales.filter((i) => vistos.has(i.participante_id))];
-    return { nuevas: nuevas.length + reactivar.length, yaEstaban, inscripciones: todas };
+    return { nuevas: nuevas.length + reactivar.length - enEspera, yaEstaban, enEspera, yaEnEspera, inscripciones: todas };
   });
+}
+
+/** Lista de espera → inscripto (lo decide el equipo, por ejemplo si alguien se dio de baja). */
+export async function pasarAInscripto(inscripcionId: string, yo: Yo) {
+  const s = await snapshot();
+  const ins = s.inscripciones.find((i) => i.id === inscripcionId);
+  if (!ins) throw new NotFoundError("La inscripción");
+  const act = s.actividades.find((a) => a.id === ins.actividad_id);
+  if (!act || !puede.editarActividad(yo, act)) throw new ForbiddenError();
+  if (ins.estado !== "EN ESPERA") throw new UserError("Esa persona ya no está en la lista de espera.");
+  return update("inscripciones", inscripcionId, { estado: "INSCRIPTO" }, yo.email, { accion: "de lista de espera a inscripto" });
 }
 
 export async function darDeBaja(inscripcionId: string, yo: Yo) {
@@ -228,7 +255,17 @@ export interface InscripcionPublicaInput extends DatosInscripcion {
 export type ResultadoPublico =
   | { status: "inscripto"; nombre: string }
   | { status: "ya_inscripto"; nombre: string }
+  | { status: "en_espera"; nombre: string } // cupo completo: quedó en la lista de espera
   | { status: "cerrada"; motivo: string };
+
+/** Lugares del formulario: cupo, inscriptos, libres y en espera (cupo 0 = sin límite; las ferias tienen el suyo). */
+export function lugaresActividad(a: Actividad, inscripciones: Pick<Inscripcion, "actividad_id" | "estado">[]) {
+  const cupo = a.es_feria ? 0 : Math.max(0, a.cupo || 0);
+  const propias = inscripciones.filter((i) => i.actividad_id === a.id);
+  const inscriptos = propias.filter((i) => i.estado === "INSCRIPTO").length;
+  const enEspera = propias.filter((i) => i.estado === "EN ESPERA").length;
+  return { cupo, inscriptos, enEspera, libres: cupo ? Math.max(0, cupo - inscriptos) : null };
+}
 
 export function inscripcionAbiertaPublica(a: Actividad): { abierta: boolean; motivo: string } {
   if (!a.slug || !a.inscripcion_abierta) return { abierta: false, motivo: "La inscripción a esta actividad no está abierta." };
@@ -264,7 +301,10 @@ export async function inscribirPublico(slug: string, input: InscripcionPublicaIn
     .filter(Boolean)
     .join("\n");
   const [r] = await upsertParticipantes([persona], "FORMULARIO PROPIO", "formulario-publico", { consentimiento: nowIso() });
-  const res = await inscribir(a.id, [{ participanteId: r.participante.id, respuestas, escuela }], "FORMULARIO PROPIO", "formulario-publico");
+  const res = await inscribir(a.id, [{ participanteId: r.participante.id, respuestas, escuela }], "FORMULARIO PROPIO", "formulario-publico", {
+    cupo: a.es_feria ? 0 : a.cupo,
+  });
+  if (res.enEspera || res.yaEnEspera) return { status: "en_espera", nombre: persona.nombre };
   if (res.yaEstaban) {
     // Ya estaba inscripta en ESTE taller: no se duplica. Solo se completan respuestas que estaban vacías
     // (nunca se pisan datos: con un DNI ajeno no se puede cambiar nada de otra persona).

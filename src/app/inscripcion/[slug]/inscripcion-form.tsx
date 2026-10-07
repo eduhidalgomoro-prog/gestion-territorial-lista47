@@ -87,8 +87,10 @@ function Bloque({ numero, titulo, texto, listo, children }: { numero: number; ti
 type Valores = Record<"nombre" | "apellido" | "dni" | "ciudad" | "ciudad_otra" | "barrio" | "barrio_otro" | "direccion" | "fn_dia" | "fn_mes" | "fn_anio" | "telefono", string>;
 
 export function InscripcionForm({
-  slug, token, preguntas, barrios, ciudades, ciudadInicial, escuela, taller,
+  slug, token, preguntas, barrios, ciudades, ciudadInicial, escuela, taller, listaEspera = false,
 }: {
+  /** Cupo completo: el formulario anota en la lista de espera. */
+  listaEspera?: boolean;
   slug: string;
   token: string;
   preguntas: { pregunta: Pregunta; indice: number }[];
@@ -172,8 +174,8 @@ export function InscripcionForm({
     onSubmitServidor(ev);
   }
 
-  if (state.ok && state.data && (state.data.status === "inscripto" || state.data.status === "ya_inscripto")) {
-    return <Confirmacion taller={taller} nombre={state.data.nombre} yaEstaba={state.data.status === "ya_inscripto"} escuela={escuela} />;
+  if (state.ok && state.data && ["inscripto", "ya_inscripto", "en_espera"].includes(state.data.status)) {
+    return <Confirmacion taller={taller} nombre={state.data.nombre} yaEstaba={state.data.status === "ya_inscripto"} espera={state.data.status === "en_espera"} escuela={escuela} />;
   }
 
   const datosListos = ORDEN_CAMPOS.filter((k) => k !== "consentimiento").every((k) => !validarInscripcion(datos)[k]);
@@ -390,7 +392,7 @@ export function InscripcionForm({
         )}
 
         <button type="submit" disabled={pending} className="h-16 w-full rounded-full bg-marca font-titulo text-[18px] font-extrabold tracking-wide text-white uppercase shadow-[0_6px_16px_rgba(63,116,44,0.28)] hover:bg-marca-600 active:translate-y-px disabled:opacity-60">
-          {pending ? "Enviando…" : "Quiero inscribirme"}
+          {pending ? "Enviando…" : listaEspera ? "Anotarme en lista de espera" : "Quiero inscribirme"}
         </button>
       </section>
     </form>
@@ -398,7 +400,7 @@ export function InscripcionForm({
 }
 
 /** Pantalla final: queda claro que está inscripta, cuándo y dónde. */
-function Confirmacion({ taller, nombre, yaEstaba, escuela }: { taller: TallerInfo; nombre: string; yaEstaba: boolean; escuela: boolean }) {
+function Confirmacion({ taller, nombre, yaEstaba, espera = false, escuela }: { taller: TallerInfo; nombre: string; yaEstaba: boolean; espera?: boolean; escuela: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -420,14 +422,18 @@ function Confirmacion({ taller, nombre, yaEstaba, escuela }: { taller: TallerInf
 
   return (
     <div ref={ref} role="status" className="scroll-mt-4 rounded-[28px] border border-linea bg-white p-6 text-center shadow-[0_1px_3px_rgba(16,105,133,0.06)] sm:p-8">
-      <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-marca text-white" aria-hidden>
-        <IconCheck size={36} strokeWidth={2.6} />
+      <span className={`mx-auto flex size-16 items-center justify-center rounded-full text-white ${espera ? "bg-alerta" : "bg-marca"}`} aria-hidden>
+        {espera ? <IconClock size={34} strokeWidth={2.4} /> : <IconCheck size={36} strokeWidth={2.6} />}
       </span>
-      <p className="mt-4 font-titulo text-[30px] leading-tight font-black text-marca-600">
-        {yaEstaba ? "¡Ya tenés tu lugar!" : `¡Listo${nombre ? `, ${nombre}` : ""}!`}
+      <p className={`mt-4 font-titulo text-[30px] leading-tight font-black ${espera ? "text-alerta" : "text-marca-600"}`}>
+        {espera ? "Quedaste en lista de espera" : yaEstaba ? "¡Ya tenés tu lugar!" : `¡Listo${nombre ? `, ${nombre}` : ""}!`}
       </p>
       <p className="mt-2 text-[17px] leading-snug text-tinta">
-        {yaEstaba ? "Ya encontramos una inscripción con este DNI para este taller. No hace falta que te anotes de nuevo." : "Tu inscripción quedó registrada."}
+        {espera
+          ? "Se completó el cupo. Si se libera un lugar, te avisamos por WhatsApp."
+          : yaEstaba
+            ? "Ya encontramos una inscripción con este DNI para este taller. No hace falta que te anotes de nuevo."
+            : "Tu inscripción quedó registrada."}
       </p>
 
       <div className="mt-5 rounded-2xl bg-fondo p-4 text-left">
@@ -444,10 +450,10 @@ function Confirmacion({ taller, nombre, yaEstaba, escuela }: { taller: TallerInf
         </ul>
       </div>
 
-      <p className="mt-5 text-[18px] font-extrabold text-marca-600">¡Te esperamos!</p>
+      {!espera && <p className="mt-5 text-[18px] font-extrabold text-marca-600">¡Te esperamos!</p>}
 
       <div className="mt-5 grid gap-3">
-        {taller.calendario && (
+        {taller.calendario && !espera && (
           <a href={taller.calendario} target="_blank" rel="noopener noreferrer" className="flex h-14 items-center justify-center gap-2 rounded-full bg-marca px-5 text-[17px] font-extrabold text-white hover:bg-marca-600">
             <IconCalendar size={22} /> Agregar al calendario
           </a>
