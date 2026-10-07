@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { CopyButton } from "@/components/copy-button";
 import { ActionForm, Input, Select, SubmitButton } from "@/components/forms";
-import { IconCheck, IconEdit, IconForm, IconImage, IconLock, IconMap, IconPin, IconUpload, IconUsers, IconWhatsApp, IconX } from "@/components/icons";
+import { IconCheck, IconEdit, IconForm, IconGazebo, IconImage, IconLock, IconMap, IconPin, IconUpload, IconUsers, IconWhatsApp, IconX } from "@/components/icons";
 import { mensajeActividad, whatsappCompartir } from "@/lib/compartir";
 import { FlyersActividad } from "@/components/flyer-imagen";
 import { FlyerRapido } from "@/components/flyer-rapido";
@@ -17,6 +17,7 @@ import { MarcandoHuellasHeader, MarcandoHuellasStats } from "@/components/huella
 import { CambiarEstado } from "@/components/cambiar-estado";
 import { AccionAsistencia, AccionSec, ClasesTaller, TallerEncabezado } from "@/components/taller";
 import { cantidadClases, claseActual, fechasDeClases } from "@/lib/clases";
+import { COLOR_ESTADO, resumenLogistico } from "@/lib/logistica";
 import { IconArrowLeft } from "@/components/icons";
 import { esMarcandoHuellas, resumenHuellas } from "@/lib/huellas";
 import { esAgenda, puede } from "@/lib/permisos";
@@ -75,6 +76,8 @@ export default async function FichaActividad({ params, searchParams }: { params:
   const estadosPosibles = (["PROGRAMADA", "CONFIRMADA", "SUSPENDIDA", "CANCELADA"] as EstadoActividad[]).filter((e) => e !== a.estado);
   const asistenciaTomada = a.estado === "REALIZADA" || r.presentes + r.ausentesMarcados > 0;
   const abrir = sp(q, "abrir");
+  // Entregas y devoluciones de elementos (mismos requerimientos de la actividad).
+  const logistica = resumenLogistico(a, s.requerimientos, s.logistica, today());
   // Taller de varias clases: asistencia de cada clase.
   const clasesTaller = cantidadClases(a) > 1 ? asistenciaPorClase(a, s) : [];
   // Acceso rápido al flyer (mismos archivos que «Comunicación»). Si la actividad no pide flyer ni tiene uno, no se muestra.
@@ -126,6 +129,7 @@ export default async function FichaActividad({ params, searchParams }: { params:
             <nav className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Acciones de la actividad">
               {verInscriptos && <AccionSec href={`/actividades/${a.id}/inscriptos`} Icon={IconUsers}>Ver inscriptos</AccionSec>}
               {editar && <AccionSec href={`/actividades/${a.id}/editar`} Icon={IconEdit}>Editar</AccionSec>}
+              {puede.gestionarLogistica(yo) && <AccionSec href={`/actividades/${a.id}/logistica`} Icon={IconGazebo}>Logística</AccionSec>}
               <AccionSec href={`/mapa?foco=${a.id}&mes=${a.mes || ""}&anio=${a.anio || ""}`} Icon={IconMap}>Ver mapa</AccionSec>
               <AccionSec href={whatsappCompartir(mensajeActividad(a, r))} Icon={IconWhatsApp} externo>Compartir actividad</AccionSec>
             </nav>
@@ -171,6 +175,7 @@ export default async function FichaActividad({ params, searchParams }: { params:
           <nav className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Acciones de la actividad">
             {editar && <Accion href={`/actividades/${a.id}/editar`} Icon={IconEdit}>Editar actividad</Accion>}
             {puede.verFlyers(yo) && a.requiere_flyer && <Accion href={`/flyers?mes=${a.mes || 0}&anio=${a.anio || ""}#${(a.estado_flyer || "SOLICITADO").replace(/\s/g, "-")}`} Icon={IconImage}>Flyer</Accion>}
+            {puede.gestionarLogistica(yo) && <Accion href={`/actividades/${a.id}/logistica`} Icon={IconGazebo}>Logística</Accion>}
             <Accion href={`/mapa?foco=${a.id}&mes=${a.mes || ""}&anio=${a.anio || ""}`} Icon={IconMap}>Ver en mapa</Accion>
             <a
               href={whatsappCompartir(mensajeActividad(a, r))}
@@ -253,6 +258,17 @@ export default async function FichaActividad({ params, searchParams }: { params:
           </div>
         )}
         {a.obs_logistica && <p className="mt-3 text-[15px] whitespace-pre-line text-gris">{a.obs_logistica}</p>}
+        {logistica.requiere && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-fondo px-3 py-2.5">
+            <p className="text-[15px]">
+              Logística: <span className={cx("rounded-full px-2.5 py-0.5 text-[12.5px] font-extrabold uppercase", COLOR_ESTADO[logistica.estado])}>{logistica.estado}</span>
+              {logistica.enCirculacion > 0 && <span className="ml-2 font-bold text-alerta">⚠ {logistica.enCirculacion} sin devolver</span>}
+            </p>
+            <Link href={`/actividades/${a.id}/logistica`} className="text-[14px] font-bold text-petroleo hover:underline">
+              {puede.gestionarLogistica(yo) ? "Entregas y devoluciones →" : "Ver entregas →"}
+            </Link>
+          </div>
+        )}
       </Seccion>}
 
       <Seccion titulo="Comunicación" id="comunicacion" abierto={abrir === "comunicacion"} resumen={a.requiere_flyer ? `Flyer: ${(a.estado_flyer || "solicitado").toLowerCase()}` : "No requiere flyer"}>

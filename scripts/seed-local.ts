@@ -33,6 +33,7 @@ async function main() {
     ["Resp.", "Río Paraná", "parana@prueba.local", "RESPONSABLE", "RÍO PARANÁ"],
     ["Operador", "Prueba", "operador@prueba.local", "OPERADOR", ""],
     ["Diseño", "Prueba", "diseno@prueba.local", "DISENO", ""],
+    ["Logística", "Prueba", "logistica@prueba.local", "LOGISTICA", ""],
     ["Agenda", "Prueba", "agenda@prueba.local", "AGENDA", ""],
     ["Ferias", "Prueba", "ferias@prueba.local", "FERIAS", ""],
   ] as const) {

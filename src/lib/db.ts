@@ -26,6 +26,7 @@ export interface Snapshot {
   puestos: EntityMap["puestos"][];
   atenciones: EntityMap["atenciones"][];
   animales: EntityMap["animales"][];
+  logistica: EntityMap["logistica"][];
   barrios: ZonaBarrio[];
   config: AppConfig;
   leidoEn: number;
@@ -115,6 +116,7 @@ async function loadSnapshot(): Promise<Snapshot> {
     puestos: parseTable("puestos", data.puestos),
     atenciones: parseTable("atenciones", data.atenciones),
     animales: parseTable("animales", data.animales),
+    logistica: parseTable("logistica", data.logistica),
     barrios: (data.zonas_barrios ?? []).map((r) => fromRow<ZonaBarrio>("zonas_barrios", r)).filter((b) => b.barrio),
     config: parseConfig((data.config ?? []).map((r) => fromRow<ConfigRow>("config", r))),
     leidoEn: Date.now(),

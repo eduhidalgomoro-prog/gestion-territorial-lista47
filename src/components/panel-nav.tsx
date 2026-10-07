@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { IconCalendar, IconChart, IconGazebo, IconGear, IconHome, IconImage, IconList, IconLogout, IconMap, IconMore, IconPlus, IconUsers } from "./icons";
+import { IconCalendar, IconChart, IconClipboard, IconGazebo, IconGear, IconHome, IconImage, IconList, IconLogout, IconMap, IconMore, IconPlus, IconUsers } from "./icons";
 import { CargandoLink } from "./cargando-link";
 import { InstallButton } from "./install-button";
 import { cx, SelloLista47 } from "./ui";
@@ -15,17 +15,20 @@ export interface NavPermisos {
   configurar: boolean;
   flyers: boolean;
   ferias: boolean;
+  logistica: boolean;
   inicio: boolean;
 }
 
 function items(p: NavPermisos) {
   return [
     { href: "/inicio", label: "Inicio", Icon: IconHome, show: p.inicio },
+    { href: "/logistica", label: "Logística", Icon: IconGazebo, show: p.logistica && !p.inicio },
     { href: "/flyers", label: "Flyers", Icon: IconImage, show: p.flyers && !p.inicio },
     { href: "/actividades", label: "Actividades", Icon: IconList, show: true },
     { href: "/calendario", label: "Calendario", Icon: IconCalendar, show: true },
     { href: "/mapa", label: "Mapa", Icon: IconMap, show: true },
     { href: "/ferias", label: "Ferias", Icon: IconGazebo, show: p.ferias },
+    { href: "/logistica", label: "Logística", Icon: IconClipboard, show: p.logistica && p.inicio },
     { href: "/participantes", label: "Participantes", Icon: IconUsers, show: p.participantes },
     { href: "/estadisticas", label: "Estadísticas", Icon: IconChart, show: p.estadisticas },
     { href: "/flyers", label: "Flyers", Icon: IconImage, show: p.flyers && p.inicio },
@@ -116,7 +119,9 @@ export function MobileNav({ permisos }: { permisos: NavPermisos }) {
   // 3 accesos directos en la barra (el resto va a «Más»). Diseño no tiene inicio: su pantalla principal es Flyers;
   // la responsable de ferias, Ferias.
   const atajos = !permisos.inicio
-    ? permisos.flyers ? ["/flyers", "/actividades", "/mapa"] : ["/ferias", "/calendario", "/actividades"]
+    ? permisos.logistica
+      ? ["/logistica", "/actividades", "/calendario"]
+      : permisos.flyers ? ["/flyers", "/actividades", "/mapa"] : ["/ferias", "/calendario", "/actividades"]
     : ["/inicio", "/actividades", permisos.participantes ? "/participantes" : "/mapa"];
   const principales = atajos.map((h) => todos.find((i) => i.href === h)).filter((i): i is (typeof todos)[number] => !!i);
   const resto = todos.filter((i) => !principales.includes(i));

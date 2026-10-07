@@ -71,7 +71,7 @@ async function actividadDeContacto(actividadId: string, yo: Yo) {
   const s = await snapshot();
   const a = s.actividades.find((x) => x.id === actividadId);
   if (!a) throw new NotFoundError("La actividad");
-  if (!puede.tomarAsistencia(yo, a, s.asignaciones)) throw new ForbiddenError("No tenés asignada esta actividad.");
+  if (!puede.contactarInscriptos(yo, a, s.asignaciones)) throw new ForbiddenError("No tenés asignada esta actividad.");
   return { a, s };
 }
 

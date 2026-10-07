@@ -12,6 +12,7 @@ import {
 import { crearUsuario, editarUsuario, guardarBarrio, guardarConfig, guardarInstitucion } from "@/lib/services/administracion";
 import { agregarPresente, buscarPorDni, guardarAsistencia, type Marca } from "@/lib/services/asistencia";
 import { geocodificar, type Ubicacion } from "@/lib/services/geocode";
+import { anularLote, marcarPreparando, registrarMovimiento, type MovimientoInput } from "@/lib/services/logistica";
 import {
   agregarFeriante, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, configurarFeria, crearFeria, generarPuestos, quitarAsignaciones, ubicarPuestos,
 } from "@/lib/services/ferias";
@@ -295,6 +296,23 @@ export async function institucionAction(id: string | null, _: ActionResult, fd: 
     soloAdmin(yo);
     await guardarInstitucion({ id: id ?? undefined, nombre: str(fd, "nombre"), tipo: str(fd, "tipo"), observaciones: str(fd, "observaciones") }, yo.email);
   }, { ok: "Institución guardada." });
+}
+
+// ---------------------------------------------------------------------------
+// Logística (entregas y devoluciones de elementos)
+// ---------------------------------------------------------------------------
+
+export async function movimientoLogisticaAction(actividadId: string, tipo: "ENTREGA" | "DEVOLUCION", input: MovimientoInput): Promise<ActionResult> {
+  if (tipo !== "ENTREGA" && tipo !== "DEVOLUCION") return { ok: false, message: "Movimiento inválido." };
+  return act((yo) => registrarMovimiento(actividadId, tipo, input, yo), { ok: tipo === "ENTREGA" ? "Entrega registrada." : "Devolución registrada." });
+}
+
+export async function preparandoAction(actividadId: string): Promise<ActionResult> {
+  return act((yo) => marcarPreparando(actividadId, yo), { ok: "Marcada como «preparando»." });
+}
+
+export async function anularLogisticaAction(actividadId: string, lote: string): Promise<ActionResult> {
+  return act((yo) => anularLote(actividadId, lote, yo), { ok: "Registro anulado (queda en el historial)." });
 }
 
 export async function configAction(_: ActionResult, fd: FormData): Promise<ActionResult> {

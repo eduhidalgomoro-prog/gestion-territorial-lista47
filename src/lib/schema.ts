@@ -18,7 +18,13 @@ export const ESTADOS_ACTIVIDAD = ["BORRADOR", "PROGRAMADA", "CONFIRMADA", "REALI
 /** Estados que cuentan para el objetivo mensual de cada zona (decisión confirmada con la coordinación). */
 export const ESTADOS_QUE_CUENTAN = ["PROGRAMADA", "CONFIRMADA", "REALIZADA"] as const;
 export const ESTADOS_FLYER = ["SOLICITADO", "EN DISEÑO", "PARA APROBACIÓN", "APROBADO", "PUBLICADO"] as const;
-export const ROLES = ["ADMINISTRADOR", "RESPONSABLE", "OPERADOR", "DISENO", "AGENDA", "FERIAS"] as const;
+export const ROLES = ["ADMINISTRADOR", "RESPONSABLE", "OPERADOR", "DISENO", "AGENDA", "FERIAS", "LOGISTICA"] as const;
+/** Logística: cada movimiento de elementos de una actividad (nunca se borra: es el historial). */
+export const TIPOS_MOVIMIENTO = ["PREPARACION", "ENTREGA", "DEVOLUCION"] as const;
+export type TipoMovimiento = (typeof TIPOS_MOVIMIENTO)[number];
+/** Cómo vuelve un elemento ("" = no se indicó). */
+export const ESTADOS_ELEMENTO = ["BIEN", "DAÑADO", "INCOMPLETO"] as const;
+export type EstadoElemento = (typeof ESTADOS_ELEMENTO)[number];
 export const ESTADOS_USUARIO = ["ACTIVO", "INACTIVO"] as const;
 export const ORIGENES_INSCRIPCION = ["FORMULARIO PROPIO", "GOOGLE FORMS", "CARGA MANUAL"] as const;
 export const ESTADOS_INSCRIPCION = ["INSCRIPTO", "DADO DE BAJA"] as const;
@@ -225,6 +231,24 @@ export interface Asistencia extends Meta {
   usuario: string;
 }
 
+/**
+ * Movimiento logístico de una actividad: preparación, entrega o devolución de un elemento.
+ * Una entrega o devolución de varios elementos a la vez comparte el mismo `lote`.
+ */
+export interface MovimientoLogistica extends Meta {
+  actividad_id: string;
+  lote: string;
+  tipo: TipoMovimiento;
+  elemento: string; // «Sillas», «Banderas», «Gazebos»… ("" en PREPARACION)
+  cantidad: number;
+  persona: string; // quién recibe (entrega) o quién devuelve (devolución)
+  fecha_hora: string; // YYYY-MM-DDTHH:MM (hora de Corrientes, como la indica quien registra)
+  estado_elemento: EstadoElemento | "";
+  observaciones: string;
+  usuario: string; // quién lo registró
+  anulado: boolean; // registro cargado por error: queda en el historial pero no cuenta
+}
+
 export interface Requerimiento extends Meta {
   actividad_id: string;
   tipo: string;
@@ -290,6 +314,7 @@ export interface EntityMap {
   puestos: Puesto;
   atenciones: Atencion;
   animales: Animal;
+  logistica: MovimientoLogistica;
 }
 
 export type EntityTable = keyof EntityMap;
@@ -587,6 +612,28 @@ export const TABLES: Record<TableName, TableDef> = {
     boolean: ["castrado", "quiere_castrar", "antirrabica", "desparasitacion", "activo"],
     enums: { especie: ESPECIES },
   },
+  logistica: {
+    sheet: "LOGISTICA",
+    prefix: "LOG",
+    columns: [
+      ["id", "ID Movimiento"],
+      ["actividad_id", "ID Actividad"],
+      ["lote", "Lote"],
+      ["tipo", "Tipo"],
+      ["elemento", "Elemento"],
+      ["cantidad", "Cantidad"],
+      ["persona", "Recibe / devuelve"],
+      ["fecha_hora", "Fecha y hora"],
+      ["estado_elemento", "Estado del elemento"],
+      ["observaciones", "Observaciones"],
+      ["usuario", "Registró"],
+      ["anulado", "Anulado"],
+      ...META,
+    ],
+    numeric: ["cantidad"],
+    boolean: ["anulado"],
+    enums: { tipo: TIPOS_MOVIMIENTO, estado_elemento: ESTADOS_ELEMENTO },
+  },
   zonas_barrios: {
     sheet: "ZONAS_BARRIOS",
     columns: [
@@ -619,7 +666,7 @@ export const TABLES: Record<TableName, TableDef> = {
 };
 
 export const ENTITY_TABLES: EntityTable[] = [
-  "actividades", "participantes", "inscripciones", "asistencias", "requerimientos", "usuarios", "asignaciones", "instituciones", "feriantes", "puestos", "atenciones", "animales",
+  "actividades", "participantes", "inscripciones", "asistencias", "requerimientos", "usuarios", "asignaciones", "instituciones", "feriantes", "puestos", "atenciones", "animales", "logistica",
 ];
 export const ALL_TABLES = Object.keys(TABLES) as TableName[];
 

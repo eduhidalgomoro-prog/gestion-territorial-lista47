@@ -50,7 +50,7 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
   const tel = puede.verTelefono(yo);
   const editar = puede.editarActividad(yo, a);
   // Contactar por WhatsApp: quienes toman asistencia (operador asignado, responsable de la zona, administración).
-  const contactar = puede.tomarAsistencia(yo, a, s.asignaciones) && a.estado !== "REALIZADA" && a.estado !== "CANCELADA";
+  const contactar = puede.contactarInscriptos(yo, a, s.asignaciones) && a.estado !== "REALIZADA" && a.estado !== "CANCELADA";
   // Mensaje propio de esta actividad o, si no tiene, el de Configuración.
   const plantillaConfirmacion = a.mensaje_confirmacion || s.config.mensaje_confirmacion;
   const plantillaGrupo = a.mensaje_grupo || s.config.mensaje_grupo;

@@ -41,6 +41,11 @@ export const esDiseno = (yo: Yo) => yo.rol === "DISENO";
 export const esAgenda = (yo: Yo) => yo.rol === "AGENDA";
 /** Responsable de ferias: crea y organiza todas las ferias (feriantes, puestos, croquis, asistencia). No ve el resto. */
 export const esFerias = (yo: Yo) => yo.rol === "FERIAS";
+/**
+ * Logística: ve todas las actividades (calendario, mapa, detalle e inscriptos), colabora con la asistencia
+ * y registra entregas y devoluciones de elementos. No crea ni edita actividades ni datos de los responsables.
+ */
+export const esLogistica = (yo: Yo) => yo.rol === "LOGISTICA";
 
 function asignada(yo: Yo, act: Actividad, asignaciones: Asignacion[]) {
   return asignaciones.some((a) => a.estado === "ACTIVA" && a.actividad_id === act.id && a.usuario_id === yo.usuarioId);
@@ -59,13 +64,20 @@ const feriaSuya = (yo: Yo, act: Actividad) => esFerias(yo) && act.es_feria;
 
 export const puede = {
   verActividad: (yo: Yo, act: Actividad, asig: Asignacion[]) =>
-    esAdmin(yo) || esDiseno(yo) || esAgenda(yo) || (esResponsable(yo) && (deSuZona(yo, act) || generalDeCapital(yo, act))) || (esOperador(yo) && asignada(yo, act, asig)) || feriaSuya(yo, act),
+    esAdmin(yo) || esDiseno(yo) || esAgenda(yo) || esLogistica(yo) || (esResponsable(yo) && (deSuZona(yo, act) || generalDeCapital(yo, act))) || (esOperador(yo) && asignada(yo, act, asig)) || feriaSuya(yo, act),
   crearActividad: (yo: Yo) => esAdmin(yo) || esResponsable(yo),
   /** Crear ferias (desde el menú Ferias). */
   crearFeria: (yo: Yo) => esAdmin(yo) || esResponsable(yo) || esFerias(yo),
   editarActividad: (yo: Yo, act: Actividad) => esAdmin(yo) || (esResponsable(yo) && deSuZona(yo, act)) || feriaSuya(yo, act),
   tomarAsistencia: (yo: Yo, act: Actividad, asig: Asignacion[]) =>
-    esAdmin(yo) || (esResponsable(yo) && deSuZona(yo, act)) || (esOperador(yo) && asignada(yo, act, asig)) || feriaSuya(yo, act),
+    esAdmin(yo) || esLogistica(yo) || (esResponsable(yo) && deSuZona(yo, act)) || (esOperador(yo) && asignada(yo, act, asig)) || feriaSuya(yo, act),
+  /**
+   * Confirmación por WhatsApp, link y mensajes del grupo: lo maneja el equipo de la actividad.
+   * Logística colabora con la asistencia pero no toca lo que cargan los responsables.
+   */
+  contactarInscriptos: (yo: Yo, act: Actividad, asig: Asignacion[]) => !esLogistica(yo) && puede.tomarAsistencia(yo, act, asig),
+  /** Registrar preparación, entregas y devoluciones de elementos. */
+  gestionarLogistica: (yo: Yo) => esAdmin(yo) || esLogistica(yo),
   cerrarActividad: (yo: Yo, act: Actividad) => esAdmin(yo) || (esResponsable(yo) && deSuZona(yo, act)) || feriaSuya(yo, act),
   importar: (yo: Yo, act: Actividad) => esAdmin(yo) || (esResponsable(yo) && deSuZona(yo, act)) || feriaSuya(yo, act),
   asignarOperadores: (yo: Yo, act: Actividad) => esAdmin(yo) || (esResponsable(yo) && deSuZona(yo, act)),
@@ -86,7 +98,7 @@ export const puede = {
 
 /** Actividades visibles para el usuario. */
 export function actividadesVisibles(yo: Yo, acts: Actividad[], asig: Asignacion[]): Actividad[] {
-  if (esAdmin(yo) || esDiseno(yo) || esAgenda(yo)) return acts;
+  if (esAdmin(yo) || esDiseno(yo) || esAgenda(yo) || esLogistica(yo)) return acts;
   return acts.filter((a) => puede.verActividad(yo, a, asig));
 }
 
@@ -102,4 +114,5 @@ export const ROL_LABEL: Record<Rol, string> = {
   DISENO: "Comunicación / Diseño",
   AGENDA: "Agenda (solo lectura)",
   FERIAS: "Responsable de ferias",
+  LOGISTICA: "Logística",
 };

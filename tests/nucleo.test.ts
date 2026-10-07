@@ -17,6 +17,8 @@ import type { Yo } from "@/lib/permisos";
 import { puede } from "@/lib/permisos";
 import { asistenciaPorClase, cerrarActividad, crearActividad, resumenAsistencia, type ActividadInput } from "@/lib/services/actividades";
 import { agregarPresente, guardarAsistencia } from "@/lib/services/asistencia";
+import { anularLote, marcarPreparando, registrarMovimiento } from "@/lib/services/logistica";
+import { resumenLogistico } from "@/lib/logistica";
 import { confirmarImportacion, inscribirPublico, vistaPreviaImportacion } from "@/lib/services/inscripciones";
 import { setStore } from "@/lib/store";
 import { MemoryStore } from "@/lib/store/memory";
@@ -467,6 +469,64 @@ describe("roles de solo lectura", () => {
     expect(msg).toContain("30 inscriptos");
     expect(msg).toContain("google.com/maps");
     expect(msg).not.toMatch(/\$|costo/i);
+  });
+});
+
+describe("logística", () => {
+  const logistica: Yo = { email: "logistica@lista47.test", nombre: "Logística", rol: "LOGISTICA", zona: "", usuarioId: "U-L" };
+
+  it("permisos: ve todo, ayuda con la asistencia y gestiona elementos, pero no edita actividades", async () => {
+    const a = await crearActividad(input({ zona: "SUR" }), admin);
+    expect(puede.verActividad(logistica, a, [])).toBe(true);
+    expect(puede.verInscriptos(logistica, a, [])).toBe(true);
+    expect(puede.tomarAsistencia(logistica, a, [])).toBe(true);
+    expect(puede.contactarInscriptos(logistica, a, [])).toBe(false); // WhatsApp/grupo: lo maneja el equipo de la actividad
+    expect(puede.gestionarLogistica(logistica)).toBe(true);
+    expect(puede.editarActividad(logistica, a)).toBe(false);
+    expect(puede.cerrarActividad(logistica, a)).toBe(false);
+    expect(puede.crearActividad(logistica)).toBe(false);
+    expect(puede.verCostos(logistica)).toBe(false);
+    expect(puede.configurar(logistica)).toBe(false);
+    expect(puede.gestionarLogistica(respEste)).toBe(false);
+    await expect(registrarMovimiento(a.id, "ENTREGA", { items: [{ elemento: "Sillas", cantidad: 1 }], persona: "X", fecha_hora: "", observaciones: "" }, respEste)).rejects.toThrow();
+  });
+
+  it("entrega parcial, devolución parcial, pendientes y anulación sin perder el historial", async () => {
+    // Pide 30 sillas (de la actividad) y una bandera (otros insumos); la lana y las agujas son materiales, no se devuelven.
+    const a = await crearActividad(
+      input({ fecha: "2026-10-05", insumos: [{ descripcion: "Bandera", tipo: "EQUIPAMIENTO", cantidad: 2, costo: 0 }, { descripcion: "Lana", tipo: "MATERIALES", cantidad: 3, costo: 0 }] }),
+      admin,
+    );
+    let s = await snapshot({ fresh: true });
+    let r = resumenLogistico(a, s.requerimientos, s.logistica, "2026-10-04");
+    expect(r.filas.map((f) => [f.elemento, f.solicitado])).toEqual([["Sillas", 30], ["Bandera", 2]]);
+    expect(r.estado).toBe("Pendiente");
+
+    await marcarPreparando(a.id, logistica);
+    s = await snapshot({ fresh: true });
+    expect(resumenLogistico(a, s.requerimientos, s.logistica, "2026-10-04").estado).toBe("Preparando");
+
+    const entrega = await registrarMovimiento(a.id, "ENTREGA", { items: [{ elemento: "sillas", cantidad: 28 }, { elemento: "Bandera", cantidad: 2 }, { elemento: "Alargues", cantidad: 1 }], persona: "juan pérez", fecha_hora: "2026-10-05T09:35", observaciones: "" }, logistica);
+    s = await snapshot({ fresh: true });
+    r = resumenLogistico(a, s.requerimientos, s.logistica, "2026-10-05");
+    expect(r.estado).toBe("Entrega parcial"); // faltan 2 sillas
+    expect(r.filas.find((f) => f.elemento === "Sillas")).toMatchObject({ entregado: 28, porEntregar: 2, enCirculacion: 28, quienTiene: ["Juan Pérez"] });
+    expect(r.filas.find((f) => f.elemento === "Alargues")).toMatchObject({ solicitado: 0, entregado: 1 }); // no se había pedido
+
+    // No se puede devolver más de lo que está afuera.
+    await expect(registrarMovimiento(a.id, "DEVOLUCION", { items: [{ elemento: "Bandera", cantidad: 3 }], persona: "Juan Pérez", fecha_hora: "", observaciones: "" }, logistica)).rejects.toThrow(/quedan 2/);
+
+    await registrarMovimiento(a.id, "DEVOLUCION", { items: [{ elemento: "Sillas", cantidad: 28, estado: "BIEN" }, { elemento: "Bandera", cantidad: 1, estado: "DAÑADO" }, { elemento: "Alargues", cantidad: 1 }], persona: "Juan Pérez", fecha_hora: "2026-10-05T13:20", observaciones: "" }, logistica);
+    s = await snapshot({ fresh: true });
+    r = resumenLogistico(a, s.requerimientos, s.logistica, "2026-10-05");
+    expect(r.estado).toBe("Devolución parcial");
+    expect(r.enCirculacion).toBe(1); // 1 bandera
+    // Al día siguiente, la actividad ya pasó y la bandera sigue afuera.
+    expect(resumenLogistico(a, s.requerimientos, s.logistica, "2026-10-06").estado).toBe("Con elementos pendientes");
+
+    // Anular la entrega no se permite mientras tenga devoluciones; el historial no se borra nunca.
+    await expect(anularLote(a.id, entrega.lote, logistica)).rejects.toThrow(/devoluci/);
+    expect(s.logistica.filter((m) => m.actividad_id === a.id)).toHaveLength(7); // preparación + 3 entregas + 3 devoluciones
   });
 });
 

@@ -11,7 +11,7 @@ import { destacadosDelMes } from "@/lib/domain/resumen";
 import { conteosHuellas } from "@/lib/huellas";
 import { zonaLabel } from "@/lib/labels";
 import { redirect } from "next/navigation";
-import { actividadesVisibles, esAgenda, esDiseno, esFerias, esOperador, puede, zonaForzada } from "@/lib/permisos";
+import { actividadesVisibles, esAgenda, esDiseno, esFerias, esLogistica, esOperador, puede, zonaForzada } from "@/lib/permisos";
 import { nombreMes, today } from "@/lib/util";
 import { periodo, type SP } from "@/lib/view";
 
@@ -23,6 +23,8 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<S
   if (esDiseno(yo)) redirect("/flyers");
   // La responsable de ferias trabaja desde el menú Ferias.
   if (esFerias(yo)) redirect("/ferias");
+  // Logística trabaja desde su panel.
+  if (esLogistica(yo)) redirect("/logistica");
   const q = await searchParams;
   const { anio, mes: mesQ } = periodo(q);
   const mes = mesQ || Number(today().slice(5, 7));
