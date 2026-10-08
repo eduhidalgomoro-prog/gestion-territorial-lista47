@@ -14,7 +14,7 @@ import { ubicacionLabel } from "@/lib/labels";
 import { normalizeDni, normalizePhone, parseFechaFlexible, parseFechaNacimiento, parseHoraFlexible, phoneKey } from "@/lib/format";
 import { parsePreguntas } from "@/lib/preguntas";
 import type { Yo } from "@/lib/permisos";
-import { aplicarVerComo, puede } from "@/lib/permisos";
+import { aplicarVerComo, misZonas, puede, zonasForzadas } from "@/lib/permisos";
 import { asistenciaPorClase, cerrarActividad, crearActividad, resumenAsistencia, type ActividadInput } from "@/lib/services/actividades";
 import { agregarPresente, guardarAsistencia } from "@/lib/services/asistencia";
 import { anularLote, marcarPreparando, registrarMovimiento } from "@/lib/services/logistica";
@@ -158,10 +158,24 @@ describe("participantes, importación y asistencia", () => {
     expect(filtrarActividades(s.actividades, { ambito: "interior" }).map((x) => x.id)).toEqual([a.id, porLocalidad.id, sinRegion.id]);
     expect(filtrarActividades(s.actividades, { ambito: "capital" }).map((x) => x.id)).toEqual([general.id]);
     expect(mensajeActividad(a, { inscriptos: 0, presentes: 0 })).toContain("Mercedes · Región Mercedes - Curuzú");
+
+    // Responsable de una zona de Capital y de una región del interior a la vez.
+    const respDoble: Yo = { email: "d@lista47.test", nombre: "Resp Doble", rol: "RESPONSABLE", zona: "ESTE, MERCEDES - CURUZÚ", usuarioId: "USR-D" };
+    expect(misZonas(respDoble)).toEqual(["ESTE", "MERCEDES - CURUZÚ"]);
+    expect(puede.verActividad(respDoble, a, [])).toBe(true);
+    expect(puede.editarActividad(respDoble, a)).toBe(true);
+    expect(puede.verActividad(respDoble, general, [])).toBe(true); // tiene una zona de Capital
+    expect(puede.verActividad(respDoble, sinRegion, [])).toBe(false);
+    expect(zonasForzadas(respDoble)).toEqual(["ESTE", "MERCEDES - CURUZÚ"]);
+    // Elige en cuál de sus zonas carga; si no elige (o elige una ajena), tiene que elegir.
+    expect(await crearActividad(input({ zona: "ESTE", nombre: "Taller Este" }), respDoble)).toMatchObject({ zona: "ESTE" });
+    expect(await crearActividad(input({ zona: "MERCEDES - CURUZÚ", localidad: "mercedes", nombre: "Taller M" }), respDoble)).toMatchObject({ zona: "MERCEDES - CURUZÚ" });
+    await expect(crearActividad(input({ zona: "NORTE", nombre: "Ajena" }), respDoble)).rejects.toMatchObject({ fields: { zona: expect.any(String) } });
+    await expect(crearActividad(input({ zona: "", nombre: "Borrador", estado: "BORRADOR" }), respDoble)).rejects.toMatchObject({ fields: { zona: expect.any(String) } });
   });
 
   it("feria: cupo cerrado, sin duplicados, puestos numerados y asignación automática", async () => {
-    const a = await crearActividad(input({ nombre: "Feria de Emprendedoras", zona: "NORTE", tipo: "FERIAS DE ESME", generar_formulario: false }), admin);
+    const a = await crearActividad(input({ nombre: "Feria de Emprendedoras", zona: "NORTE", tipo: "FERIAS DE ESME", generar_formulario: false, fecha: "2099-11-20" }), admin);
     await configurarFeria(a.id, 3, admin);
     let s = await snapshot({ fresh: true });
     const feria = s.actividades.find((x) => x.id === a.id)!;

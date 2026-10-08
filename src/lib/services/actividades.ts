@@ -4,7 +4,7 @@ import { env } from "../env";
 import { coordsValidas } from "./geocode";
 import { ForbiddenError, UserError } from "../errors";
 import { withLock } from "../lock";
-import { esResponsable, puede, type Yo } from "../permisos";
+import { esResponsable, misZonas, puede, type Yo } from "../permisos";
 import {
   ESTADOS_ACTIVIDAD, ESTADOS_FLYER, ZONAS,
   type Actividad, type EstadoActividad, type EstadoFlyer, type Requerimiento,
@@ -80,8 +80,12 @@ function validar(input: ActividadInput, yo: Yo, regiones: Region[]) {
   const nombre = cleanString(input.nombre, 150);
   if (!nombre) f.nombre = "Poné un nombre a la actividad.";
   let zona = zonaValida(input.zona, regiones) ? input.zona : "";
-  // Un responsable solo carga actividades de su zona o región.
-  if (esResponsable(yo)) zona = yo.zona;
+  // Un responsable solo carga actividades de sus zonas o regiones (y siempre con zona: si no, no la vería).
+  if (esResponsable(yo)) {
+    const mias = misZonas(yo);
+    zona = mias.includes(input.zona) ? input.zona : mias.length === 1 ? mias[0] : "";
+    if (!zona) f.zona = "Elegí la zona o región.";
+  }
   if (!zona && !borrador) f.zona = "Elegí la zona o región.";
   const interior = !!zona && ambitoDe(zona) === "interior";
   let localidad = interior ? nombrePropio(cleanString(input.localidad, 80)) : "";

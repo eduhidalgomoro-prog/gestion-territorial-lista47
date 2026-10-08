@@ -2,7 +2,7 @@ import { IconEye } from "@/components/icons";
 import { MobileNav, Sidebar } from "@/components/panel-nav";
 import { salirVerComoAction } from "./ver-como-actions";
 import { requireUser } from "@/lib/auth";
-import { esDiseno, esFerias, esLogistica, puede, ROL_LABEL } from "@/lib/permisos";
+import { esDiseno, esFerias, esLogistica, misZonas, puede, ROL_LABEL } from "@/lib/permisos";
 import { zonaLabel } from "@/lib/labels";
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
@@ -17,7 +17,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     logistica: puede.gestionarLogistica(yo),
     inicio: !esDiseno(yo) && !esFerias(yo) && !esLogistica(yo),
   };
-  const rol = ROL_LABEL[yo.rol] + (yo.rol === "RESPONSABLE" && yo.zona ? ` · ${zonaLabel(yo.zona)}` : "");
+  const rol = ROL_LABEL[yo.rol] + (yo.rol === "RESPONSABLE" && yo.zona ? ` · ${misZonas(yo).map(zonaLabel).join(" · ")}` : "");
   return (
     <div className="flex min-h-dvh">
       <Sidebar nombre={yo.nombre} rol={rol} permisos={permisos} />

@@ -7,8 +7,8 @@ import { snapshot } from "@/lib/db";
 import { FeriaHero, IconStand } from "@/components/feria-ui";
 import { SectoresEditor } from "@/components/sectores-editor";
 import { CAPACIDAD, SECTORES_INICIALES } from "@/lib/ferias";
-import { opcionesZona, ubicacionLabel } from "@/lib/labels";
-import { actividadesVisibles, esResponsable, puede } from "@/lib/permisos";
+import { opcionesZona, ubicacionLabel, zonaLabel } from "@/lib/labels";
+import { actividadesVisibles, esResponsable, misZonas, puede } from "@/lib/permisos";
 import type { Actividad } from "@/lib/schema";
 import { ferianteActivas, puestosDe } from "@/lib/services/ferias";
 import { parseRegiones, SIN_REGION } from "@/lib/territorio";
@@ -29,7 +29,9 @@ export default async function Ferias() {
   const pasadas = ferias.filter((a) => a.fecha && a.fecha < hoy).reverse();
   // Actividades tipo feria que todavía no se organizaron con cupo y puestos.
   const sinOrganizar = visibles.filter((a) => !a.es_feria && /feria/i.test(`${a.tipo} ${a.nombre}`) && (!a.fecha || a.fecha >= hoy) && a.estado !== "CANCELADA" && puede.editarActividad(yo, a));
-  const zonas = esResponsable(yo) ? [] : opcionesZona([...parseRegiones(s.config.regiones_interior).map((r) => r.nombre), SIN_REGION]);
+  // Un responsable con varias zonas elige en cuál; con una sola, va a esa.
+  const mias = misZonas(yo);
+  const zonas = esResponsable(yo) ? (mias.length > 1 ? mias.map((z) => [z, zonaLabel(z)] as const) : []) : opcionesZona([...parseRegiones(s.config.regiones_interior).map((r) => r.nombre), SIN_REGION]);
 
   const tarjeta = (a: Actividad) => {
     const inscriptas = ferianteActivas(s, a.id);
@@ -129,7 +131,7 @@ export default async function Ferias() {
               <Field label="Lugar" name="lugar"><Input name="lugar" defaultValue="Parque Camba Cuá" /></Field>
               {zonas.length > 0 ? (
                 <div className="grid grid-cols-2 gap-2">
-                  <Field label="Zona o región" name="zona"><Select name="zona" defaultValue="NORTE" options={zonas} /></Field>
+                  <Field label="Zona o región" name="zona"><Select name="zona" defaultValue={esResponsable(yo) ? mias[0] : "NORTE"} options={zonas} /></Field>
                   <Field label="Barrio / localidad" name="barrio" optional hint="Localidad si es en el interior."><Input name="barrio" defaultValue="CAMBA CUA" /></Field>
                 </div>
               ) : (

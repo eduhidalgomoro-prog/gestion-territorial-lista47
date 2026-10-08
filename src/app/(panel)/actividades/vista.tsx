@@ -11,7 +11,7 @@ import { snapshot } from "@/lib/db";
 import { conteosPorActividad, filtrarActividades } from "@/lib/domain/metricas";
 import { conteosHuellas, esMarcandoHuellas } from "@/lib/huellas";
 import { ESTADO_HEX, titulo, ubicacionLabel, zonaLabel } from "@/lib/labels";
-import { actividadesVisibles, esOperador, esResponsable, puede } from "@/lib/permisos";
+import { actividadesVisibles, esOperador, esResponsable, misZonas, puede } from "@/lib/permisos";
 import { ESTADOS_ACTIVIDAD, ZONAS_ACTIVIDAD, type Actividad } from "@/lib/schema";
 import { ambitoDe, parseRegiones, regionLabel } from "@/lib/territorio";
 import { addMonths, formatDate, MESES, mesAnio, nombreMes, titleCase, today } from "@/lib/util";
@@ -101,11 +101,13 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
   const tabHref = TABS.find((t) => t.id === vista)!.href;
   // Mapa: toda la provincia en «Toda la provincia» e «Interior»; la ciudad en Capital; la región elegida si se filtra una.
   const zonaDeCapital = (z: string) => z === "SIN" || ambitoDe(z) === "capital";
-  const encuadre: Encuadre = conAmbito
+  const encuadre: Encuadre = conAmbito || f.zona
     ? f.zona
       ? zonaDeCapital(f.zona) ? "capital" : "region"
       : f.ambito === "capital" ? "capital" : "provincia"
-    : ambitoDe(yo.zona) === "interior" || lista.some((a) => ambitoDe(a.zona) === "interior") ? "region" : "capital";
+    : misZonas(yo).some((z) => ambitoDe(z) === "capital") && misZonas(yo).some((z) => ambitoDe(z) === "interior")
+      ? "provincia" // responsable de Capital y del interior a la vez
+      : misZonas(yo).some((z) => ambitoDe(z) === "interior") || lista.some((a) => ambitoDe(a.zona) === "interior") ? "region" : "capital";
 
   return (
     <>
@@ -173,8 +175,11 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
             {!proximas && (
               <FiltroSelect chip name="anio" label="Año" activo={false} value={f.anio || anioActual} options={[anioActual - 1, anioActual, anioActual + 1].map((a) => [a, String(a)] as const)} />
             )}
-            {!esResponsable(yo) && (
+            {!esResponsable(yo) ? (
               <FiltroSelect chip name="zona" label="Zona o región" value={f.zona ?? ""} placeholder={f.ambito === "interior" ? "Región: todas" : "Zona: todas"} options={opcionesZona} />
+            ) : misZonas(yo).length > 1 && (
+              // Responsable con varias zonas: puede mirar una sola.
+              <FiltroSelect chip name="zona" label="Zona o región" value={f.zona ?? ""} placeholder="Zona: todas las mías" options={misZonas(yo).map((z) => [z, zonaLabel(z)] as const)} />
             )}
             <FiltroSelect chip name="estado" label="Estado" value={f.estado ?? ""} placeholder="Estado: todos" options={ESTADOS_ACTIVIDAD.map((e) => [e, titulo(e)] as const)} />
             <details className="group open:basis-full" open={masFiltros > 0}>

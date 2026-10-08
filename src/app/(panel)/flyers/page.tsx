@@ -4,7 +4,7 @@ import { snapshot } from "@/lib/db";
 import { zonaLabel } from "@/lib/labels";
 import { actividadesVisibles, esResponsable, puede } from "@/lib/permisos";
 import type { Actividad, EstadoFlyer, Usuario } from "@/lib/schema";
-import { ambitoDe, nombrePropio, regionLabel } from "@/lib/territorio";
+import { ambitoDe, nombrePropio, regionLabel, zonasDe } from "@/lib/territorio";
 import { normalizePhone, today } from "@/lib/util";
 import { periodo, sp, type SP } from "@/lib/view";
 import { TableroFlyers, type FlyerItem } from "./tablero";
@@ -73,7 +73,7 @@ function aItem(a: Actividad, responsables: Usuario[], editable: boolean): FlyerI
     editable,
     // A quién avisar por WhatsApp: el responsable de la zona (actividades generales o sin zona: todos los responsables).
     equipo: responsables
-      .filter((u) => a.zona === "GENERAL" || !a.zona || u.zona === a.zona)
+      .filter((u) => a.zona === "GENERAL" || !a.zona || zonasDe(u.zona).includes(a.zona))
       .map((u) => ({ id: u.id, nombre: u.nombre, telefono: normalizePhone(u.telefono) })),
   };
 }

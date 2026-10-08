@@ -2,7 +2,7 @@ import "server-only";
 import type { WizardOpciones } from "@/components/actividad-wizard";
 import { fechasDeClases } from "@/lib/clases";
 import type { Snapshot } from "@/lib/db";
-import { esResponsable, puede, type Yo } from "@/lib/permisos";
+import { esResponsable, misZonas, puede, type Yo } from "@/lib/permisos";
 import type { ActividadInput } from "@/lib/services/actividades";
 import { ZONAS_ACTIVIDAD, type Actividad } from "@/lib/schema";
 import { ambitoDe, parseRegiones, SIN_REGION } from "@/lib/territorio";
@@ -20,7 +20,7 @@ export function opcionesWizard(s: Snapshot, yo: Yo, actual?: Actividad): WizardO
     localidades: [...new Set([...r.localidades, ...s.actividades.filter((a) => a.zona === r.nombre && a.localidad).map((a) => a.localidad)])].sort(),
   }));
   return {
-    zonas: esResponsable(yo) && yo.zona ? [yo.zona] : [...ZONAS_ACTIVIDAD, ...regiones.map((r) => r.nombre), SIN_REGION],
+    zonas: esResponsable(yo) && misZonas(yo).length ? misZonas(yo) : [...ZONAS_ACTIVIDAD, ...regiones.map((r) => r.nombre), SIN_REGION],
     regiones: regionesConUsadas,
     barrios: s.barrios.filter((b) => b.activo).map((b) => ({ barrio: b.barrio, zona: b.zona })),
     tipos: s.config.tipos_actividad,
@@ -38,7 +38,7 @@ export function opcionesWizard(s: Snapshot, yo: Yo, actual?: Actividad): WizardO
 
 export function inputVacio(yo: Yo): ActividadInput {
   return {
-    nombre: "", detalle: "", responsable: yo.rol === "ADMINISTRADOR" ? "" : yo.nombre, zona: esResponsable(yo) ? yo.zona : "", localidad: "", tipo: "", publico: "",
+    nombre: "", detalle: "", responsable: yo.rol === "ADMINISTRADOR" ? "" : yo.nombre, zona: esResponsable(yo) && misZonas(yo).length === 1 ? misZonas(yo)[0] : "", localidad: "", tipo: "", publico: "",
     estado: "PROGRAMADA", fecha: "", hora_inicio: "", hora_fin: "", fecha_alt: "", hora_alt: "", clases_extra: [], barrio: "", direccion: "", entre_calles: "", lugar: "",
     lat: 0, lng: 0, articula: false, tipo_articulacion: "", mesa: "", institucion_id: "", institucion_nueva: "", institucion_nueva_tipo: "",
     requiere_flyer: false, estado_flyer: "", link_flyer: "", gazebo: false, gazebo_cant: 0, mesas: false, mesas_cant: 0, sillas: false, sillas_cant: 0,

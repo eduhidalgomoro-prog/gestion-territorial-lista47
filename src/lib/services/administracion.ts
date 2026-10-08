@@ -4,7 +4,7 @@ import { insert, readFresh, setConfigValue, snapshot, update, upsertBarrio, NotF
 import { UserError } from "../errors";
 import { withLock } from "../lock";
 import { ROLES, ZONAS, type Rol, type Zona } from "../schema";
-import { parseRegiones, validarRegiones, zonaValida, type Region } from "../territorio";
+import { parseRegiones, unirZonas, validarRegiones, zonasDe, zonaValida, type Region } from "../territorio";
 import { cleanString, normalizeBarrio, normalizePhone, titleCase } from "../util";
 
 export interface UsuarioInput {
@@ -25,8 +25,9 @@ function validarUsuario(u: UsuarioInput, regiones: Region[]) {
   if (!nombre) f.nombre = "Falta el nombre.";
   const rol = (ROLES as readonly string[]).includes(u.rol) ? (u.rol as Rol) : null;
   if (!rol) f.rol = "Elegí el rol.";
-  const zona = zonaValida(u.zona, regiones, false) ? u.zona : "";
-  if (rol === "RESPONSABLE" && !zona) f.zona = "Un responsable necesita una zona o región.";
+  // Puede tener varias zonas (por ejemplo, una de Capital y una región del interior).
+  const zona = unirZonas(zonasDe(u.zona).filter((z) => zonaValida(z, regiones, false)));
+  if (rol === "RESPONSABLE" && !zona) f.zona = "Un responsable necesita al menos una zona o región.";
   if (Object.keys(f).length) throw new UserError("Revisá los datos del usuario.", f);
   const telefono = normalizePhone(cleanString(u.telefono, 40));
   if (u.telefono && telefono.length < 10) f.telefono = "Teléfono inválido (con característica, ej. 379 4123456).";

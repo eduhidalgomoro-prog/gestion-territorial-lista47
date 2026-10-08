@@ -11,7 +11,7 @@ import { conclusionesEstadisticas } from "@/lib/domain/resumen";
 import { MarcandoHuellasStats } from "@/components/huellas";
 import { esMarcandoHuellas, resumenHuellas } from "@/lib/huellas";
 import { opcionesZona, titulo, zonaLabel } from "@/lib/labels";
-import { actividadesVisibles, puede, zonaForzada } from "@/lib/permisos";
+import { actividadesVisibles, puede, zonasForzadas } from "@/lib/permisos";
 import { ESTADOS_ACTIVIDAD, ZONAS } from "@/lib/schema";
 import { ambitoDe, parseRegiones } from "@/lib/territorio";
 import { formatMoney, fullName, MESES, nombreMes, titleCase, today } from "@/lib/util";
@@ -28,13 +28,16 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
   if (!puede.verEstadisticas(yo)) return <Notice tone="alerta">Tu rol no tiene acceso a estadísticas.</Notice>;
   const q = await searchParams;
   const { anio, mes } = periodo(q);
-  const zonaFija = zonaForzada(yo);
-  const zona = zonaFija || sp(q, "zona");
+  // El responsable ve solo sus zonas: con una sola, queda fija; con varias, puede elegir entre ellas.
+  const zonasFijas = zonasForzadas(yo);
+  const zonaFija = zonasFijas.length === 1;
+  const zonaPedida = sp(q, "zona");
+  const zona = zonaFija ? zonasFijas[0] : zonasFijas.length ? (zonasFijas.includes(zonaPedida) ? zonaPedida : "") : zonaPedida;
 
   const s = await snapshot();
-  const ambito = zonaFija ? "" : sp(q, "ambito");
+  const ambito = zonasFijas.length ? "" : sp(q, "ambito");
   const extra = { localidad: sp(q, "localidad"), barrio: sp(q, "barrio"), tipo: sp(q, "tipo"), responsable: sp(q, "responsable"), estado: sp(q, "estado") };
-  const deMiAlcance = actividadesVisibles(yo, s.actividades, s.asignaciones);
+  const deMiAlcance = actividadesVisibles(yo, s.actividades, s.asignaciones).filter((a) => !zonasFijas.length || zonasFijas.includes(a.zona));
   // Todos los bloques usan la misma lista filtrada (el período se aplica después).
   const visibles = filtrarActividades(deMiAlcance, { zona, ...extra }).filter((a) => (ambito !== "capital" && ambito !== "interior") || ambitoDe(a.zona) === ambito);
   const delPeriodo = visibles.filter((a) => a.anio === anio && (!mes || a.mes === mes));
@@ -50,7 +53,7 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
 
   // Objetivo mensual por zona (solo Capital y con un mes elegido; respeta los filtros).
   const conObjetivo = !!mes && ambito !== "interior" && (!zona || (ZONAS as readonly string[]).includes(zona));
-  const cumpl = conObjetivo ? cumplimiento(visibles, anio, mes, s.config.objetivo_mensual).filter((c) => !zona || c.zona === zona) : [];
+  const cumpl = conObjetivo ? cumplimiento(visibles, anio, mes, s.config.objetivo_mensual).filter((c) => (zona ? c.zona === zona : !zonasFijas.length || zonasFijas.includes(c.zona))) : [];
 
   // Territorio
   const actsPorZona = porZona(delPeriodo).map((d) => ({ ...d, label: zonaLabel(d.label === "Sin zona" ? "" : d.label) })).sort((a, b) => b.value - a.value);
@@ -59,7 +62,7 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
   const capitalEnAlcance = ambito !== "interior" && (!zona || ambitoDe(zona) === "capital");
   const cobertura = [
     { valor: new Set(noCanceladas.map((a) => a.barrio).filter(Boolean)).size, texto: "barrios alcanzados" },
-    ...(capitalEnAlcance && !zonaFija && !zona
+    ...(capitalEnAlcance && !zonasFijas.length && !zona
       ? [{ valor: ZONAS.filter((z) => noCanceladas.some((a) => a.zona === z)).length, texto: `de ${ZONAS.length} zonas de Capital con actividad` }]
       : []),
     { valor: new Set(noCanceladas.map((a) => a.localidad).filter(Boolean)).size, texto: "localidades del interior" },
@@ -78,8 +81,8 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
   // Opciones de los filtros (de lo que cada uno puede ver)
   const enAmbito = deMiAlcance.filter((a) => (ambito !== "capital" && ambito !== "interior") || ambitoDe(a.zona) === ambito);
   const uniq = (xs: string[]) => [...new Set(xs.filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
-  const filtrosExtra = [zonaFija ? "" : sp(q, "zona"), ...Object.values(extra)].filter(Boolean).length;
-  const alcance = zona ? zonaLabel(zona) : ambito === "capital" ? "Capital" : ambito === "interior" ? "Interior" : "Toda la provincia";
+  const filtrosExtra = [zonaFija ? "" : zona, ...Object.values(extra)].filter(Boolean).length;
+  const alcance = zona ? zonaLabel(zona) : zonasFijas.length ? zonasFijas.map(zonaLabel).join(" · ") : ambito === "capital" ? "Capital" : ambito === "interior" ? "Interior" : "Toda la provincia";
 
   const costosPorZona = agrupar(noCanceladas, (a) => zonaLabel(a.zona), (a) => a.costo_estimado, (a) => a.costo_real).filter((d) => d.value || d.value2);
   const costosTop = noCanceladas.map((a) => ({ label: a.nombre, value: a.costo_real || a.costo_estimado })).filter((d) => d.value > 0).sort((x, y) => y.value - x.value).slice(0, 10);
@@ -102,7 +105,7 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
         <div className="flex flex-wrap items-center gap-2">
           <FiltroSelect chip name="mes" label="Mes" activo={false} value={mes} options={[[0, "Todo el año"] as const, ...MESES.map((m, i) => [i + 1, m] as const)]} />
           <FiltroSelect chip name="anio" label="Año" activo={false} value={anio} options={anios} />
-          {!zonaFija && (
+          {!zonasFijas.length && (
             <FiltroSelect chip name="ambito" label="Capital o interior" activo={false} value={ambito} placeholder="Toda la provincia" options={[["capital", "Capital"], ["interior", "Interior"]]} />
           )}
           <details className="group open:basis-full" open={filtrosExtra > 0}>
@@ -112,7 +115,7 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
             </summary>
             <div className="mt-2 flex flex-wrap gap-2 rounded-2xl bg-white p-3 ring-1 ring-linea">
               {!zonaFija && (
-                <FiltroSelect chip name="zona" label="Zona" value={sp(q, "zona")} placeholder="Zona: todas" options={opcionesZona([...parseRegiones(s.config.regiones_interior).map((r) => r.nombre), ...s.actividades.map((a) => a.zona).filter((z) => z && ambitoDe(z) === "interior")])} />
+                <FiltroSelect chip name="zona" label="Zona" value={zona} placeholder={zonasFijas.length ? "Zona: todas las mías" : "Zona: todas"} options={zonasFijas.length ? zonasFijas.map((z) => [z, zonaLabel(z)] as const) : opcionesZona([...parseRegiones(s.config.regiones_interior).map((r) => r.nombre), ...s.actividades.map((a) => a.zona).filter((z) => z && ambitoDe(z) === "interior")])} />
               )}
               {uniq(enAmbito.map((a) => a.localidad)).length > 0 && (
                 <FiltroSelect chip name="localidad" label="Localidad" value={extra.localidad} placeholder="Localidad: todas" options={uniq(enAmbito.map((a) => a.localidad)).map((l) => [l, l] as const)} />

@@ -11,7 +11,7 @@ import { destacadosDelMes } from "@/lib/domain/resumen";
 import { conteosHuellas } from "@/lib/huellas";
 import { zonaLabel } from "@/lib/labels";
 import { redirect } from "next/navigation";
-import { actividadesVisibles, esAgenda, esDiseno, esFerias, esLogistica, esOperador, puede, zonaForzada } from "@/lib/permisos";
+import { actividadesVisibles, esAgenda, esDiseno, esFerias, esLogistica, esOperador, puede, zonasForzadas } from "@/lib/permisos";
 import { nombreMes, today } from "@/lib/util";
 import { periodo, type SP } from "@/lib/view";
 
@@ -57,11 +57,12 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<S
     );
   }
 
-  const zona = zonaForzada(yo);
-  const delMes = visibles.filter((a) => a.anio === anio && a.mes === mes && (!zona || a.zona === zona));
+  const zonas = zonasForzadas(yo);
+  const enMisZonas = (z: string) => !zonas.length || zonas.includes(z);
+  const delMes = visibles.filter((a) => a.anio === anio && a.mes === mes && enMisZonas(a.zona));
   const ind = indicadores(delMes, s, { anio, mes });
-  // El responsable ve solo el objetivo de su zona.
-  const cumpl = cumplimiento(s.actividades, anio, mes, s.config.objetivo_mensual).filter((c) => !zona || c.zona === zona);
+  // El responsable ve solo el objetivo de sus zonas.
+  const cumpl = cumplimiento(s.actividades, anio, mes, s.config.objetivo_mensual).filter((c) => enMisZonas(c.zona));
   const costos = puede.verCostos(yo);
   const sinZona = s.actividades.filter((a) => !a.zona && a.estado !== "BORRADOR").length;
   const agenda = esAgenda(yo);
@@ -101,7 +102,7 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<S
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="mb-1.5 inline-flex items-center gap-1.5 rounded-full bg-petroleo-50 px-3 py-1 text-xs font-bold tracking-[0.12em] text-petroleo uppercase">
-            {zona ? zonaLabel(zona) : "Toda la provincia"}
+            {zonas.length ? zonas.map(zonaLabel).join(" · ") : "Toda la provincia"}
           </p>
           <h1 className="font-titulo text-3xl font-extrabold tracking-tight sm:text-4xl">Hola, {primerNombre}</h1>
           <p className="mt-0.5 text-[16px] text-gris">Así viene {nombreMes(mes).toLowerCase()} {anio}</p>

@@ -1,6 +1,6 @@
 import { env } from "./env";
 import type { Actividad, Asignacion, Rol, Usuario } from "./schema";
-import { ambitoDe } from "./territorio";
+import { ambitoDe, zonasDe } from "./territorio";
 
 /**
  * Quién puede hacer qué. Todas las pantallas y acciones consultan estas funciones;
@@ -11,7 +11,7 @@ export interface Yo {
   email: string;
   nombre: string;
   rol: Rol;
-  zona: string; // zona de Capital o región del interior
+  zona: string; // zona de Capital o región del interior; varias separadas por coma (usar misZonas)
   usuarioId: string; // "" si es administrador inicial (ADMIN_EMAILS) todavía no cargado en USUARIOS
   /** «Ver la app como…»: un administrador mirando la app con el rol de otra persona (solo lectura). */
   vistaPrevia?: { etiqueta: string };
@@ -74,13 +74,16 @@ function asignada(yo: Yo, act: Actividad, asignaciones: Asignacion[]) {
   return asignaciones.some((a) => a.estado === "ACTIVA" && a.actividad_id === act.id && a.usuario_id === yo.usuarioId);
 }
 
-/** Responsable: su zona de Capital o su región del interior. */
+/** Zonas del usuario (un responsable puede tener varias: por ejemplo, una de Capital y una región del interior). */
+export const misZonas = (yo: Pick<Yo, "zona">): string[] => zonasDe(yo.zona);
+
+/** Responsable: sus zonas de Capital o sus regiones del interior. */
 function deSuZona(yo: Yo, act: Actividad) {
-  return !!yo.zona && act.zona === yo.zona;
+  return !!act.zona && misZonas(yo).includes(act.zona);
 }
 
 /** Actividades GENERAL (toda la ciudad) o sin zona: las ven los responsables de Capital (no pertenecen a nadie). */
-const generalDeCapital = (yo: Yo, act: Actividad) => (act.zona === "GENERAL" || !act.zona) && ambitoDe(yo.zona) === "capital";
+const generalDeCapital = (yo: Yo, act: Actividad) => (act.zona === "GENERAL" || !act.zona) && misZonas(yo).some((z) => ambitoDe(z) === "capital");
 
 /** Responsable de ferias: cualquier feria, de cualquier zona. */
 const feriaSuya = (yo: Yo, act: Actividad) => esFerias(yo) && act.es_feria;
@@ -125,9 +128,9 @@ export function actividadesVisibles(yo: Yo, acts: Actividad[], asig: Asignacion[
   return acts.filter((a) => puede.verActividad(yo, a, asig));
 }
 
-/** Para estadísticas: el responsable ve solo su zona. */
-export function zonaForzada(yo: Yo): string {
-  return esResponsable(yo) ? yo.zona : "";
+/** Para inicio y estadísticas: el responsable ve solo sus zonas ([] = sin restricción). */
+export function zonasForzadas(yo: Yo): string[] {
+  return esResponsable(yo) ? misZonas(yo) : [];
 }
 
 export const ROL_LABEL: Record<Rol, string> = {

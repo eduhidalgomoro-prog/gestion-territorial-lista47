@@ -143,12 +143,13 @@ export function ActividadWizard({
   const interior = !!d.zona && ambitoDe(d.zona) === "interior";
   const zonasCapital = opciones.zonas.filter((z) => ambitoDe(z) === "capital");
   const zonasInterior = opciones.zonas.filter((z) => ambitoDe(z) === "interior");
-  // Sugerencias de localidad: todas las de la provincia (o las de su región, si la zona es fija).
-  const sugerencias = [...new Set(opciones.regiones.filter((r) => !zonaFija || r.nombre === d.zona).flatMap((r) => r.localidades))].sort();
+  // Sugerencias de localidad: las de las regiones que puede elegir (toda la provincia, o las de sus regiones si es responsable).
+  const sugerencias = [...new Set(opciones.regiones.filter((r) => opciones.zonas.includes(r.nombre)).flatMap((r) => r.localidades))].sort();
   const regionDe = (loc: string) => {
     const n = normalizar(loc);
-    return n ? opciones.regiones.find((r) => r.nombre !== SIN_REGION && r.localidades.some((l) => normalizar(l) === n))?.nombre ?? "" : "";
+    return n ? opciones.regiones.find((r) => r.nombre !== SIN_REGION && opciones.zonas.includes(r.nombre) && r.localidades.some((l) => normalizar(l) === n))?.nombre ?? "" : "";
   };
+  const sinRegionPermitida = opciones.zonas.includes(SIN_REGION);
   function elegirZona(z: string) {
     // Entre Capital e interior se limpian localidad y barrio; entre regiones del interior se conserva la localidad.
     setD((p) => {
@@ -166,7 +167,7 @@ export function ActividadWizard({
     // Si la localidad es de una región, la región se elige sola.
     const r = zonaFija ? "" : regionDe(v);
     const sinZona = !d.zona || (regionAuto && !r);
-    setD((p) => ({ ...p, localidad: v, zona: r || (sinZona && v.trim() ? SIN_REGION : sinZona ? "" : p.zona) }));
+    setD((p) => ({ ...p, localidad: v, zona: r || (sinZona && v.trim() && sinRegionPermitida ? SIN_REGION : sinZona ? "" : p.zona) }));
     setRegionAuto(!!r || (regionAuto && !r && sinZona));
     setErrores((e) => ({ ...e, localidad: "" }));
   }
@@ -305,7 +306,9 @@ export function ActividadWizard({
               hint={
                 !d.localidad.trim()
                   ? "Escribila o elegila de la lista. Puede ser cualquier localidad de la provincia."
-                  : zonaFija || d.zona !== SIN_REGION
+                  : !d.zona
+                    ? "Elegí arriba la región."
+                    : zonaFija || d.zona !== SIN_REGION
                     ? `${zonaLabel(d.zona)}.`
                     : "No está en ninguna región: queda como «Interior (sin región)». Si corresponde a una, elegila arriba."
               }

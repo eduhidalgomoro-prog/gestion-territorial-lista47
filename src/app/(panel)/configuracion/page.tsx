@@ -9,7 +9,7 @@ import { env } from "@/lib/env";
 import { opcionesZona, zonaLabel } from "@/lib/labels";
 import { puede, ROL_LABEL } from "@/lib/permisos";
 import { ROLES, ZONAS, type Usuario } from "@/lib/schema";
-import { ambitoDe, parseRegiones, regionLabel } from "@/lib/territorio";
+import { ambitoDe, parseRegiones, regionLabel, zonasDe } from "@/lib/territorio";
 import { titleCase } from "@/lib/util";
 import { sp, type SP } from "@/lib/view";
 import { barrioAction, configAction, institucionAction, usuarioAction } from "../actions";
@@ -35,7 +35,7 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
           <p className="text-lg font-bold">{yo.nombre}</p>
           <p className="text-gris">{yo.email}</p>
           <p className="mt-2">
-            <Badge color="petroleo">{ROL_LABEL[yo.rol]}</Badge> {yo.zona && <Badge color="verde">{zonaLabel(yo.zona)}</Badge>}
+            <Badge color="petroleo">{ROL_LABEL[yo.rol]}</Badge> {zonasDe(yo.zona).map((z) => <Badge key={z} color="verde">{zonaLabel(z)}</Badge>)}
           </p>
           <div className="mt-5 space-y-2">
             <InstallButton className="w-full" />
@@ -96,7 +96,7 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
                         </span>
                         <span className="flex flex-wrap gap-1">
                           <Badge color="petroleo">{u.rol}</Badge>
-                          {u.zona && <Badge color="verde">{zonaLabel(u.zona)}</Badge>}
+                          {zonasDe(u.zona).map((z) => <Badge key={z} color="verde">{zonaLabel(z)}</Badge>)}
                           {u.estado !== "ACTIVO" && <Badge color="rojo">INACTIVO</Badge>}
                         </span>
                       </summary>
@@ -116,7 +116,7 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
             <Card className="mt-4 p-4 text-sm text-gris">
               <p className="mb-1 font-bold text-tinta">Roles</p>
               <p><b>Administrador:</b> todo, incluidos datos personales, costos y configuración.</p>
-              <p className="mt-1"><b>Responsable de zona:</b> carga y edita actividades de su zona de Capital o de su región del interior, toma asistencia, cierra y ve sus estadísticas.</p>
+              <p className="mt-1"><b>Responsable de zona:</b> carga y edita actividades de sus zonas de Capital o regiones del interior (puede tener más de una), toma asistencia, cierra y ve sus estadísticas.</p>
               <p className="mt-1"><b>Operador:</b> solo las actividades que le asignan: inscriptos, asistencia y agregar personas.</p>
               <p className="mt-1"><b>Agenda (solo lectura):</b> ve todas las actividades, el calendario, el mapa y la cantidad de inscriptos. No ve datos de personas ni costos, y no puede modificar nada.</p>
               <p className="mt-1"><b>Responsable de ferias:</b> crea y organiza todas las ferias (inscriptas, puestos, croquis, avisos por WhatsApp y asistencia). No ve el resto de las actividades, ni participantes, costos o configuración.</p>
@@ -137,7 +137,7 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
               <div className="grid gap-4 md:grid-cols-2">
                 {parseRegiones(s.config.regiones_interior).map((r) => {
                   const n = s.actividades.filter((a) => a.zona === r.nombre).length;
-                  const resp = s.usuarios.filter((u) => u.zona === r.nombre && u.rol === "RESPONSABLE" && u.estado === "ACTIVO");
+                  const resp = s.usuarios.filter((u) => zonasDe(u.zona).includes(r.nombre) && u.rol === "RESPONSABLE" && u.estado === "ACTIVO");
                   return (
                     <Card key={r.nombre} className="p-4">
                       <h3 className="font-bold">{regionLabel(r.nombre)}</h3>
@@ -283,7 +283,8 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
 
 function UsuarioForm({ u, regiones }: { u?: Usuario; regiones: string[] }) {
   // Si el usuario tiene una región que ya no está en Configuración, se sigue mostrando.
-  const opciones = opcionesZona([...regiones, ...(u?.zona && ambitoDe(u.zona) === "interior" ? [u.zona] : [])], { general: false });
+  const suyas = zonasDe(u?.zona ?? "");
+  const opciones = opcionesZona([...regiones, ...suyas.filter((z) => ambitoDe(z) === "interior")], { general: false });
   return (
     <ActionForm action={usuarioAction.bind(null, u?.id ?? null)} resetOnSuccess={!u}>
       <div className="grid gap-x-3 sm:grid-cols-2">
@@ -294,10 +295,21 @@ function UsuarioForm({ u, regiones }: { u?: Usuario; regiones: string[] }) {
       <Field label="Teléfono (WhatsApp)" name="telefono" optional hint="Para que el equipo de diseño le envíe los flyers por WhatsApp.">
         <Input name="telefono" type="tel" inputMode="tel" defaultValue={u?.telefono} placeholder="Ej: 379 4123456" autoComplete="off" />
       </Field>
-      <div className="grid gap-x-3 sm:grid-cols-2">
-        <Field label="Rol" name="rol"><Select name="rol" defaultValue={u?.rol ?? "RESPONSABLE"} options={ROLES.map((r) => [r, ROL_LABEL[r]] as const)} /></Field>
-        <Field label="Zona o región" name="zona" hint="Obligatoria para responsables."><Select name="zona" defaultValue={u?.zona ?? ""} placeholder="Sin zona" options={opciones} /></Field>
-      </div>
+      <Field label="Rol" name="rol"><Select name="rol" defaultValue={u?.rol ?? "RESPONSABLE"} options={ROLES.map((r) => [r, ROL_LABEL[r]] as const)} /></Field>
+      <Field
+        label="Zonas o regiones"
+        name="zona"
+        hint="Obligatoria para responsables. Podés tildar más de una: por ejemplo, una zona de Capital y una región del interior."
+      >
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          {opciones.map(([valor, texto], i) => (
+            <label key={valor} className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-xl bg-white px-3 py-2 text-[15px] ring-1 ring-linea has-[:checked]:bg-petroleo-50 has-[:checked]:font-bold has-[:checked]:ring-petroleo">
+              <input type="checkbox" name="zona" value={valor} id={i === 0 ? "zona" : undefined} defaultChecked={suyas.includes(valor)} className="size-5 accent-petroleo" />
+              {texto}
+            </label>
+          ))}
+        </div>
+      </Field>
       {u && <Field label="Estado" name="estado"><Select name="estado" defaultValue={u.estado} options={[["ACTIVO", "Activo"], ["INACTIVO", "Inactivo (no puede ingresar)"]]} /></Field>}
       <SubmitButton size="md">{u ? "Guardar cambios" : "Agregar usuario"}</SubmitButton>
     </ActionForm>
@@ -333,7 +345,7 @@ function VerComo({ usuarios }: { usuarios: Usuario[] }) {
                       <button type="submit" className={boton}>
                         <span className="min-w-0">
                           <span className="block truncate text-[15px] font-bold">{u.nombre} {u.apellido}</span>
-                          {u.zona && <span className="block text-[13px] text-gris">{zonaLabel(u.zona)}</span>}
+                          {u.zona && <span className="block text-[13px] text-gris">{zonasDe(u.zona).map(zonaLabel).join(" · ")}</span>}
                         </span>
                         <span className="shrink-0 text-[13px] font-bold text-petroleo">Ver como →</span>
                       </button>

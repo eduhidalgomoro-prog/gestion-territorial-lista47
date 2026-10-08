@@ -3,7 +3,7 @@ import { insert, insertMany, readFresh, snapshot, update, updateMany, NotFoundEr
 import { ForbiddenError, UserError } from "../errors";
 import { CAPACIDAD, letraSector, LLEVA_OPCIONES, proponerAsignacion, type SectorFeria } from "../ferias";
 import { withLock } from "../lock";
-import { esResponsable, puede, type Yo } from "../permisos";
+import { esResponsable, misZonas, puede, type Yo } from "../permisos";
 import { ambitoDe } from "../territorio";
 import { TIPOS_PUESTO, type Actividad, type Feriante, type Puesto, type TipoPuesto } from "../schema";
 import { cleanString, nowIso } from "../util";
@@ -50,7 +50,8 @@ export interface NuevaFeriaInput {
 /** Crea la feria en un paso: la actividad (tipo «FERIAS DE ESME»), el cupo, el formulario y los puestos. */
 export async function crearFeria(datos: NuevaFeriaInput, yo: Yo): Promise<Actividad> {
   // En el interior, el campo «Barrio / localidad» es la localidad.
-  const zona = esResponsable(yo) ? yo.zona : datos.zona;
+  const mias = misZonas(yo);
+  const zona = esResponsable(yo) ? (mias.includes(datos.zona) ? datos.zona : mias.length === 1 ? mias[0] : "") : datos.zona;
   const interior = ambitoDe(zona) === "interior";
   const input = { ...datos, localidad: interior ? datos.localidad || datos.barrio : "", barrio: interior ? "" : datos.barrio };
   const a = await crearActividad(

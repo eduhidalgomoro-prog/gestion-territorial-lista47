@@ -280,7 +280,7 @@ export async function usuarioAction(id: string | null, _: ActionResult, fd: Form
       soloAdmin(yo);
       const input = {
         nombre: str(fd, "nombre"), apellido: str(fd, "apellido"), email: str(fd, "email"), telefono: str(fd, "telefono"),
-        rol: str(fd, "rol"), zona: str(fd, "zona"), activo: str(fd, "estado") !== "INACTIVO",
+        rol: str(fd, "rol"), zona: fd.getAll("zona").map(String).join(","), activo: str(fd, "estado") !== "INACTIVO",
       };
       return id ? editarUsuario(id, input, yo.email) : crearUsuario(input, yo.email);
     },

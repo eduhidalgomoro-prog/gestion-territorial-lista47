@@ -22,6 +22,13 @@ export const esZonaResponsableCapital = (z: string) => (ZONAS as readonly string
 /** Una actividad sin zona se considera de Capital (vienen del formulario anterior). */
 export const ambitoDe = (zona: string): Ambito => (!zona || esZonaCapital(zona) ? "capital" : "interior");
 
+/**
+ * Un responsable puede tener varias zonas (por ejemplo, una de Capital y una región del interior).
+ * En la hoja USUARIOS se guardan en la misma columna «Zona», separadas por coma: «ESTE, RIO PARANA».
+ */
+export const zonasDe = (valor: string): string[] => [...new Set(valor.split(",").map((z) => z.trim()).filter(Boolean))];
+export const unirZonas = (zonas: string[]): string => [...new Set(zonas.map((z) => z.trim()).filter(Boolean))].join(", ");
+
 /** Actividad del interior en una localidad que no pertenece a ninguna región. */
 export const SIN_REGION = "INTERIOR";
 
