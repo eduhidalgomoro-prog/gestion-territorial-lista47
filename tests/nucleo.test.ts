@@ -579,6 +579,24 @@ describe("logística", () => {
     // Anular la entrega no se permite mientras tenga devoluciones; el historial no se borra nunca.
     await expect(anularLote(a.id, entrega.lote, logistica)).rejects.toThrow(/devoluci/);
     expect(s.logistica.filter((m) => m.actividad_id === a.id)).toHaveLength(7); // preparación + 3 entregas + 3 devoluciones
+
+    // Pedido de último momento en una actividad que no había pedido nada.
+    const sinNada = await crearActividad(input({ nombre: "Charla", fecha: "2099-03-10", sillas: false, sillas_cant: 0 }), admin);
+    s = await snapshot({ fresh: true });
+    expect(resumenLogistico(sinNada, s.requerimientos, s.logistica, "2099-03-01").estado).toBe("Sin logística");
+    await expect(registrarMovimiento(sinNada.id, "PEDIDO", { items: [], persona: "Ana", fecha_hora: "", observaciones: "" }, logistica)).rejects.toMatchObject({ fields: { items: expect.any(String) } });
+    const ped = await registrarMovimiento(sinNada.id, "PEDIDO", { items: [{ elemento: "Banderas", cantidad: 4 }], persona: "resp. este", fecha_hora: "2099-03-09T18:00", observaciones: "" }, logistica);
+    s = await snapshot({ fresh: true });
+    r = resumenLogistico(sinNada, s.requerimientos, s.logistica, "2099-03-01");
+    expect(r).toMatchObject({ estado: "Pendiente", requiere: true, porEntregar: 4 });
+    expect(r.filas[0]).toMatchObject({ elemento: "Banderas", solicitado: 4, pedidoUltimoMomento: 4 });
+    await registrarMovimiento(sinNada.id, "ENTREGA", { items: [{ elemento: "banderas", cantidad: 4 }], persona: "Resp. Este", fecha_hora: "", observaciones: "" }, logistica);
+    s = await snapshot({ fresh: true });
+    expect(resumenLogistico(sinNada, s.requerimientos, s.logistica, "2099-03-01")).toMatchObject({ estado: "Entregado", porEntregar: 0, enCirculacion: 4 });
+    // Un pedido cargado por error se anula y deja de contar.
+    await anularLote(sinNada.id, ped.lote, logistica);
+    s = await snapshot({ fresh: true });
+    expect(resumenLogistico(sinNada, s.requerimientos, s.logistica, "2099-03-01").filas[0]).toMatchObject({ solicitado: 0, entregado: 4 });
   });
 });
 

@@ -31,10 +31,16 @@ export default async function Logistica({ searchParams }: { searchParams: Promis
   const s = await snapshot();
   const hoy = today();
 
-  const conResumen = s.actividades
+  const todas = s.actividades
     .filter((a) => a.estado !== "CANCELADA" && a.estado !== "BORRADOR")
-    .map((a) => ({ a, r: resumenLogistico(a, s.requerimientos, s.logistica, hoy) }))
-    .filter(({ a, r }) => r.requiere && ((a.fecha && a.fecha >= hoy) || r.enCirculacion > 0));
+    .map((a) => ({ a, r: resumenLogistico(a, s.requerimientos, s.logistica, hoy) }));
+  const conResumen = todas.filter(({ a, r }) => r.requiere && ((a.fecha && a.fecha >= hoy) || r.enCirculacion > 0));
+  // Próximas que no pidieron nada: por si piden algo a último momento.
+  const sinPedido = todas
+    .filter(({ a, r }) => !r.requiere && a.fecha && a.fecha >= hoy)
+    .map(({ a }) => a)
+    .sort((x, y) => (x.fecha + x.hora_inicio).localeCompare(y.fecha + y.hora_inicio))
+    .slice(0, 40);
   // Primero lo que tiene algo afuera y ya pasó; después lo más próximo.
   const lista = conResumen.sort((x, y) => (x.a.fecha || "9999").localeCompare(y.a.fecha || "9999"));
 
@@ -157,6 +163,35 @@ export default async function Logistica({ searchParams }: { searchParams: Promis
             );
           })}
         </ul>
+      )}
+
+      {/* Pedidos de último momento en actividades que no habían pedido nada */}
+      {filtro === "" && sinPedido.length > 0 && (
+        <details className="group mt-6 rounded-[22px] bg-white ring-1 ring-linea/70">
+          <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+            <span>
+              <span className="block text-[16px] font-extrabold text-petroleo-600">¿Te pidieron algo a último momento?</span>
+              <span className="block text-[14px] text-gris">Próximas actividades que no pidieron elementos ({sinPedido.length}). Elegí una y registrá el pedido.</span>
+            </span>
+            <span className="shrink-0 text-[20px] text-petroleo transition group-open:rotate-180" aria-hidden>⌄</span>
+          </summary>
+          <ul className="divide-y divide-linea border-t border-linea">
+            {sinPedido.map((a) => (
+              <li key={a.id}>
+                <Link href={`/actividades/${a.id}/logistica`} className="flex items-center gap-3 px-4 py-3 hover:bg-fondo/60">
+                  <span className="w-16 shrink-0 text-[13.5px] font-bold text-petroleo-600 tabular-nums first-letter:uppercase">
+                    {formatDate(a.fecha, { weekday: "short", day: "numeric", month: "short" }).replace(/[.,]/g, "")}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[15.5px] font-bold">{nombreCorto(a.nombre)}</span>
+                    <span className="block truncate text-[13.5px] text-gris">{[ubicacionLabel(a), a.responsable && titleCase(a.responsable)].filter(Boolean).join(" · ")}</span>
+                  </span>
+                  <span className="shrink-0 text-[13.5px] font-bold text-petroleo">+ Pedido</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
     </div>
   );

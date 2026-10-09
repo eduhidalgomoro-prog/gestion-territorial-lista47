@@ -19,8 +19,11 @@ export const ESTADOS_ACTIVIDAD = ["BORRADOR", "PROGRAMADA", "CONFIRMADA", "REALI
 export const ESTADOS_QUE_CUENTAN = ["PROGRAMADA", "CONFIRMADA", "REALIZADA"] as const;
 export const ESTADOS_FLYER = ["SOLICITADO", "EN DISEÑO", "PARA APROBACIÓN", "APROBADO", "PUBLICADO"] as const;
 export const ROLES = ["ADMINISTRADOR", "RESPONSABLE", "OPERADOR", "DISENO", "AGENDA", "FERIAS", "LOGISTICA"] as const;
-/** Logística: cada movimiento de elementos de una actividad (nunca se borra: es el historial). */
-export const TIPOS_MOVIMIENTO = ["PREPARACION", "ENTREGA", "DEVOLUCION"] as const;
+/**
+ * Logística: cada movimiento de elementos de una actividad (nunca se borra: es el historial).
+ * PEDIDO = lo que piden a último momento y no estaba en la carga de la actividad (suma a lo solicitado).
+ */
+export const TIPOS_MOVIMIENTO = ["PREPARACION", "ENTREGA", "DEVOLUCION", "PEDIDO"] as const;
 export type TipoMovimiento = (typeof TIPOS_MOVIMIENTO)[number];
 /** Cómo vuelve un elemento ("" = no se indicó). */
 export const ESTADOS_ELEMENTO = ["BIEN", "DAÑADO", "INCOMPLETO"] as const;
@@ -242,7 +245,7 @@ export interface MovimientoLogistica extends Meta {
   tipo: TipoMovimiento;
   elemento: string; // «Sillas», «Banderas», «Gazebos»… ("" en PREPARACION)
   cantidad: number;
-  persona: string; // quién recibe (entrega) o quién devuelve (devolución)
+  persona: string; // quién recibe (entrega), quién devuelve (devolución) o quién lo pidió (pedido)
   fecha_hora: string; // YYYY-MM-DDTHH:MM (hora de Corrientes, como la indica quien registra)
   estado_elemento: EstadoElemento | "";
   observaciones: string;

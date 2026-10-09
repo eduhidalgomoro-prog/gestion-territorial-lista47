@@ -47,7 +47,8 @@ export function elementosSolicitados(
 
 export interface FilaLogistica {
   elemento: string;
-  solicitado: number; // 0 = no se había pedido (se entregó igual)
+  solicitado: number; // 0 = no se había pedido (se entregó igual). Incluye los pedidos de último momento.
+  pedidoUltimoMomento: number; // de lo solicitado, cuánto se pidió a último momento (registrado por Logística)
   entregado: number;
   devuelto: number;
   porEntregar: number; // lo pedido que todavía no se entregó
@@ -81,14 +82,17 @@ export function resumenLogistico(
   const fila = (elemento: string) => {
     const k = clave(elemento);
     let f = filas.get(k);
-    if (!f) filas.set(k, (f = { elemento, solicitado: 0, entregado: 0, devuelto: 0, porEntregar: 0, enCirculacion: 0, quienTiene: [], ultimaEntrega: "" }));
+    if (!f) filas.set(k, (f = { elemento, solicitado: 0, pedidoUltimoMomento: 0, entregado: 0, devuelto: 0, porEntregar: 0, enCirculacion: 0, quienTiene: [], ultimaEntrega: "" }));
     return f;
   };
   for (const s of elementosSolicitados(a, reqs.filter((r) => r.actividad_id === a.id))) fila(s.elemento).solicitado += s.cantidad;
   for (const m of propios) {
     if (m.tipo === "PREPARACION" || !m.elemento) continue;
     const f = fila(m.elemento);
-    if (m.tipo === "ENTREGA") {
+    if (m.tipo === "PEDIDO") {
+      f.solicitado += m.cantidad;
+      f.pedidoUltimoMomento += m.cantidad;
+    } else if (m.tipo === "ENTREGA") {
       f.entregado += m.cantidad;
       f.ultimaEntrega = m.fecha_hora;
       if (m.persona && !f.quienTiene.includes(m.persona)) f.quienTiene.push(m.persona);
@@ -101,8 +105,7 @@ export function resumenLogistico(
   }
   const lista = [...filas.values()];
   const entregado = lista.reduce((n, f) => n + f.entregado, 0);
-  const devuelto = lista.reduce((n, f) => n + f.devuelto, 0);
-  const porEntregar = lista.reduce((n, f) => n + f.porEntregar, 0);
+  const devuelto = lista.reduce((n, f) => n + f.devuelto, 0);  const porEntregar = lista.reduce((n, f) => n + f.porEntregar, 0);
   const enCirculacion = lista.reduce((n, f) => n + f.enCirculacion, 0);
   const preparando = propios.some((m) => m.tipo === "PREPARACION");
   const requiere = lista.length > 0 || propios.length > 0;

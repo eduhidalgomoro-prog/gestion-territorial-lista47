@@ -306,9 +306,10 @@ export async function institucionAction(id: string | null, _: ActionResult, fd: 
 // Logística (entregas y devoluciones de elementos)
 // ---------------------------------------------------------------------------
 
-export async function movimientoLogisticaAction(actividadId: string, tipo: "ENTREGA" | "DEVOLUCION", input: MovimientoInput): Promise<ActionResult> {
-  if (tipo !== "ENTREGA" && tipo !== "DEVOLUCION") return { ok: false, message: "Movimiento inválido." };
-  return act((yo) => registrarMovimiento(actividadId, tipo, input, yo), { ok: tipo === "ENTREGA" ? "Entrega registrada." : "Devolución registrada." });
+export async function movimientoLogisticaAction(actividadId: string, tipo: "ENTREGA" | "DEVOLUCION" | "PEDIDO", input: MovimientoInput): Promise<ActionResult> {
+  if (tipo !== "ENTREGA" && tipo !== "DEVOLUCION" && tipo !== "PEDIDO") return { ok: false, message: "Movimiento inválido." };
+  const ok = tipo === "ENTREGA" ? "Entrega registrada." : tipo === "PEDIDO" ? "Pedido registrado: ya figura como pendiente de entrega." : "Devolución registrada.";
+  return act((yo) => registrarMovimiento(actividadId, tipo, input, yo), { ok });
 }
 
 export async function preparandoAction(actividadId: string): Promise<ActionResult> {

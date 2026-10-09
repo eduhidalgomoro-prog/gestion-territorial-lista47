@@ -21,6 +21,11 @@ export interface Lote {
 
 const ESTADO_ELEMENTO_LABEL: Record<string, string> = { BIEN: "Bien", "DAÑADO": "Dañado", INCOMPLETO: "Incompleto" };
 
+type TipoHoja = "ENTREGA" | "DEVOLUCION" | "PEDIDO";
+
+const TIPO_LABEL: Record<TipoMovimiento, string> = { ENTREGA: "Entrega", DEVOLUCION: "Devolución", PEDIDO: "Pedido de último momento", PREPARACION: "Preparando" };
+const PERSONA_LABEL: Record<TipoMovimiento, string> = { ENTREGA: "Recibió", DEVOLUCION: "Devolvió", PEDIDO: "Pidió", PREPARACION: "" };
+
 /**
  * Logística de una actividad, pensada para el celular: ver qué falta, ENTREGAR y REGISTRAR DEVOLUCIÓN en pocos toques.
  */
@@ -35,7 +40,7 @@ export function LogisticaActividad({
   puedeGestionar: boolean;
 }) {
   const router = useRouter();
-  const [hoja, setHoja] = useState<"ENTREGA" | "DEVOLUCION" | null>(null);
+  const [hoja, setHoja] = useState<TipoHoja | null>(null);
   const [pending, start] = useTransition();
   const [aviso, setAviso] = useState("");
 
@@ -64,7 +69,9 @@ export function LogisticaActividad({
         {quienTiene.length > 0 && <p className="mt-2 text-[14px] text-gris">Los tiene: <b className="text-tinta">{[...new Set(quienTiene)].join(", ")}</b></p>}
 
         {r.filas.length === 0 ? (
-          <p className="mt-3 text-[15px] text-gris">Esta actividad no pidió elementos. Igual se puede registrar una entrega.</p>
+          <p className="mt-3 text-[15px] text-gris">
+            Esta actividad no pidió elementos al cargarse.{puedeGestionar && " Si te piden algo a último momento, registralo como «pedido de último momento» (o anotá directamente la entrega)."}
+          </p>
         ) : (
           <ul className="mt-3 space-y-2">
             {r.filas.map((f) => <Elemento key={f.elemento} f={f} />)}
@@ -86,6 +93,13 @@ export function LogisticaActividad({
           >
             <IconCheck size={22} /> Registrar devolución
           </button>
+          <button
+            type="button"
+            onClick={() => { setAviso(""); setHoja("PEDIDO"); }}
+            className="flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-white text-[15.5px] font-extrabold text-petroleo ring-1 ring-petroleo/40 hover:bg-petroleo-50 sm:col-span-2"
+          >
+            <IconPlus size={18} /> Pedido de último momento
+          </button>
           {!r.preparando && r.entregado === 0 && (
             <button type="button" disabled={pending} onClick={() => ejecutar(() => preparandoAction(actividadId))} className="min-h-11 rounded-2xl text-[15px] font-bold text-petroleo ring-1 ring-linea hover:bg-white sm:col-span-2">
               Marcar como «preparando»
@@ -103,11 +117,11 @@ export function LogisticaActividad({
         ) : (
           <ol className="space-y-3">
             {historial.map((l) => (
-              <li key={l.lote} className={cx("rounded-2xl p-3", l.anulado ? "bg-fondo opacity-60" : l.tipo === "ENTREGA" ? "bg-verde-50/60" : l.tipo === "DEVOLUCION" ? "bg-petroleo-50/60" : "bg-fondo")}>
+              <li key={l.lote} className={cx("rounded-2xl p-3", l.anulado ? "bg-fondo opacity-60" : l.tipo === "ENTREGA" ? "bg-verde-50/60" : l.tipo === "DEVOLUCION" ? "bg-petroleo-50/60" : l.tipo === "PEDIDO" ? "bg-alerta-50/60" : "bg-fondo")}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className={cx("text-[15px] font-extrabold", l.anulado && "line-through")}>
                     <IconClock size={15} className="mr-1 inline text-gris" />
-                    {fechaHoraCorta(l.fecha_hora)} · {l.tipo === "ENTREGA" ? "Entrega" : l.tipo === "DEVOLUCION" ? "Devolución" : "Preparando"}
+                    {fechaHoraCorta(l.fecha_hora)} · {TIPO_LABEL[l.tipo]}
                   </p>
                   {l.anulado ? (
                     <span className="rounded-full bg-white px-2 py-0.5 text-[12px] font-bold text-gris">ANULADO</span>
@@ -135,7 +149,7 @@ export function LogisticaActividad({
                   </ul>
                 )}
                 <p className="mt-1 text-[13.5px] text-gris">
-                  {l.persona && <>{l.tipo === "ENTREGA" ? "Recibió" : "Devolvió"}: <b className="text-tinta">{l.persona}</b> · </>}
+                  {l.persona && <>{PERSONA_LABEL[l.tipo]}: <b className="text-tinta">{l.persona}</b> · </>}
                   Registró: {l.usuario}
                 </p>
                 {l.observaciones && <p className="mt-1 text-[14px] italic">{l.observaciones}</p>}
@@ -172,7 +186,8 @@ function Elemento({ f }: { f: FilaLogistica }) {
       <div className="min-w-0">
         <p className="text-[16px] font-bold">{f.elemento}</p>
         <p className="text-[13.5px] text-gris tabular-nums">
-          {f.solicitado > 0 ? `Pedido ${f.solicitado}` : "No se había pedido"} · Entregado {f.entregado} · Devuelto {f.devuelto}
+          {f.solicitado > 0 ? `Pedido ${f.solicitado}` : "No se había pedido"}
+          {f.pedidoUltimoMomento > 0 && (f.pedidoUltimoMomento === f.solicitado ? " (a último momento)" : ` (${f.pedidoUltimoMomento} a último momento)`)} · Entregado {f.entregado} · Devuelto {f.devuelto}
         </p>
       </div>
       {chip}
@@ -182,11 +197,11 @@ function Elemento({ f }: { f: FilaLogistica }) {
 
 const inputCls = "block h-12 w-full rounded-xl border border-linea bg-white px-3 text-[16px] focus:border-petroleo focus:outline-none";
 
-/** Hoja (bottom sheet) para registrar una entrega o una devolución: cantidades con +/−, quién, cuándo. */
+/** Hoja (bottom sheet) para registrar un pedido de último momento, una entrega o una devolución: cantidades con +/−, quién, cuándo. */
 function HojaMovimiento({
   tipo, resumen: r, sugeridos, ahora, onClose, onGuardado, actividadId,
 }: {
-  tipo: "ENTREGA" | "DEVOLUCION";
+  tipo: TipoHoja;
   resumen: ResumenLogistico;
   sugeridos: string[];
   ahora: string;
@@ -195,12 +210,17 @@ function HojaMovimiento({
   actividadId: string;
 }) {
   const entrega = tipo === "ENTREGA";
-  // Entrega: lo pedido (por defecto, lo que falta entregar). Devolución: lo que está afuera (por defecto, todo).
-  const inicial = entrega
-    ? r.filas.filter((f) => f.solicitado > 0).map((f) => ({ elemento: f.elemento, cantidad: f.porEntregar, max: 999, estado: "" }))
-    : r.filas.filter((f) => f.enCirculacion > 0).map((f) => ({ elemento: f.elemento, cantidad: f.enCirculacion, max: f.enCirculacion, estado: "BIEN" }));
+  const pedido = tipo === "PEDIDO";
+  const devolucion = tipo === "DEVOLUCION";
+  // Pedido: se empieza vacío. Entrega: lo pedido (por defecto, lo que falta entregar). Devolución: lo que está afuera (por defecto, todo).
+  const inicial = pedido
+    ? []
+    : entrega
+      ? r.filas.filter((f) => f.solicitado > 0).map((f) => ({ elemento: f.elemento, cantidad: f.porEntregar, max: 999, estado: "" }))
+      : r.filas.filter((f) => f.enCirculacion > 0).map((f) => ({ elemento: f.elemento, cantidad: f.enCirculacion, max: f.enCirculacion, estado: "BIEN" }));
   const [items, setItems] = useState(inicial);
-  const [persona, setPersona] = useState(entrega ? sugeridos[0] ?? "" : r.filas.flatMap((f) => f.quienTiene)[0] ?? "");
+  const [persona, setPersona] = useState(devolucion ? r.filas.flatMap((f) => f.quienTiene)[0] ?? "" : sugeridos[0] ?? "");
+  const titulo = pedido ? "Pedido de último momento" : entrega ? "Registrar entrega" : "Registrar devolución";
   const [fecha, setFecha] = useState(ahora);
   const [obs, setObs] = useState("");
   const [verObs, setVerObs] = useState(false);
@@ -231,14 +251,17 @@ function HojaMovimiento({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-tinta/50 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label={entrega ? "Registrar entrega" : "Registrar devolución"} onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-tinta/50 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label={titulo} onClick={onClose}>
       <div className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-[28px] bg-white p-5 pb-8 shadow-xl sm:rounded-[28px]" style={{ animation: "aparecer .18s ease-out" }} onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-start justify-between gap-3">
-          <h2 className="font-titulo text-[20px] font-extrabold text-petroleo-600">{entrega ? "Registrar entrega" : "Registrar devolución"}</h2>
+          <h2 className="font-titulo text-[20px] font-extrabold text-petroleo-600">{titulo}</h2>
           <button type="button" onClick={onClose} className="-mt-1 -mr-1 flex size-10 items-center justify-center rounded-full text-gris hover:bg-fondo" aria-label="Cerrar"><IconX /></button>
         </div>
 
-        <p className="mb-2 text-[14px] font-bold text-gris">{entrega ? "¿Qué se entrega?" : "¿Qué vuelve?"}</p>
+        {pedido && (
+          <p className="mb-3 text-[14.5px] text-gris">Lo que piden y no estaba cargado en la actividad. Queda como pendiente de entrega; cuando lo entregues, registralo con «Entregar».</p>
+        )}
+        <p className="mb-2 text-[14px] font-bold text-gris">{pedido ? "¿Qué piden?" : entrega ? "¿Qué se entrega?" : "¿Qué vuelve?"}</p>
         <ul className="space-y-2">
           {items.map((x, i) => (
             <li key={x.elemento} className="rounded-2xl bg-fondo px-3 py-2">
@@ -259,7 +282,7 @@ function HojaMovimiento({
                   <button type="button" onClick={() => cambiar(i, x.cantidad + 1)} className="flex size-11 items-center justify-center rounded-xl bg-white text-[22px] font-bold ring-1 ring-linea" aria-label={`Más ${x.elemento}`}>+</button>
                 </div>
               </div>
-              {!entrega && (
+              {devolucion && (
                 <div className="mt-2 flex gap-1.5" role="group" aria-label={`Estado de ${x.elemento}`}>
                   {(["BIEN", "DAÑADO", "INCOMPLETO"] as const).map((e) => (
                     <button
@@ -274,14 +297,14 @@ function HojaMovimiento({
                   ))}
                 </div>
               )}
-              {!entrega && <p className="mt-1 text-[12.5px] text-gris">Afuera: {x.max}</p>}
+              {devolucion && <p className="mt-1 text-[12.5px] text-gris">Afuera: {x.max}</p>}
             </li>
           ))}
         </ul>
 
-        {entrega && (
+        {!devolucion && (
           <div className="mt-3">
-            <p className="mb-1.5 text-[13px] font-bold text-gris">Agregar otro elemento</p>
+            <p className="mb-1.5 text-[13px] font-bold text-gris">{pedido && !items.length ? "Tocá lo que piden" : "Agregar otro elemento"}</p>
             <div className="flex flex-wrap gap-1.5">
               {ELEMENTOS_COMUNES.filter((e) => e !== "Otros" && !items.some((x) => x.elemento.toLowerCase() === e.toLowerCase())).map((e) => (
                 <button key={e} type="button" onClick={() => agregar(e)} className="inline-flex h-9 items-center gap-1 rounded-full bg-white px-3 text-[13.5px] font-bold text-petroleo ring-1 ring-linea">
@@ -297,7 +320,7 @@ function HojaMovimiento({
         )}
         {error.campos.items && <p className="mt-2 text-[14px] font-semibold text-peligro">{error.campos.items}</p>}
 
-        <label className="mt-4 mb-1.5 block text-[14px] font-bold text-gris" htmlFor="persona">{entrega ? "¿Quién recibe?" : "¿Quién devuelve?"}</label>
+        <label className="mt-4 mb-1.5 block text-[14px] font-bold text-gris" htmlFor="persona">{pedido ? "¿Quién lo pidió?" : entrega ? "¿Quién recibe?" : "¿Quién devuelve?"}</label>
         <input id="persona" list="personas-log" value={persona} onChange={(e) => setPersona(e.target.value)} className={inputCls} placeholder="Nombre y apellido" autoComplete="off" />
         <datalist id="personas-log">{sugeridos.map((p) => <option key={p} value={p} />)}</datalist>
         {error.campos.persona && <p className="mt-1 text-[14px] font-semibold text-peligro">{error.campos.persona}</p>}
@@ -322,7 +345,7 @@ function HojaMovimiento({
           disabled={pending || total === 0}
           className={cx("mt-5 flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl text-[17px] font-extrabold text-white uppercase disabled:opacity-60", entrega ? "bg-marca hover:bg-marca-600" : "bg-petroleo hover:bg-petroleo-600")}
         >
-          <IconCheck size={22} /> {pending ? "Guardando…" : entrega ? `Registrar entrega (${total})` : `Registrar devolución (${total})`}
+          <IconCheck size={22} /> {pending ? "Guardando…" : pedido ? `Registrar pedido (${total})` : entrega ? `Registrar entrega (${total})` : `Registrar devolución (${total})`}
         </button>
       </div>
     </div>

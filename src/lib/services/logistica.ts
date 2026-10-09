@@ -8,7 +8,7 @@ import { ESTADOS_ELEMENTO, type EstadoElemento, type TipoMovimiento } from "../s
 import { cleanString, newId, titleCase, today } from "../util";
 
 /**
- * Logística: preparación, entregas y devoluciones de elementos de una actividad.
+ * Logística: preparación, pedidos de último momento, entregas y devoluciones de elementos de una actividad.
  * Solo agrega registros (el historial nunca se borra); un error se corrige anulando el registro.
  * No modifica nada de la actividad ni de sus requerimientos.
  */
@@ -43,7 +43,7 @@ export async function registrarMovimiento(actividadId: string, tipo: Exclude<Tip
   const { a, s } = await actividadLogistica(actividadId, yo);
   const persona = titleCase(cleanString(input.persona, 120));
   const f: Record<string, string> = {};
-  if (!persona) f.persona = tipo === "ENTREGA" ? "Indicá quién recibe." : "Indicá quién devuelve.";
+  if (!persona) f.persona = tipo === "ENTREGA" ? "Indicá quién recibe." : tipo === "PEDIDO" ? "Indicá quién lo pidió." : "Indicá quién devuelve.";
   // Junta el mismo elemento si vino repetido y descarta cantidades en cero.
   const items = new Map<string, { elemento: string; cantidad: number; estado: EstadoElemento | "" }>();
   for (const it of input.items ?? []) {
@@ -56,7 +56,7 @@ export async function registrarMovimiento(actividadId: string, tipo: Exclude<Tip
     const prev = items.get(k);
     items.set(k, { elemento, cantidad: (prev?.cantidad ?? 0) + cantidad, estado: prev?.estado || estado });
   }
-  if (!items.size) f.items = tipo === "ENTREGA" ? "Indicá al menos un elemento entregado." : "Indicá al menos un elemento devuelto.";
+  if (!items.size) f.items = tipo === "ENTREGA" ? "Indicá al menos un elemento entregado." : tipo === "PEDIDO" ? "Indicá qué pidieron." : "Indicá al menos un elemento devuelto.";
   if (Object.keys(f).length) throw new UserError("Revisá los datos marcados.", f);
 
   return withLock(`logistica:${actividadId}`, async () => {
@@ -80,7 +80,7 @@ export async function registrarMovimiento(actividadId: string, tipo: Exclude<Tip
         estado_elemento: tipo === "DEVOLUCION" ? it.estado : ("" as const), observaciones, usuario: yo.email, anulado: false,
       })),
       yo.email,
-      tipo === "ENTREGA" ? "entrega de elementos" : "devolución de elementos",
+      tipo === "ENTREGA" ? "entrega de elementos" : tipo === "PEDIDO" ? "pedido de último momento" : "devolución de elementos",
     );
     return { lote, cantidad: creados.length };
   });
