@@ -8,7 +8,12 @@ import type { Actividad } from "./schema";
  * Las entregas de anteojos tienen el mismo tipo de actividad, pero no usan esta guía.
  */
 
-export const GUIA_VISUAL_PDF = "/guias/operativo-salud-visual.pdf";
+/**
+ * Link al PDF. La «v» cambia cada vez que se regenera la guía (npm run guia:visual):
+ * así ningún celular ni navegador sigue mostrando la versión anterior que tenía guardada.
+ */
+export const GUIA_VISUAL_VERSION = "2026-10-10";
+export const GUIA_VISUAL_PDF = `/guias/operativo-salud-visual.pdf?v=${GUIA_VISUAL_VERSION}`;
 
 export function esOperativoVisual(a: Pick<Actividad, "tipo" | "nombre">): boolean {
   const nombre = normalizeText(a.nombre);

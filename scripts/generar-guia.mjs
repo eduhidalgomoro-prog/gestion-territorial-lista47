@@ -45,3 +45,4 @@ execFileSync(
   { stdio: "inherit" },
 );
 console.log(`✓ ${salida} (${Math.round(statSync(salida).size / 1024)} KB)`);
+console.log("Recordá actualizar GUIA_VISUAL_VERSION en src/lib/guias.ts para que todos vean la versión nueva.");
