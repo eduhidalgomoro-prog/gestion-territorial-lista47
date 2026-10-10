@@ -138,6 +138,7 @@ export interface Actividad extends Meta {
   es_feria: boolean;
   cupo: number; // ferias: máximo de feriantes · otras actividades: máximo de inscriptos por el formulario (0 = sin límite)
   croquis: string; // imagen del lugar donde se marcan los puestos
+  checklist: string; // guía del operativo (ver guias.ts): ids de los ítems tildados, separados por coma
 }
 
 /**
@@ -231,6 +232,7 @@ export interface Asistencia extends Meta {
   participante_id: string;
   estado: EstadoAsistencia | ""; // "" = se volvió a «sin marcar» (corrección en la toma de asistencia)
   clase: number; // talleres de varias clases: 1, 2, 3… (0 = marcas viejas = clase 1)
+  numero: number; // orden de llegada: se da la primera vez que la persona queda PRESENTE (0 = sin número)
   registrado: string; // fecha/hora ISO del registro
   usuario: string;
 }
@@ -412,6 +414,7 @@ export const TABLES: Record<TableName, TableDef> = {
       ["es_feria", "Es feria"],
       ["cupo", "Cupo"],
       ["croquis", "Croquis"],
+      ["checklist", "Checklist"],
       ...META,
     ],
     numeric: [
@@ -476,11 +479,12 @@ export const TABLES: Record<TableName, TableDef> = {
       ["participante_id", "ID Participante"],
       ["estado", "Estado"],
       ["clase", "Clase"],
+      ["numero", "N° de llegada"],
       ["registrado", "Fecha/hora registro"],
       ["usuario", "Usuario que registró"],
       ...META,
     ],
-    numeric: ["clase"],
+    numeric: ["clase", "numero"],
     enums: { estado: ESTADOS_ASISTENCIA },
   },
   requerimientos: {

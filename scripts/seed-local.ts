@@ -49,7 +49,7 @@ async function main() {
     tipo_articulacion: "", mesa: "", institucion_id: "", institucion_nombre: "", requiere_flyer: true, estado_flyer: "PUBLICADO" as const, link_flyer: "", link_flyer_historia: "", link_grupo: "", mensaje_confirmacion: "", mensaje_grupo: "",
     gazebo: false, gazebo_cant: 0, mesas: true, mesas_cant: 2, sillas: true, sillas_cant: 30, luz: false, sonido: false, otros_insumos: "",
     costo_real: 0, obs_logistica: "", slug: "", link_inscripcion: "", inscripcion_abierta: false, preguntas_extra: "",
-    inscriptos: 0, presentes: 0, ausentes: 0, pct_asistencia: 0, resultados: "", incidencias: "", fotos: "", observaciones: "", origen: "SEED", creado_por: U, es_feria: false, cupo: 0, croquis: "",
+    inscriptos: 0, presentes: 0, ausentes: 0, pct_asistencia: 0, resultados: "", incidencias: "", fotos: "", observaciones: "", origen: "SEED", creado_por: U, es_feria: false, cupo: 0, croquis: "", checklist: "",
   };
   const acts = [
     { nombre: "Taller de Fieltro", tipo: "ESME", zona: "ESTE" as const, barrio: "PIRAYUI", direccion: "Suecia 727", lat: -27.4905, lng: -58.7895, fecha: f(anio, mes, 7), estado: "CONFIRMADA" as const, costo_estimado: 16600 },
@@ -90,8 +90,8 @@ async function main() {
   await insertMany(
     "asistencias",
     [
-      ...personas.slice(4, 12).map((p, i) => ({ actividad_id: creadas[3].id, participante_id: p.id, estado: (i < 6 ? "PRESENTE" : "AUSENTE") as "PRESENTE" | "AUSENTE", clase: 0, registrado: reg, usuario: U })),
-      ...personas.slice(0, 6).map((p, i) => ({ actividad_id: creadas[4].id, participante_id: p.id, estado: (i < 5 ? "PRESENTE" : "AUSENTE") as "PRESENTE" | "AUSENTE", clase: 0, registrado: reg, usuario: U })),
+      ...personas.slice(4, 12).map((p, i) => ({ actividad_id: creadas[3].id, participante_id: p.id, estado: (i < 6 ? "PRESENTE" : "AUSENTE") as "PRESENTE" | "AUSENTE", clase: 0, numero: 0, registrado: reg, usuario: U })),
+      ...personas.slice(0, 6).map((p, i) => ({ actividad_id: creadas[4].id, participante_id: p.id, estado: (i < 5 ? "PRESENTE" : "AUSENTE") as "PRESENTE" | "AUSENTE", clase: 0, numero: 0, registrado: reg, usuario: U })),
     ],
     U,
   );

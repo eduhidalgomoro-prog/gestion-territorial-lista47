@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { toActionError, UserError, type ActionResult } from "@/lib/errors";
 import { puede } from "@/lib/permisos";
 import {
-  actualizarFlyer, asignarOperador, cambiarEstado, cerrarActividad, crearActividad, editarActividad, formularioInscripcion, quitarOperador,
+  actualizarFlyer, asignarOperador, cambiarEstado, cerrarActividad, crearActividad, editarActividad, formularioInscripcion, marcarChecklist, quitarOperador,
   type ActividadInput,
 } from "@/lib/services/actividades";
 import { crearUsuario, editarUsuario, guardarBarrio, guardarConfig, guardarInstitucion } from "@/lib/services/administracion";
@@ -239,7 +239,7 @@ export async function importarAction(actividadId: string, filas: FilaImportada[]
 // Asistencia
 // ---------------------------------------------------------------------------
 
-export async function guardarMarcasAction(actividadId: string, marcas: Marca[]): Promise<ActionResult<{ guardadas: number }>> {
+export async function guardarMarcasAction(actividadId: string, marcas: Marca[]): Promise<ActionResult<{ guardadas: number; numeros: Record<string, number> }>> {
   const yo = await requireUser();
   try {
     const r = await guardarAsistencia(actividadId, marcas, yo);
@@ -310,6 +310,10 @@ export async function movimientoLogisticaAction(actividadId: string, tipo: "ENTR
   if (tipo !== "ENTREGA" && tipo !== "DEVOLUCION" && tipo !== "PEDIDO") return { ok: false, message: "Movimiento inválido." };
   const ok = tipo === "ENTREGA" ? "Entrega registrada." : tipo === "PEDIDO" ? "Pedido registrado: ya figura como pendiente de entrega." : "Devolución registrada.";
   return act((yo) => registrarMovimiento(actividadId, tipo, input, yo), { ok });
+}
+
+export async function checklistAction(actividadId: string, item: string, hecho: boolean): Promise<ActionResult> {
+  return act((yo) => marcarChecklist(actividadId, item, hecho, yo), { ok: "" });
 }
 
 export async function preparandoAction(actividadId: string): Promise<ActionResult> {

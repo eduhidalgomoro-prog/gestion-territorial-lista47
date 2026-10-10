@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ActividadCard, EstadoBadge } from "@/components/actividad-card";
+import { ActividadCard, EstadoBadge, GuiaBadge } from "@/components/actividad-card";
 import { NavegarAgenda } from "@/components/calendario-agenda";
 import { Buscador, FiltroSelect, FiltrosForm } from "@/components/filtros";
 import { IconArrowLeft, IconArrowRight, IconCalendar, IconHuella, IconList, IconMap, IconPin, IconPlus, IconUsers } from "@/components/icons";
@@ -459,6 +459,7 @@ function Calendario({ lista, anio, mes, keep, conteos, huellas }: { lista: Activ
                             </span>
                             <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                               <EstadoBadge estado={a.estado} />
+                              <GuiaBadge a={a} />
                               {esMarcandoHuellas(a) ? (
                                 <span className="inline-flex items-center gap-1 text-sm font-semibold text-marca-600">
                                   <IconHuella size={15} /> {huellas.get(a.id)?.animales ? `${huellas.get(a.id)!.animales} animales atendidos` : "Vacunación y desparasitación"}

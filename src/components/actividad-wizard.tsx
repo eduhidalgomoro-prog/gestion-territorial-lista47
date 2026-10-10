@@ -6,6 +6,7 @@ import type { ActionResult } from "@/lib/errors";
 import { formatMoney, titleCase } from "@/lib/format";
 import { zonaLabel } from "@/lib/labels";
 import { ambitoDe, SIN_REGION } from "@/lib/territorio";
+import { esOperativoVisual, GUIA_VISUAL_PDF, LOGISTICA_VISUAL } from "@/lib/guias";
 
 const normalizar = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 import type { ActividadInput, InsumoInput } from "@/lib/services/actividades";
@@ -122,6 +123,7 @@ export function ActividadWizard({
   const [barrioNuevo, setBarrioNuevo] = useState(!!inicial.barrio && !opciones.barrios.some((b) => b.barrio === inicial.barrio));
   const [instNueva, setInstNueva] = useState(false);
   const [altVisible, setAltVisible] = useState(!!(inicial.fecha_alt || inicial.hora_alt));
+  const [precargaVisual, setPrecargaVisual] = useState(false);
   const [geo, setGeo] = useState<{ msg: string; tono: "ok" | "alerta" } | null>(null);
   const [buscando, startGeo] = useTransition();
   const [state, formAction, pending] = useActionState(async (prev: ActionResult, fd: FormData) => {
@@ -203,6 +205,11 @@ export function ActividadWizard({
           return;
         }
       }
+    }
+    // Operativo de salud visual nuevo: al llegar a Logística ya viene cargado lo que pide la guía (se puede ajustar).
+    if (p >= 3 && paso < 3 && !esEdicion && !precargaVisual && esOperativoVisual(d) && !d.mesas && !d.sillas) {
+      setD((x) => ({ ...x, mesas: true, mesas_cant: LOGISTICA_VISUAL.mesas_cant, sillas: true, sillas_cant: LOGISTICA_VISUAL.sillas_cant, luz: true }));
+      setPrecargaVisual(true);
     }
     setPaso(p);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -526,6 +533,12 @@ export function ActividadWizard({
       {/* PASO 4 */}
       {paso === 3 && (
         <div>
+          {precargaVisual && (
+            <p className="mb-4 rounded-xl bg-verde-50 px-4 py-3 text-[15px] text-marca-600">
+              <b>Cargamos lo que pide la guía del operativo visual:</b> 3 mesas (recepción, control y armazones), 17 sillas (7 para los puestos y 10 para la espera) y bajada de luz para el control visual. Ajustalo si hace falta.{" "}
+              <a href={GUIA_VISUAL_PDF} target="_blank" rel="noopener noreferrer" className="font-bold underline">Ver la guía</a>
+            </p>
+          )}
           <SiNo label="¿Requiere gazebos?" value={d.gazebo} onChange={(v) => set("gazebo", v)}>
             <Cantidad value={d.gazebo_cant} onChange={(n) => set("gazebo_cant", n)} label="Cantidad de gazebos" />
           </SiNo>

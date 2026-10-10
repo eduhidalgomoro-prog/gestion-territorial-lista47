@@ -15,6 +15,7 @@ interface Persona {
   dniVisible: string; // «••••813»
   dni: string; // para buscar
   estado: EstadoAsistencia | null;
+  numero?: number; // orden de llegada (operativos que atienden por orden de llegada)
 }
 
 interface Marca {
@@ -35,7 +36,13 @@ const coincide = (estado: Persona["estado"], f: Filtro) => f === "todos" || (f =
  * - Un toque marca y se ve al instante; las marcas se envían solas en lote.
  * - Sin señal, quedan guardadas en el celular y se envían al volver (nunca se muestran como guardadas si no lo están).
  */
-export function TomaAsistencia({ actividadId, titulo, clase = 1, inicial, barrios, puedeCerrar, soloMirar = false }: { actividadId: string; titulo: string; clase?: number; inicial: Persona[]; barrios: string[]; puedeCerrar: boolean; soloMirar?: boolean }) {
+export function TomaAsistencia({
+  actividadId, titulo, clase = 1, inicial, barrios, puedeCerrar, soloMirar = false, numerar = false,
+}: {
+  actividadId: string; titulo: string; clase?: number; inicial: Persona[]; barrios: string[]; puedeCerrar: boolean; soloMirar?: boolean;
+  /** Atención por orden de llegada: cada presente recibe un número (se muestra para decírselo a la persona). */
+  numerar?: boolean;
+}) {
   // Lo pendiente sin conexión se guarda aparte por clase (la clase 1 conserva el nombre de siempre).
   const KEY = clase > 1 ? `gt47-asis-${actividadId}-c${clase}` : `gt47-asis-${actividadId}`;
   const [personas, setPersonas] = useState<Persona[]>(inicial);
@@ -49,11 +56,17 @@ export function TomaAsistencia({ actividadId, titulo, clase = 1, inicial, barrio
   const [agregar, setAgregar] = useState<{ dni?: string; nombre?: string } | null>(null);
   const [finalizar, setFinalizar] = useState<"preguntar" | "guardando" | "error" | null>(null);
   const [finalizado, setFinalizado] = useState(false);
+  // Último número de llegada asignado, bien grande para decírselo a la persona.
+  const [ultimo, setUltimo] = useState<{ nombre: string; numero: number } | null>(null);
   const enviando = useRef(false);
   const buscador = useRef<HTMLInputElement>(null);
   const listaRef = useRef<HTMLDivElement>(null);
   // Copia sincrónica de la cola (el estado de React se actualiza recién en el próximo render).
   const pendRef = useRef<Marca[]>([]);
+  const nombresRef = useRef(new Map<string, string>());
+  useEffect(() => {
+    nombresRef.current = new Map(personas.map((p) => [p.id, p.nombre]));
+  }, [personas]);
 
   // Marcas que quedaron sin enviar (por ejemplo, se cerró la app sin señal).
   useEffect(() => {
@@ -112,6 +125,13 @@ export function TomaAsistencia({ actividadId, titulo, clase = 1, inicial, barrio
       const r = await guardarMarcasAction(actividadId, lote);
       if (!r.ok) throw new Error(r.message);
       setPend(pendRef.current.filter((m) => !lote.includes(m)));
+      const numeros = r.data?.numeros ?? {};
+      if (Object.keys(numeros).length) {
+        setPersonas((ps) => ps.map((p) => (numeros[p.id] ? { ...p, numero: numeros[p.id] } : p)));
+        // El último que se marcó presente en este envío.
+        const ultimaMarca = [...lote].reverse().find((m) => m.estado === "PRESENTE" && numeros[m.participanteId]);
+        if (ultimaMarca) setUltimo({ nombre: nombresRef.current.get(ultimaMarca.participanteId) ?? "", numero: numeros[ultimaMarca.participanteId] });
+      }
       setEstadoEnvio("ok");
       setGuardadoRecien(true);
       return pendRef.current.length === 0;
@@ -320,6 +340,15 @@ export function TomaAsistencia({ actividadId, titulo, clase = 1, inicial, barrio
         ) : (
           <EstadoEnvio estado={estadoEnvio} pendientes={pendientes.length} recien={guardadoRecien} onRetry={enviar} />
         )}
+        {numerar && ultimo && (
+          <p key={ultimo.numero} className="asis-pop mt-1.5 flex items-center gap-2.5 rounded-2xl bg-marca px-3 py-2 text-white" role="status">
+            <span className="font-titulo text-[26px] leading-none font-extrabold tabular-nums">N° {ultimo.numero}</span>
+            <span className="min-w-0 leading-tight">
+              <span className="block truncate text-[15px] font-bold">{ultimo.nombre}</span>
+              <span className="block text-[13px] text-white/90">Decíselo para que espere su turno</span>
+            </span>
+          </p>
+        )}
       </div>
 
       <div ref={listaRef} className="scroll-mt-48 lg:scroll-mt-40">
@@ -365,6 +394,7 @@ export function TomaAsistencia({ actividadId, titulo, clase = 1, inicial, barrio
                 abierta={editando === p.id}
                 saliendo={saliendo.has(p.id)}
                 pendiente={pendIds.has(p.id) ? (estadoEnvio === "error" ? "error" : estadoEnvio === "offline" ? "offline" : "enviando") : null}
+                numerar={numerar}
                 onMarcar={(e) => marcar(p.id, e)}
                 onEditar={() => setEditando(editando === p.id ? null : p.id)}
               />
@@ -434,13 +464,15 @@ export function TomaAsistencia({ actividadId, titulo, clase = 1, inicial, barrio
           clase={clase}
           barrios={barrios}
           inicial={agregar}
+          numerar={numerar}
           onClose={() => setAgregar(null)}
-          onAgregada={(id, nombre, dni) => {
+          onAgregada={(id, nombre, dni, numero) => {
             setPersonas((ps) =>
               ps.some((p) => p.id === id)
-                ? ps.map((p) => (p.id === id ? { ...p, estado: "PRESENTE" } : p))
-                : [{ id, nombre, dniVisible: dni ? `••••${dni.slice(-3)}` : "", dni: dni.slice(-4), estado: "PRESENTE" }, ...ps],
+                ? ps.map((p) => (p.id === id ? { ...p, estado: "PRESENTE", numero: numero || p.numero } : p))
+                : [{ id, nombre, dniVisible: dni ? `••••${dni.slice(-3)}` : "", dni: dni.slice(-4), estado: "PRESENTE", numero }, ...ps],
             );
+            if (numerar && numero) setUltimo({ nombre, numero });
             setAgregar(null);
             setBusq("");
           }}
@@ -452,12 +484,13 @@ export function TomaAsistencia({ actividadId, titulo, clase = 1, inicial, barrio
 
 /** Una persona: sin marcar (con los dos botones) o ya registrada (compacta; se toca para corregir). */
 function Tarjeta({
-  p, abierta, saliendo, pendiente, onMarcar, onEditar,
+  p, abierta, saliendo, pendiente, numerar, onMarcar, onEditar,
 }: {
   p: Persona;
   abierta: boolean;
   saliendo: boolean;
   pendiente: "enviando" | "offline" | "error" | null;
+  numerar: boolean;
   onMarcar: (e: EstadoAsistencia | null) => void;
   onEditar: () => void;
 }) {
@@ -504,9 +537,16 @@ function Tarjeta({
             <EstadoGuardado pendiente={pendiente} />
           </span>
         </span>
-        <span className={cx("shrink-0 rounded-full px-2.5 py-1 text-[12px] font-extrabold tracking-wide", presente ? "bg-white text-marca-600" : "bg-white/70 text-gris")}>
-          {presente ? "PRESENTE" : "AUSENTE"}
-        </span>
+        {numerar && presente ? (
+          // Orden de llegada: el número llega al guardarse la marca.
+          <span className="shrink-0 rounded-full bg-white px-2.5 py-1 font-titulo text-[16px] leading-none font-extrabold text-marca-600 tabular-nums" title="Número de llegada">
+            {p.numero ? `N° ${p.numero}` : "N° …"}
+          </span>
+        ) : (
+          <span className={cx("shrink-0 rounded-full px-2.5 py-1 text-[12px] font-extrabold tracking-wide", presente ? "bg-white text-marca-600" : "bg-white/70 text-gris")}>
+            {presente ? "PRESENTE" : "AUSENTE"}
+          </span>
+        )}
       </button>
       {abierta && (
         <div className="grid grid-cols-3 gap-1.5 px-3 pb-3" role="group" aria-label="Cambiar asistencia">
@@ -632,22 +672,27 @@ const inputCls = "block w-full min-h-12 rounded-xl border border-linea bg-white 
 
 /** Llegó alguien que no estaba inscripto: primero el DNI (para no duplicar), después los datos si es nueva. */
 function AgregarPersona({
-  actividadId, clase, barrios, inicial, onClose, onAgregada,
+  actividadId, clase, barrios, inicial, numerar, onClose, onAgregada,
 }: {
   actividadId: string;
   clase: number;
   barrios: string[];
   inicial: { dni?: string; nombre?: string };
+  numerar: boolean;
   onClose: () => void;
-  onAgregada: (id: string, nombre: string, dni: string) => void;
+  onAgregada: (id: string, nombre: string, dni: string, numero: number) => void;
 }) {
   const [dni, setDni] = useState(inicial.dni ?? "");
+  const [tel, setTel] = useState("");
+  // El celular es el medio de contacto: se avisa si parece mal escrito (con característica son 10 números).
+  const digitosTel = tel.replace(/\D/g, "").replace(/^(54)?9?0?/, "");
+  const telDudoso = digitosTel.length > 0 && (digitosTel.length < 10 || digitosTel.length > 11);
   const [encontrada, setEncontrada] = useState<{ nombre: string; apellido: string } | null | undefined>(undefined);
   const [buscando, startBuscar] = useTransition();
   const [state, action, pending] = useActionState(async (prev: ActionResult, fd: FormData) => {
     const r = await agregarPresenteAction(actividadId, prev, fd);
-    const data = r.data as { participanteId: string; nombre: string } | undefined;
-    if (r.ok && data) onAgregada(data.participanteId, data.nombre, String(fd.get("dni") ?? "").replace(/\D/g, ""));
+    const data = r.data as { participanteId: string; nombre: string; numero?: number } | undefined;
+    if (r.ok && data) onAgregada(data.participanteId, data.nombre, String(fd.get("dni") ?? "").replace(/\D/g, ""), data.numero ?? 0);
     return r as ActionResult;
   }, { ok: true });
   const f = state.fields ?? {};
@@ -732,8 +777,25 @@ function AgregarPersona({
                 </div>
               </div>
               <div className="mb-3">
-                <label className="mb-1.5 block text-[15px] font-bold" htmlFor="telefono">Teléfono <span className="font-normal text-gris">(opcional)</span></label>
-                <input id="telefono" name="telefono" type="tel" inputMode="tel" className={inputCls} placeholder="Ej: 379 4123456" autoComplete="off" />
+                <label className="mb-1.5 block text-[15px] font-bold" htmlFor="telefono">
+                  {numerar ? "Celular" : "Teléfono"} <span className="font-normal text-gris">{numerar ? "(muy importante: es el medio de contacto)" : "(opcional)"}</span>
+                </label>
+                <input
+                  id="telefono"
+                  name="telefono"
+                  type="tel"
+                  inputMode="tel"
+                  value={tel}
+                  onChange={(e) => setTel(e.target.value)}
+                  className={inputCls}
+                  placeholder="Ej: 379 4123456"
+                  autoComplete="off"
+                  aria-invalid={telDudoso}
+                  aria-describedby="telefono-ayuda"
+                />
+                <p id="telefono-ayuda" className={cx("mt-1 text-[13.5px]", telDudoso ? "font-semibold text-alerta" : "text-gris")}>
+                  {telDudoso ? `Tiene ${digitosTel.length} números: revisalo con la persona (con característica son 10, ej. 379 4123456).` : "Leéselo en voz alta a la persona para confirmar que esté bien."}
+                </p>
               </div>
               <div className="mb-4">
                 <label className="mb-1.5 block text-[15px] font-bold" htmlFor="barrio-p">Barrio <span className="font-normal text-gris">(opcional)</span></label>

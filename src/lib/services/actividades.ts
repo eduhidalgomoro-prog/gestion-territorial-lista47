@@ -10,6 +10,7 @@ import {
   type Actividad, type EstadoActividad, type EstadoFlyer, type Requerimiento,
 } from "../schema";
 import { cantidadClases, claseDeMarca, estadoPorPersona, fechasDeClases } from "../clases";
+import { esOperativoVisual, IDS_CHECKLIST_VISUAL, itemsHechos } from "../guias";
 import { ambitoDe, buscarLocalidad, nombrePropio, parseRegiones, SIN_REGION, zonaValida, type Region } from "../territorio";
 import { cleanString, isValidDate, isValidTime, mesAnio, normalizeBarrio, nowIso, nowLocal, pct, slugify, titleCase } from "../util";
 
@@ -269,6 +270,7 @@ export async function crearActividad(input: ActividadInput, yo: Yo, opts: { feri
         slug,
         link_inscripcion: linkInscripcion(slug),
         inscripcion_abierta: !!slug,
+        checklist: "",
         inscriptos: 0, presentes: 0, ausentes: 0, pct_asistencia: 0,
         resultados: "", incidencias: "", fotos: "",
         link_flyer_historia: "",
@@ -410,7 +412,7 @@ export async function cerrarActividad(id: string, input: CierreInput, yo: Yo) {
       "asistencias",
       faltan
         .filter((f) => !filas.has(clave(f.participante_id, f.clase)))
-        .map((f) => ({ actividad_id: id, participante_id: f.participante_id, estado: "AUSENTE" as const, clase: f.clase, registrado, usuario: yo.email })),
+        .map((f) => ({ actividad_id: id, participante_id: f.participante_id, estado: "AUSENTE" as const, clase: f.clase, numero: 0, registrado, usuario: yo.email })),
       yo.email,
       "ausentes automáticos al cerrar",
     );
@@ -447,6 +449,27 @@ export async function asignarOperador(actividadId: string, usuarioId: string, yo
   if (ya?.estado === "ACTIVA") return;
   if (ya) await update("asignaciones", ya.id, { estado: "ACTIVA" }, yo.email);
   else await insert("asignaciones", { actividad_id: actividadId, usuario_id: usuarioId, estado: "ACTIVA" }, yo.email);
+}
+
+/**
+ * Checklist de la guía del operativo (ver guias.ts): tilda o destilda un ítem.
+ * Lo maneja el equipo de la actividad (y Logística, que arma el lugar).
+ */
+export async function marcarChecklist(actividadId: string, item: string, hecho: boolean, yo: Yo) {
+  const s = await snapshot();
+  const a = s.actividades.find((x) => x.id === actividadId);
+  if (!a) throw new NotFoundError("La actividad");
+  if (!puede.tomarAsistencia(yo, a, s.asignaciones)) throw new ForbiddenError("No tenés asignada esta actividad.");
+  if (!esOperativoVisual(a) || !IDS_CHECKLIST_VISUAL.includes(item)) throw new UserError("Ese ítem no es de la guía de esta actividad.");
+  return withLock(`checklist:${actividadId}`, async () => {
+    const actual = (await readFresh("actividades")).find((x) => x.id === actividadId)!;
+    const hechos = new Set(itemsHechos(actual.checklist ?? ""));
+    if (hecho) hechos.add(item);
+    else hechos.delete(item);
+    const valor = IDS_CHECKLIST_VISUAL.filter((x) => hechos.has(x)).join(",");
+    if (valor !== (actual.checklist ?? "")) await update("actividades", actividadId, { checklist: valor }, yo.email, { accion: `checklist: ${item} ${hecho ? "✓" : "✗"}` });
+    return { hechos: hechos.size };
+  });
 }
 
 export async function quitarOperador(asignacionId: string, yo: Yo) {

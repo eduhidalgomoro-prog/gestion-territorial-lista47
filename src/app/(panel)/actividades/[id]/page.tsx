@@ -7,6 +7,8 @@ import { IconCheck, IconEdit, IconForm, IconGazebo, IconImage, IconLock, IconMap
 import { mensajeActividad, whatsappCompartir } from "@/lib/compartir";
 import { FlyersActividad } from "@/components/flyer-imagen";
 import { FlyerRapido } from "@/components/flyer-rapido";
+import { GuiaOperativo } from "@/components/guia-operativo";
+import { esOperativoVisual, itemsHechos } from "@/lib/guias";
 import { esFlyerSubido } from "@/lib/flyers";
 import { Badge, btn, Card, cx, Notice } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
@@ -153,6 +155,8 @@ export default async function FichaActividad({ params, searchParams }: { params:
                 {cerrar && a.estado !== "REALIZADA" && <AccionSec href={`/actividades/${a.id}/cerrar`} Icon={IconLock}>Cerrar actividad</AccionSec>}
               </div>
             </details>
+            {/* Operativo de salud visual: lo que pide la guía, para tildar antes del día. */}
+            {esOperativoVisual(a) && !agenda && <GuiaOperativo actividadId={a.id} hechos={itemsHechos(a.checklist ?? "")} editable={asistencia && !yo.vistaPrevia} />}
           </div>
         </>
       )}

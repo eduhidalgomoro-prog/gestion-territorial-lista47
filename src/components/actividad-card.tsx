@@ -3,7 +3,8 @@ import { ESTADO_COLOR, ESTADO_HEX, ubicacionLabel } from "@/lib/labels";
 import { formatDate, formatDiaMes, titleCase } from "@/lib/format";
 import type { Actividad, EstadoActividad } from "@/lib/schema";
 import { esMarcandoHuellas } from "@/lib/huellas";
-import { IconClock, IconHuella, IconPin, IconUsers } from "./icons";
+import { esOperativoVisual, progresoChecklist } from "@/lib/guias";
+import { IconChecklist, IconClock, IconHuella, IconPin, IconUsers } from "./icons";
 import { Badge, cx } from "./ui";
 
 /** Estado con punto de color y texto (nunca solo color). */
@@ -13,6 +14,17 @@ export function EstadoBadge({ estado }: { estado: EstadoActividad }) {
       <span className="mr-1.5 inline-block size-2 rounded-full align-middle" style={{ background: ESTADO_HEX[estado] }} aria-hidden />
       {estado}
     </Badge>
+  );
+}
+
+/** Operativo de salud visual: cuánto de la guía está listo (solo antes de que se realice). */
+export function GuiaBadge({ a }: { a: Actividad }) {
+  if (!esOperativoVisual(a) || a.estado === "REALIZADA" || a.estado === "CANCELADA") return null;
+  const p = progresoChecklist(a);
+  return (
+    <span className={cx("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12.5px] font-bold", p.completo ? "bg-verde-50 text-marca-600" : "bg-alerta-50 text-alerta")}>
+      <IconChecklist size={14} /> Guía {p.hechos}/{p.total}
+    </span>
   );
 }
 
@@ -67,7 +79,10 @@ export function ActividadCard({ a, conteo, compacta, huellas }: { a: Actividad; 
       </div>
       {!compacta && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-linea px-4 py-2.5">
-          <EstadoBadge estado={a.estado} />
+          <span className="flex flex-wrap items-center gap-1.5">
+            <EstadoBadge estado={a.estado} />
+            <GuiaBadge a={a} />
+          </span>
           {esHuellas ? (
             <span className={cx("inline-flex items-center gap-1.5 text-sm font-semibold", huellas?.animales ? "text-marca-600" : "text-gris")}>
               <IconHuella size={16} />

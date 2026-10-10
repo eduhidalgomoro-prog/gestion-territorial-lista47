@@ -236,6 +236,7 @@ async function main() {
       es_feria: false,
       cupo: 0,
       croquis: "",
+      checklist: "",
       preguntas_extra: "",
       inscriptos: 0,
       presentes: 0,

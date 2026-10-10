@@ -6,6 +6,7 @@ import { cx, Notice } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { claseActual, claseDeMarca, fechasDeClases } from "@/lib/clases";
 import { snapshot } from "@/lib/db";
+import { esOperativoVisual } from "@/lib/guias";
 import { puede } from "@/lib/permisos";
 import { asistenciaPorClase } from "@/lib/services/actividades";
 import { claseDe, nombreCorto } from "@/lib/taller-nombre";
@@ -33,7 +34,9 @@ export default async function Asistencia({ params, searchParams }: { params: Pro
   const clase = Number.isInteger(pedida) && pedida >= 1 && pedida <= total ? pedida : claseActual(fechas, today());
   const porClase = total > 1 ? asistenciaPorClase(a, s) : [];
   const personas = new Map(s.participantes.map((p) => [p.id, p]));
-  const asis = new Map(s.asistencias.filter((x) => x.actividad_id === id && claseDeMarca(x) === clase).map((x) => [x.participante_id, x.estado]));
+  const asis = new Map(s.asistencias.filter((x) => x.actividad_id === id && claseDeMarca(x) === clase).map((x) => [x.participante_id, x]));
+  // Operativo visual: se atiende por orden de llegada y cada presente tiene su número.
+  const numerar = esOperativoVisual(a);
   // Para tomar asistencia alcanza con nombre y los últimos números del DNI (nada de barrio, teléfono ni dirección).
   const lista = s.inscripciones
     .filter((i) => i.actividad_id === id && i.estado === "INSCRIPTO")
@@ -46,7 +49,8 @@ export default async function Asistencia({ params, searchParams }: { params: Pro
         dniVisible: dni ? `••••${dni.slice(-3)}` : "",
         // Para buscar: la administración puede escribir el DNI completo; el resto, los últimos 4 números.
         dni: puede.verDniCompleto(yo) ? dni : dni.slice(-4),
-        estado: asis.get(i.participante_id) || null,
+        estado: asis.get(i.participante_id)?.estado || null,
+        numero: numerar ? asis.get(i.participante_id)?.numero || 0 : 0,
       };
     })
     .sort((x, y) => x.nombre.localeCompare(y.nombre));
@@ -128,6 +132,7 @@ export default async function Asistencia({ params, searchParams }: { params: Pro
         // Cerrar la actividad: al terminar la última clase.
         puedeCerrar={puede.cerrarActividad(yo, a) && a.estado !== "REALIZADA" && clase === total}
         soloMirar={!!yo.vistaPrevia}
+        numerar={numerar}
       />
     </div>
   );

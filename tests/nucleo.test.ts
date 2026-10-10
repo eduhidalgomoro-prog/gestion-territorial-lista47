@@ -15,11 +15,13 @@ import { normalizeDni, normalizePhone, parseFechaFlexible, parseFechaNacimiento,
 import { parsePreguntas } from "@/lib/preguntas";
 import type { Yo } from "@/lib/permisos";
 import { aplicarVerComo, misZonas, puede, zonasForzadas } from "@/lib/permisos";
-import { asistenciaPorClase, cerrarActividad, crearActividad, resumenAsistencia, type ActividadInput } from "@/lib/services/actividades";
+import { asistenciaPorClase, cerrarActividad, crearActividad, marcarChecklist, resumenAsistencia, type ActividadInput } from "@/lib/services/actividades";
+import { esOperativoVisual, itemsHechos, progresoChecklist } from "@/lib/guias";
+import { limpiarPersona, upsertParticipantes } from "@/lib/services/participantes";
 import { agregarPresente, guardarAsistencia } from "@/lib/services/asistencia";
 import { anularLote, marcarPreparando, registrarMovimiento } from "@/lib/services/logistica";
 import { resumenLogistico } from "@/lib/logistica";
-import { confirmarImportacion, inscribirPublico, lugaresActividad, pasarAInscripto, vistaPreviaImportacion } from "@/lib/services/inscripciones";
+import { confirmarImportacion, inscribir, inscribirPublico, lugaresActividad, pasarAInscripto, vistaPreviaImportacion } from "@/lib/services/inscripciones";
 import { setStore } from "@/lib/store";
 import { MemoryStore } from "@/lib/store/memory";
 
@@ -597,6 +599,47 @@ describe("logística", () => {
     await anularLote(sinNada.id, ped.lote, logistica);
     s = await snapshot({ fresh: true });
     expect(resumenLogistico(sinNada, s.requerimientos, s.logistica, "2099-03-01").filas[0]).toMatchObject({ solicitado: 0, entregado: 4 });
+  });
+});
+
+describe("guía del operativo visual", () => {
+  it("reconoce el operativo, numera por orden de llegada y guarda el checklist", async () => {
+    expect(esOperativoVisual({ tipo: "OPERATIVO DE SALUD", nombre: "Operativo De Salud Visual" })).toBe(true);
+    expect(esOperativoVisual({ tipo: "OPERATIVO DE SALUD", nombre: "Entrega de anteojos (salud visual)" })).toBe(false);
+    expect(esOperativoVisual({ tipo: "ESME", nombre: "Charla de salud visual" })).toBe(false);
+
+    const a = await crearActividad(input({ nombre: "Operativo de Salud Visual", tipo: "OPERATIVO DE SALUD", fecha: "2099-05-10", generar_formulario: false }), admin);
+    const p = await upsertParticipantes(
+      [["Ana", "Uno", "41000001"], ["Bea", "Dos", "41000002"], ["Ceci", "Tres", "41000003"]].map(([nombre, apellido, dni]) => limpiarPersona({ nombre, apellido, dni, telefono: "", barrio: "" })),
+      "CARGA MANUAL",
+      "test",
+    );
+    const [x, y, z] = p.map((r) => r.participante.id);
+    await inscribir(a.id, [x, y, z].map((participanteId) => ({ participanteId })), "CARGA MANUAL", "test");
+    // Se numera en el orden en que se marcaron (aunque lleguen en el mismo envío).
+    const r1 = await guardarAsistencia(a.id, [{ participanteId: y, estado: "PRESENTE", ts: "2099-05-10T10:05:00Z" }, { participanteId: x, estado: "PRESENTE", ts: "2099-05-10T10:01:00Z" }], admin);
+    expect(r1.numeros).toEqual({ [x]: 1, [y]: 2 });
+    // Quien se desmarca y vuelve a quedar presente conserva su número; los ausentes no reciben número.
+    await guardarAsistencia(a.id, [{ participanteId: x, estado: "", ts: "2099-05-10T10:06:00Z" }], admin);
+    const r2 = await guardarAsistencia(a.id, [{ participanteId: z, estado: "AUSENTE", ts: "2099-05-10T10:07:00Z" }, { participanteId: x, estado: "PRESENTE", ts: "2099-05-10T10:08:00Z" }], admin);
+    expect(r2.numeros).toEqual({ [x]: 1 });
+    const r3 = await guardarAsistencia(a.id, [{ participanteId: z, estado: "PRESENTE", ts: "2099-05-10T10:09:00Z" }], admin);
+    expect(r3.numeros).toEqual({ [z]: 3 });
+
+    // Checklist: solo ítems de la guía; tildar dos veces no duplica.
+    await marcarChecklist(a.id, "espacios", true, admin);
+    await marcarChecklist(a.id, "espacios", true, admin);
+    await marcarChecklist(a.id, "agua", true, admin);
+    await expect(marcarChecklist(a.id, "inventado", true, admin)).rejects.toThrow();
+    await expect(marcarChecklist(a.id, "agua", true, respEste)).resolves.toBeTruthy(); // responsable de la zona
+    let s = await snapshot({ fresh: true });
+    expect(progresoChecklist(s.actividades.find((q) => q.id === a.id)!)).toMatchObject({ hechos: 2, completo: false });
+    await marcarChecklist(a.id, "agua", false, admin);
+    s = await snapshot({ fresh: true });
+    expect(itemsHechos(s.actividades.find((q) => q.id === a.id)!.checklist)).toEqual(["espacios"]);
+    // Una actividad que no es operativo visual no tiene checklist.
+    const taller = await crearActividad(input({ nombre: "Taller", fecha: "2099-05-11" }), admin);
+    await expect(marcarChecklist(taller.id, "espacios", true, admin)).rejects.toThrow();
   });
 });
 

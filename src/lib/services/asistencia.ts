@@ -38,7 +38,7 @@ export async function guardarAsistencia(actividadId: string, marcas: Marca[], yo
     .filter((m) => m && typeof m.participanteId === "string" && (m.estado === "" || (ESTADOS_ASISTENCIA as readonly string[]).includes(m.estado)))
     .map((m) => ({ ...m, clase: claseDeMarca(m) }))
     .filter((m) => m.clase <= totalClases); // solo clases que existen en la actividad
-  if (!validas.length) return { guardadas: 0 };
+  if (!validas.length) return { guardadas: 0, numeros: {} as Record<string, number> };
   if (validas.length > 2000) throw new UserError("Demasiadas marcas en un solo envío.");
   const clave = (participanteId: string, clase: number) => `${participanteId}|${clase}`;
   const ultima = new Map<string, Marca & { clase: number }>();
@@ -49,26 +49,40 @@ export async function guardarAsistencia(actividadId: string, marcas: Marca[], yo
   return withLock(`asis:${actividadId}`, async () => {
     const [inscripciones, asistencias] = await Promise.all([readFresh("inscripciones"), readFresh("asistencias")]);
     const inscriptos = new Set(inscripciones.filter((i) => i.actividad_id === actividadId && i.estado === "INSCRIPTO").map((i) => i.participante_id));
-    const existentes = new Map(asistencias.filter((x) => x.actividad_id === actividadId).map((x) => [clave(x.participante_id, claseDeMarca(x)), x]));
+    const deLaActividad = asistencias.filter((x) => x.actividad_id === actividadId);
+    const existentes = new Map(deLaActividad.map((x) => [clave(x.participante_id, claseDeMarca(x)), x]));
     const actualizar: { id: string; patch: Partial<Asistencia> }[] = [];
     const crear: Omit<Asistencia, "id" | "creado" | "actualizado" | "actualizado_por" | "version">[] = [];
     const ahora = Date.now();
-    for (const m of ultima.values()) {
+    // Orden de llegada (por clase): la primera vez que alguien queda PRESENTE recibe el número siguiente y lo conserva.
+    const ultimoNumero = new Map<number, number>();
+    for (const x of deLaActividad) ultimoNumero.set(claseDeMarca(x), Math.max(ultimoNumero.get(claseDeMarca(x)) ?? 0, x.numero || 0));
+    const numeros: Record<string, number> = {};
+    const numeroPara = (m: { participanteId: string; clase: number; estado: string }, actual = 0) => {
+      if (m.estado !== "PRESENTE" || actual) return actual;
+      const n = (ultimoNumero.get(m.clase) ?? 0) + 1;
+      ultimoNumero.set(m.clase, n);
+      return n;
+    };
+    // Se numera en el orden en que se marcaron en el celular.
+    for (const m of [...ultima.values()].sort((x, y) => (x.ts ?? "").localeCompare(y.ts ?? ""))) {
       if (!inscriptos.has(m.participanteId)) continue; // solo personas inscriptas en ESTA actividad
       // Hora en que se marcó en el celular (si estaba sin señal, es anterior al envío).
       const t = m.ts ? Date.parse(m.ts) : NaN;
       const registrado = nowIso(new Date(Number.isFinite(t) && t <= ahora ? t : ahora));
       const ex = existentes.get(clave(m.participanteId, m.clase));
+      const numero = numeroPara(m, ex?.numero || 0);
+      if (numero) numeros[m.participanteId] = numero;
       if (ex) {
-        if (ex.estado !== m.estado) actualizar.push({ id: ex.id, patch: { estado: m.estado, registrado, usuario: yo.email } });
+        if (ex.estado !== m.estado) actualizar.push({ id: ex.id, patch: { estado: m.estado, registrado, usuario: yo.email, ...(numero !== (ex.numero || 0) ? { numero } : {}) } });
       } else if (m.estado) {
         // «Sin marcar» de alguien que nunca se marcó: no hay nada que guardar.
-        crear.push({ actividad_id: actividadId, participante_id: m.participanteId, estado: m.estado, clase: m.clase, registrado, usuario: yo.email });
+        crear.push({ actividad_id: actividadId, participante_id: m.participanteId, estado: m.estado, clase: m.clase, numero, registrado, usuario: yo.email });
       }
     }
     await updateMany("asistencias", actualizar, yo.email, "asistencia");
     await insertMany("asistencias", crear, yo.email, "asistencia");
-    return { guardadas: actualizar.length + crear.length };
+    return { guardadas: actualizar.length + crear.length, numeros };
   });
 }
 
@@ -80,8 +94,8 @@ export async function agregarPresente(actividadId: string, input: PersonaInput, 
   const persona = limpiarPersona(input);
   const [r] = await upsertParticipantes([persona], "CARGA MANUAL", yo.email);
   await inscribir(actividadId, [{ participanteId: r.participante.id }], "CARGA MANUAL", yo.email);
-  await guardarAsistencia(actividadId, [{ participanteId: r.participante.id, estado: "PRESENTE", clase }], yo);
-  return { participanteId: r.participante.id, nuevo: r.nuevo, nombre: `${r.participante.nombre} ${r.participante.apellido}` };
+  const g = await guardarAsistencia(actividadId, [{ participanteId: r.participante.id, estado: "PRESENTE", clase, ts: new Date().toISOString() }], yo);
+  return { participanteId: r.participante.id, nuevo: r.nuevo, nombre: `${r.participante.nombre} ${r.participante.apellido}`, numero: g.numeros[r.participante.id] ?? 0 };
 }
 
 /**
