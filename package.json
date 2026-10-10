@@ -11,6 +11,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "setup:sheets": "tsx --env-file=.env.local scripts/setup-sheets.ts",
+    "guia:visual": "node scripts/generar-guia.mjs",
     "check:sheets": "tsx --env-file=.env.local scripts/setup-sheets.ts --check",
     "migrar:formulario": "tsx --env-file=.env.local scripts/migrar-formulario.ts",
     "seed:local": "tsx scripts/seed-local.ts"

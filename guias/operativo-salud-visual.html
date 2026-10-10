@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guía para organizar un Operativo de Salud Visual · Lista 47</title>
+<!--
+  Fuente de la guía que abre «Ver la guía completa» en los operativos de salud visual.
+  Para regenerar el PDF (public/guias/operativo-salud-visual.pdf):  npm run guia:visual
+  Contenido: guía original de la coordinación (no agregar requisitos que no estén confirmados).
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Nunito+Sans:wght@400;600;700;800&display=block" rel="stylesheet">
+<style>
+  :root {
+    --verde: #66ba47;
+    --marca: #3f742c;
+    --marca-600: #325d23;
+    --verde-50: #eff8eb;
+    --verde-100: #d9efcf;
+    --petroleo: #106985;
+    --petroleo-600: #0c546b;
+    --petroleo-50: #e8f2f5;
+    --tinta: #324158;
+    --gris: #5b6678;
+    --linea: #dfe5ea;
+    --fondo: #f4f7f5;
+    --alerta: #a15c07;
+    --alerta-50: #fdf3e2;
+    --titulo: "Montserrat", system-ui, sans-serif;
+    --texto: "Nunito Sans", system-ui, sans-serif;
+  }
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--texto);
+    color: var(--tinta);
+    font-size: 12.5pt;
+    line-height: 1.38;
+    background: #cfd6dc;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  @media screen { .page { margin: 12px auto; box-shadow: 0 2px 12px rgba(0,0,0,.15); } }
+  .page {
+    width: 210mm;
+    height: 297mm;
+    position: relative;
+    overflow: hidden;
+    background: #fff;
+    padding: 25mm 15mm 18mm;
+    page-break-after: always;
+    break-after: page;
+  }
+  .page:last-child { page-break-after: auto; break-after: auto; }
+  h1, h2, h3, h4 { font-family: var(--titulo); margin: 0; line-height: 1.15; }
+  p { margin: 0; }
+  ul, ol { margin: 0; padding: 0; list-style: none; }
+  svg { display: block; }
+  .ic { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* Encabezado y pie (todas menos la portada) */
+  .cab {
+    position: absolute; top: 9mm; left: 15mm; right: 15mm;
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 3mm; border-bottom: 1.2pt solid var(--verde-100);
+    font-size: 9pt; color: var(--gris); font-weight: 700;
+  }
+  .cab .marca { display: flex; align-items: center; gap: 2.5mm; }
+  .cab .seccion { font-family: var(--titulo); color: var(--petroleo); letter-spacing: .06em; text-transform: uppercase; font-size: 8.5pt; }
+  .pie {
+    position: absolute; bottom: 8mm; left: 15mm; right: 15mm;
+    display: flex; justify-content: space-between; font-size: 8.5pt; color: var(--gris);
+  }
+  .pie b { color: var(--marca); }
+  .sello {
+    width: 9mm; height: 9mm; border-radius: 50%; background: var(--verde); color: #fff;
+    display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+    font-family: var(--titulo); font-weight: 900; line-height: .9;
+  }
+  .sello small { font-size: 4.2pt; letter-spacing: .02em; }
+  .sello span { font-size: 9.5pt; }
+
+  /* Títulos de página */
+  .kicker { font-family: var(--titulo); font-weight: 800; font-size: 9.5pt; letter-spacing: .16em; text-transform: uppercase; color: var(--verde); }
+  .titulo-pag { font-size: 25pt; font-weight: 800; color: var(--petroleo-600); margin-top: 1.5mm; }
+  .bajada { font-size: 12.5pt; color: var(--gris); margin-top: 2.5mm; max-width: 165mm; }
+
+  /* Etapa: encabezado de color */
+  .etapa-cab {
+    display: flex; align-items: center; gap: 5mm;
+    border-radius: 6mm; padding: 4.5mm 6mm; color: #fff;
+  }
+  .etapa-cab .num {
+    flex: none; width: 15mm; height: 15mm; border-radius: 50%; background: rgba(255,255,255,.18);
+    border: 1.2pt solid rgba(255,255,255,.55);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--titulo); font-weight: 900; font-size: 22pt;
+  }
+  .etapa-cab .txt { flex: 1; }
+  .etapa-cab .txt .k { font-family: var(--titulo); font-weight: 800; font-size: 9pt; letter-spacing: .16em; text-transform: uppercase; opacity: .85; }
+  .etapa-cab h2 { font-size: 22pt; font-weight: 800; margin-top: 1mm; }
+  .etapa-cab .ilu { flex: none; width: 26mm; height: 26mm; margin: -3mm -1mm -3mm 0; }
+
+  .c1 { background: linear-gradient(120deg, var(--petroleo-600), var(--petroleo)); }
+  .c2 { background: linear-gradient(120deg, var(--marca-600), var(--marca)); }
+  .c3 { background: linear-gradient(120deg, #0b5f63, #13807d); }
+  .c4 { background: linear-gradient(120deg, #3e7d27, var(--verde)); }
+
+  /* Objetivo + responsable */
+  .meta { display: grid; grid-template-columns: 1fr 58mm; gap: 4mm; margin-top: 5mm; }
+  .caja { border-radius: 4.5mm; padding: 4.5mm 5mm; background: var(--fondo); }
+  .caja h3 { font-size: 10pt; letter-spacing: .1em; text-transform: uppercase; color: var(--petroleo); font-weight: 800; display: flex; align-items: center; gap: 2mm; margin-bottom: 1.8mm; }
+  .caja h3 .ic { font-size: 13pt; }
+  .caja.verde { background: var(--verde-50); }
+  .caja.verde h3 { color: var(--marca); }
+  .caja.celeste { background: var(--petroleo-50); }
+  .caja.alerta { background: var(--alerta-50); }
+  .caja.alerta h3 { color: var(--alerta); }
+  .caja.borde { background: #fff; border: 1.2pt solid var(--linea); }
+
+  .resp { display: flex; align-items: center; gap: 3mm; }
+  .resp .av { flex: none; width: 11mm; height: 11mm; border-radius: 50%; background: #fff; color: var(--petroleo); display: flex; align-items: center; justify-content: center; font-size: 17pt; }
+  .resp b { display: block; font-size: 12pt; }
+  .resp span { font-size: 10.5pt; color: var(--gris); }
+
+  /* Pasos */
+  .pasos { counter-reset: p; display: grid; gap: 2.6mm; }
+  .pasos li { display: flex; gap: 3mm; align-items: flex-start; }
+  .pasos li::before {
+    counter-increment: p; content: counter(p);
+    flex: none; width: 6.5mm; height: 6.5mm; border-radius: 50%; background: var(--petroleo); color: #fff;
+    font-family: var(--titulo); font-weight: 800; font-size: 9.5pt; display: flex; align-items: center; justify-content: center; margin-top: .3mm;
+  }
+  .pasos.v li::before { background: var(--marca); }
+  .pasos.t li::before { background: #13807d; }
+  .pasos.g li::before { background: #3e7d27; }
+
+  .items { display: grid; gap: 2mm; }
+  .items li { display: flex; gap: 2.5mm; align-items: flex-start; }
+  .items li .ic { flex: none; font-size: 13pt; margin-top: .6mm; color: var(--marca); }
+  .alerta .items li .ic { color: var(--alerta); }
+
+  /* Elementos a preparar con ícono grande */
+  .prep { display: grid; gap: 3mm; }
+  .prep.cols2 { grid-template-columns: 1fr 1fr; }
+  .prep.cols4 { grid-template-columns: repeat(4, 1fr); }
+  .prep li { display: flex; align-items: center; gap: 3mm; background: #fff; border-radius: 3.5mm; padding: 3mm 3.5mm; border: 1pt solid var(--verde-100); }
+  .prep li .bub { flex: none; width: 10mm; height: 10mm; border-radius: 50%; background: var(--verde-50); color: var(--marca); display: flex; align-items: center; justify-content: center; font-size: 15pt; }
+  .prep li b { display: block; font-size: 11.5pt; line-height: 1.2; }
+  .prep li span { display: block; font-size: 9.5pt; color: var(--gris); line-height: 1.25; }
+  .prep.cols4 li { flex-direction: column; text-align: center; padding: 4mm 2.5mm; gap: 2mm; }
+
+  .destacado {
+    border-radius: 5mm; padding: 5mm 6mm; border: 1.6pt solid var(--verde); background: #fff; position: relative;
+  }
+  .destacado .etq {
+    position: absolute; top: -3.2mm; left: 5mm; background: var(--verde); color: #fff; font-family: var(--titulo); font-weight: 800;
+    font-size: 8.5pt; letter-spacing: .1em; text-transform: uppercase; padding: 1mm 3mm; border-radius: 99px;
+  }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+  .mt3 { margin-top: 3mm; } .mt4 { margin-top: 4mm; } .mt5 { margin-top: 5mm; } .mt6 { margin-top: 6mm; }
+  .chico { font-size: 10.5pt; color: var(--gris); }
+  .tip { display: flex; gap: 3mm; align-items: flex-start; font-size: 10.5pt; color: var(--petroleo-600); background: var(--petroleo-50); border-radius: 4mm; padding: 3.5mm 4.5mm; }
+  .tip .ic { flex: none; font-size: 14pt; margin-top: .3mm; }
+  .tip b { color: var(--petroleo); }
+  .recordatorios li { padding: 5.5mm 5mm; }
+  .recordatorios li p { font-size: 14pt !important; line-height: 1.32; }
+  .recordatorios li .ic { font-size: 22pt !important; }
+</style>
+</head>
+<body>
+
+<!-- Íconos (vectoriales, sin archivos externos) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-recepcion" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><rect x="9" y="2.5" width="6" height="3.5" rx="1"/><path d="M8.5 11h7M8.5 15h5"/></symbol>
+    <symbol id="i-ojo" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-anteojos" viewBox="0 0 24 24"><circle cx="6.5" cy="14.5" r="3.5"/><circle cx="17.5" cy="14.5" r="3.5"/><path d="M10 14.5c1.2-1 2.8-1 4 0M3 14.5 4.8 8M21 14.5 19.2 8"/></symbol>
+    <symbol id="i-celular" viewBox="0 0 24 24"><rect x="6.5" y="2" width="11" height="20" rx="2.5"/><path d="M11 18.5h2"/></symbol>
+    <symbol id="i-mensaje" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/></symbol>
+    <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M3 7.5V5h18v2.5a2.5 2.5 0 0 0 0 5V15H3v-2.5a2.5 2.5 0 0 0 0-5z" transform="translate(0 2)"/><path d="M14 7v10" stroke-dasharray="2 2"/></symbol>
+    <symbol id="i-persona" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></symbol>
+    <symbol id="i-equipo" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9" r="2.6"/><path d="M3 20c0-3.4 2.7-5.5 6-5.5s6 2.1 6 5.5M15.5 14.6c3 0 5.5 1.7 5.5 4.9"/></symbol>
+    <symbol id="i-silla" viewBox="0 0 24 24"><path d="M7 3v9h10V3M6 12h12M7.5 12v9M16.5 12v9M7.5 17h9"/></symbol>
+    <symbol id="i-mesa" viewBox="0 0 24 24"><path d="M2.5 8.5h19M5 8.5V20M19 8.5V20M5 13h14"/></symbol>
+    <symbol id="i-luz" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2h5c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"/></symbol>
+    <symbol id="i-enchufe" viewBox="0 0 24 24"><path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5"/></symbol>
+    <symbol id="i-privado" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="i-silencio" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="m16 9.5 5 5M21 9.5l-5 5"/></symbol>
+    <symbol id="i-agua" viewBox="0 0 24 24"><path d="M12 3s6 6.4 6 11a6 6 0 0 1-12 0c0-4.6 6-11 6-11z"/></symbol>
+    <symbol id="i-sanitario" viewBox="0 0 24 24"><circle cx="7.5" cy="5" r="2"/><circle cx="16.5" cy="5" r="2"/><path d="M5.5 21v-6H4l1.5-6h4L11 15H9.5v6M12 3v18M14.5 9h4v6h-1v6h-2v-6h-1z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="m7.5 12.3 3 3 6-6.3"/></symbol>
+    <symbol id="i-alerta" viewBox="0 0 24 24"><path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5M12 17.3v.2"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="m9 9 6 6M15 9l-6 6"/></symbol>
+    <symbol id="i-corazon" viewBox="0 0 24 24"><path d="M12 20.5s-8-4.6-8-10.7A4.4 4.4 0 0 1 12 7.2a4.4 4.4 0 0 1 8 2.6c0 6.1-8 10.7-8 10.7z"/></symbol>
+    <symbol id="i-objetivo" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/></symbol>
+    <symbol id="i-flecha" viewBox="0 0 24 24"><path d="M12 4v16M5.5 13.5 12 20l6.5-6.5"/></symbol>
+    <symbol id="i-escucha" viewBox="0 0 24 24"><path d="M6 15c0-3.5 1-11 7-11 3.3 0 5 2.4 5 5.2 0 3.3-3 4-3 6.8 0 2-1.4 3.6-3.4 3.6-1.5 0-2.6-.8-3.1-2"/><path d="M10 9.5c0-1.2.9-2.1 2.1-2.1 1.3 0 2.1 1 2.1 2"/></symbol>
+    <symbol id="i-espera" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 7v5l3.2 2"/></symbol>
+    <symbol id="i-app" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="m8 9 1.5 1.5L12.5 7.5M8 15.5l1.5 1.5 3-3M14.5 9.5H16M14.5 16H16"/></symbol>
+  </defs>
+</svg>
+
+<!-- ============ 1. PORTADA ============ -->
+<section class="page" style="padding:0; background: linear-gradient(160deg, #0c546b 0%, #106985 46%, #2f7f4b 100%); color:#fff;">
+  <svg viewBox="0 0 210 297" width="210mm" height="297mm" style="position:absolute; inset:0" aria-hidden="true">
+    <circle cx="186" cy="34" r="58" fill="#ffffff" opacity=".06"/>
+    <circle cx="20" cy="250" r="70" fill="#66ba47" opacity=".16"/>
+    <circle cx="172" cy="214" r="46" fill="#ffffff" opacity=".05"/>
+  </svg>
+
+  <div style="position:absolute; top:16mm; left:16mm; right:16mm; display:flex; align-items:center; gap:3.5mm;">
+    <span class="sello" style="width:15mm; height:15mm; box-shadow:0 0 0 1.2mm rgba(255,255,255,.25)"><small style="font-size:6.5pt">LISTA</small><span style="font-size:16pt">47</span></span>
+    <span style="font-family:var(--titulo); font-weight:800; font-size:11pt; letter-spacing:.12em; text-transform:uppercase; line-height:1.3">Lista 47<br><span style="font-weight:600; opacity:.85; letter-spacing:.08em">Gestión Territorial</span></span>
+  </div>
+
+  <!-- Ilustración: carta de agudeza visual, anteojos y vecinos -->
+  <svg viewBox="0 0 180 130" style="position:absolute; top:48mm; left:15mm; width:180mm; height:130mm" aria-hidden="true">
+    <ellipse cx="90" cy="118" rx="84" ry="8" fill="#000" opacity=".12"/>
+    <!-- barrio -->
+    <g opacity=".9">
+      <path d="M8 110V84l14-11 14 11v26z" fill="#d9efcf" opacity=".25"/>
+      <path d="M144 110V80l15-12 15 12v30z" fill="#d9efcf" opacity=".25"/>
+      <rect x="16" y="94" width="7" height="16" rx="1" fill="#0c546b" opacity=".5"/>
+      <rect x="153" y="92" width="8" height="18" rx="1" fill="#0c546b" opacity=".5"/>
+    </g>
+    <!-- carta de agudeza visual -->
+    <g transform="translate(58 6)">
+      <rect x="0" y="0" width="64" height="88" rx="6" fill="#ffffff"/>
+      <rect x="0" y="0" width="64" height="12" rx="6" fill="#66ba47"/>
+      <rect x="0" y="6" width="64" height="6" fill="#66ba47"/>
+      <g font-family="Montserrat, sans-serif" font-weight="800" fill="#324158" text-anchor="middle">
+        <text x="32" y="36" font-size="20">E</text>
+        <text x="32" y="51" font-size="11" letter-spacing="3">F P</text>
+        <text x="32" y="63" font-size="8.5" letter-spacing="2.5">T O Z</text>
+        <text x="32" y="73" font-size="6.5" letter-spacing="2">L P E D</text>
+        <text x="32" y="81" font-size="4.8" letter-spacing="1.6">P E C F D</text>
+      </g>
+      <rect x="29" y="88" width="6" height="22" fill="#ffffff" opacity=".85"/>
+    </g>
+    <!-- anteojos grandes -->
+    <g transform="translate(108 64)" fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round">
+      <circle cx="16" cy="16" r="13" fill="#106985" fill-opacity=".55"/>
+      <circle cx="50" cy="16" r="13" fill="#106985" fill-opacity=".55"/>
+      <path d="M29 15c2.6-2.4 5.4-2.4 8 0M3.5 13 0 2M62.5 13 66 2"/>
+    </g>
+    <!-- vecinos -->
+    <g transform="translate(22 66)">
+      <path d="M3.5 12c0-8 4.5-12 10.5-12s10.5 4 10.5 12v9h-21z" fill="#5a3b2a"/>
+      <circle cx="14" cy="11" r="8.5" fill="#f6d9c0"/>
+      <path d="M5.3 9.5C6 4 9.5 1.5 14 1.5s8 2.5 8.7 8c-3-2.6-6-3.6-8.7-3.6S8.3 6.9 5.3 9.5z" fill="#5a3b2a"/>
+      <path d="M-2 50c0-14 7-24 16-24s16 10 16 24z" fill="#66ba47"/>
+      <circle cx="40" cy="16.5" r="8" fill="#e9c3a3"/>
+      <path d="M31.8 15.5C32 10 35.5 7.5 40 7.5s8 2.5 8.2 8c-2.4-2.6-5-3.4-8.2-3.4s-5.8.8-8.2 3.4z" fill="#d4d8dd"/>
+      <path d="M26 50c0-12 6-20 14-20s14 8 14 20z" fill="#ffffff"/>
+    </g>
+    <!-- destellos -->
+    <g fill="#66ba47"><circle cx="40" cy="22" r="2.4"/><circle cx="140" cy="30" r="3"/><circle cx="160" cy="54" r="1.8"/></g>
+  </svg>
+
+  <div style="position:absolute; left:16mm; right:16mm; top:186mm;">
+    <p style="font-family:var(--titulo); font-weight:800; font-size:10.5pt; letter-spacing:.2em; text-transform:uppercase; color:#aae7c0">Guía de campo para referentes</p>
+    <h1 style="font-size:31pt; font-weight:900; line-height:1.08; margin-top:3mm; letter-spacing:-.01em">Guía para organizar un Operativo de Salud Visual</h1>
+    <p style="font-size:14pt; line-height:1.4; margin-top:5mm; max-width:160mm; opacity:.95">Todo lo que necesitás saber para preparar, organizar y acompañar a los vecinos durante el operativo.</p>
+  </div>
+  <div style="position:absolute; left:16mm; right:16mm; bottom:13mm; display:flex; justify-content:space-between; align-items:flex-end; font-size:10pt; opacity:.85">
+    <span>Recepción · Control visual · Asesoramiento óptico · Confirmación del pedido</span>
+    <span style="font-weight:800">Lista 47 | Gestión Territorial</span>
+  </div>
+</section>
+
+<!-- ============ 2. EL OPERATIVO DE UN VISTAZO ============ -->
+<section class="page">
+  <header class="cab"><span class="marca"><span class="sello"><small>LISTA</small><span>47</span></span>Guía · Operativo de Salud Visual</span><span class="seccion">El operativo de un vistazo</span></header>
+
+  <p class="kicker">¡Hola, equipo!</p>
+  <h2 class="titulo-pag">El operativo de un vistazo</h2>
+  <p class="bajada">Cada vecino hace un recorrido de cuatro etapas. La idea es trabajar ordenados, brindar una buena atención y que cada persona se sienta cómoda, acompañada y bien recibida.</p>
+
+  <ol style="margin-top:6mm; display:grid; gap:1.2mm;">
+    <!-- etapa 1 -->
+    <li style="display:grid; grid-template-columns: 40mm 1fr; border-radius:5mm; overflow:hidden; border:1pt solid var(--linea);">
+      <div class="c1" style="color:#fff; padding:4mm; display:flex; flex-direction:column; justify-content:center; gap:1.5mm;">
+        <span style="font-family:var(--titulo); font-weight:900; font-size:20pt; line-height:1">1</span>
+        <svg class="ic" style="font-size:16pt"><use href="#i-recepcion"/></svg>
+        <b style="font-family:var(--titulo); font-size:11.5pt; line-height:1.15">Recepción y registro</b>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5mm 5mm; padding:3.5mm 5mm; font-size:10.3pt; line-height:1.3">
+        <p><b>Qué se hace:</b> se recibe al vecino, se le da su número y se cargan sus datos.</p>
+        <p><b>Quién:</b> el referente local.</p>
+        <p><b>Qué se necesita:</b> talonario de números y el sistema virtual para cargar los datos.</p>
+        <p><b>Antes de seguir:</b> datos guardados y celular bien escrito.</p>
+      </div>
+    </li>
+    <li style="text-align:center; color:var(--verde); font-size:13pt; height:5mm"><svg class="ic" style="margin:0 auto"><use href="#i-flecha"/></svg></li>
+    <!-- etapa 2 -->
+    <li style="display:grid; grid-template-columns: 40mm 1fr; border-radius:5mm; overflow:hidden; border:1pt solid var(--linea);">
+      <div class="c2" style="color:#fff; padding:4mm; display:flex; flex-direction:column; justify-content:center; gap:1.5mm;">
+        <span style="font-family:var(--titulo); font-weight:900; font-size:20pt; line-height:1">2</span>
+        <svg class="ic" style="font-size:16pt"><use href="#i-ojo"/></svg>
+        <b style="font-family:var(--titulo); font-size:11.5pt; line-height:1.15">Control visual y graduación</b>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5mm 5mm; padding:3.5mm 5mm; font-size:10.3pt; line-height:1.3">
+        <p><b>Qué se hace:</b> el control de agudeza visual; si hace falta, se define la graduación.</p>
+        <p><b>Quién:</b> el/la profesional.</p>
+        <p><b>Qué se necesita:</b> lugar iluminado y tranquilo, mesa, dos sillas y un enchufe cerca.</p>
+        <p><b>Antes de seguir:</b> evaluación terminada; si necesita anteojos, pasa a la óptica.</p>
+      </div>
+    </li>
+    <li style="text-align:center; color:var(--verde); font-size:13pt; height:5mm"><svg class="ic" style="margin:0 auto"><use href="#i-flecha"/></svg></li>
+    <!-- etapa 3 -->
+    <li style="display:grid; grid-template-columns: 40mm 1fr; border-radius:5mm; overflow:hidden; border:1pt solid var(--linea);">
+      <div class="c3" style="color:#fff; padding:4mm; display:flex; flex-direction:column; justify-content:center; gap:1.5mm;">
+        <span style="font-family:var(--titulo); font-weight:900; font-size:20pt; line-height:1">3</span>
+        <svg class="ic" style="font-size:16pt"><use href="#i-anteojos"/></svg>
+        <b style="font-family:var(--titulo); font-size:11.5pt; line-height:1.15">Asesoramiento óptico</b>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5mm 5mm; padding:3.5mm 5mm; font-size:10.3pt; line-height:1.3">
+        <p><b>Qué se hace:</b> la persona conoce los modelos y elige su armazón.</p>
+        <p><b>Quién:</b> el óptico.</p>
+        <p><b>Qué se necesita:</b> mesa para exhibir armazones, tres sillas y un espacio separado.</p>
+        <p><b>Antes de seguir:</b> última verificación de los datos personales.</p>
+      </div>
+    </li>
+    <li style="text-align:center; color:var(--verde); font-size:13pt; height:5mm"><svg class="ic" style="margin:0 auto"><use href="#i-flecha"/></svg></li>
+    <!-- etapa 4 -->
+    <li style="display:grid; grid-template-columns: 40mm 1fr; border-radius:5mm; overflow:hidden; border:1pt solid var(--linea);">
+      <div class="c4" style="color:#fff; padding:4mm; display:flex; flex-direction:column; justify-content:center; gap:1.5mm;">
+        <span style="font-family:var(--titulo); font-weight:900; font-size:20pt; line-height:1">4</span>
+        <svg class="ic" style="font-size:16pt"><use href="#i-mensaje"/></svg>
+        <b style="font-family:var(--titulo); font-size:11.5pt; line-height:1.15">Confirmación del pedido</b>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5mm 5mm; padding:3.5mm 5mm; font-size:10.3pt; line-height:1.3">
+        <p><b>Qué se hace:</b> se confirma el pedido y el vecino recibe un mensaje en su celular.</p>
+        <p><b>Quién:</b> el óptico confirma; el sistema envía el mensaje.</p>
+        <p><b>Qué llega:</b> código de la ficha, seña abonada y saldo para la entrega.</p>
+        <p><b>Antes de despedirlo:</b> que sepa que le va a llegar ese mensaje.</p>
+      </div>
+    </li>
+  </ol>
+
+  <div class="tip mt5">
+    <svg class="ic"><use href="#i-espera"/></svg>
+    <p><b>Aunque hay inscripción previa, se atiende por orden de llegada.</b> Por eso el recorrido empieza siempre en la recepción, con un número para cada vecino.</p>
+  </div>
+  <div class="tip mt3">
+    <svg class="ic"><use href="#i-app"/></svg>
+    <p><b>Si usás la app de Gestión Territorial</b> para la asistencia, al marcar presente a cada vecino la app le da su número de llegada.</p>
+  </div>
+
+  <footer class="pie"><span><b>Lista 47</b> · Gestión Territorial</span><span>2</span></footer>
+</section>
+
+<!-- ============ 3. ETAPA 1 · RECEPCIÓN ============ -->
+<section class="page">
+  <header class="cab"><span class="marca"><span class="sello"><small>LISTA</small><span>47</span></span>Guía · Operativo de Salud Visual</span><span class="seccion">Etapa 1 · Recepción</span></header>
+
+  <div class="etapa-cab c1">
+    <span class="num">1</span>
+    <div class="txt"><p class="k">Etapa 1 · Primer contacto</p><h2>Recepción y registro de vecinos</h2></div>
+    <svg class="ilu" viewBox="0 0 60 60" aria-hidden="true">
+      <rect x="12" y="10" width="36" height="44" rx="5" fill="#fff" opacity=".95"/>
+      <rect x="22" y="6" width="16" height="9" rx="3" fill="#aae7c0"/>
+      <rect x="18" y="22" width="24" height="3.5" rx="1.75" fill="#106985" opacity=".5"/>
+      <rect x="18" y="30" width="18" height="3.5" rx="1.75" fill="#106985" opacity=".5"/>
+      <rect x="18" y="38" width="21" height="3.5" rx="1.75" fill="#106985" opacity=".5"/>
+      <g transform="translate(34 38)"><rect width="22" height="14" rx="3" fill="#66ba47"/><text x="11" y="10" font-family="Montserrat" font-weight="900" font-size="8" fill="#fff" text-anchor="middle">001</text></g>
+    </svg>
+  </div>
+
+  <div class="meta">
+    <div class="caja"><h3><svg class="ic"><use href="#i-objetivo"/></svg>Objetivo</h3><p>Recibir a cada vecino, darle su número de llegada y registrar sus datos para que pueda pasar al control visual.</p></div>
+    <div class="caja celeste"><h3><svg class="ic"><use href="#i-persona"/></svg>Responsable</h3>
+      <div class="resp"><span class="av"><svg class="ic"><use href="#i-persona"/></svg></span><div><b>Referente local</b><span>Es quien mejor conoce a los vecinos.</span></div></div>
+    </div>
+  </div>
+
+  <div class="grid2 mt5">
+    <div>
+      <h3 style="font-size:13pt; color:var(--petroleo-600); margin-bottom:3mm">Qué hay que hacer</h3>
+      <ol class="pasos">
+        <li><span>Recibí a la persona y <b>entregale su número</b>. Se atiende por orden de llegada, aunque se haya inscripto antes.</span></li>
+        <li><span><b>Cargá sus datos</b> en el sistema virtual (ver el recuadro).</span></li>
+        <li><span><b>Leé el celular en voz alta</b> y confirmalo con la persona.</span></li>
+        <li><span><b>Guardá los datos.</b> Recién ahí puede pasar al control visual.</span></li>
+      </ol>
+    </div>
+    <div class="destacado">
+      <span class="etq">Datos a cargar</span>
+      <ul class="items" style="gap:3mm; margin-top:1.5mm">
+        <li><svg class="ic"><use href="#i-check"/></svg><span><b>Operativo:</b> barrio o localidad y mes.<br><span class="chico">Ejemplo: Quintana - Septiembre</span></span></li>
+        <li><svg class="ic"><use href="#i-check"/></svg><span><b>Apellido y nombre.</b></span></li>
+        <li style="background:var(--alerta-50); border-radius:3mm; padding:2mm 2.5mm; margin:0 -2.5mm"><svg class="ic" style="color:var(--alerta)"><use href="#i-celular"/></svg><span><b>Celular.</b> ¡Muy importante que esté bien escrito! Es nuestro medio de contacto.</span></li>
+        <li><svg class="ic"><use href="#i-check"/></svg><span><b>Localidad.</b></span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="grid2 mt5">
+    <div class="caja verde">
+      <h3><svg class="ic"><use href="#i-ticket"/></svg>Qué preparar</h3>
+      <ul class="items">
+        <li><svg class="ic"><use href="#i-ticket"/></svg><span>Un talonario de números para ordenar el ingreso.</span></li>
+        <li><svg class="ic"><use href="#i-celular"/></svg><span>Un celular o computadora para cargar los datos en el sistema virtual.</span></li>
+      </ul>
+      <h3 class="mt4"><svg class="ic"><use href="#i-corazon"/></svg>Recomendación</h3>
+      <p>Que esta tarea la haga el referente de la localidad: es una linda oportunidad para recibir personalmente a los vecinos, generar cercanía y fortalecer el vínculo con la comunidad.</p>
+    </div>
+    <div class="caja alerta">
+      <h3><svg class="ic"><use href="#i-alerta"/></svg>Errores frecuentes</h3>
+      <ul class="items">
+        <li><svg class="ic"><use href="#i-x"/></svg><span>Atender por orden de inscripción en lugar de por orden de llegada.</span></li>
+        <li><svg class="ic"><use href="#i-x"/></svg><span>Anotar el celular sin confirmarlo: si está mal, no podemos avisarle nada.</span></li>
+        <li><svg class="ic"><use href="#i-x"/></svg><span>Hacerla pasar al control antes de guardar sus datos.</span></li>
+        <li><svg class="ic"><use href="#i-x"/></svg><span>Olvidar el nombre del operativo (barrio o localidad y mes).</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <footer class="pie"><span><b>Lista 47</b> · Gestión Territorial</span><span>3</span></footer>
+</section>
+
+<!-- ============ 4. ETAPA 2 · CONTROL VISUAL ============ -->
+<section class="page">
+  <header class="cab"><span class="marca"><span class="sello"><small>LISTA</small><span>47</span></span>Guía · Operativo de Salud Visual</span><span class="seccion">Etapa 2 · Control visual</span></header>
+
+  <div class="etapa-cab c2">
+    <span class="num">2</span>
+    <div class="txt"><p class="k">Etapa 2 · Evaluación profesional</p><h2>Control de agudeza visual y graduación</h2></div>
+    <svg class="ilu" viewBox="0 0 60 60" aria-hidden="true">
+      <rect x="16" y="2" width="28" height="34" rx="4" fill="#fff"/>
+      <g font-family="Montserrat" font-weight="900" fill="#3f742c" text-anchor="middle"><text x="30" y="16" font-size="11">E</text><text x="30" y="25" font-size="6" letter-spacing="1.5">F P</text><text x="30" y="32" font-size="4.6" letter-spacing="1.2">T O Z</text></g>
+      <path d="M9 48s7.5-9 21-9 21 9 21 9-7.5 9-21 9-21-9-21-9z" fill="#aae7c0"/>
+      <circle cx="30" cy="48" r="5.5" fill="#325d23"/><circle cx="31.8" cy="46.2" r="1.6" fill="#fff"/>
+    </svg>
+  </div>
+
+  <div class="meta">
+    <div class="caja"><h3><svg class="ic"><use href="#i-objetivo"/></svg>Objetivo</h3><p>Que el/la profesional determine si la persona necesita anteojos y, en ese caso, establezca la graduación correspondiente.</p></div>
+    <div class="caja celeste"><h3><svg class="ic"><use href="#i-persona"/></svg>Responsable</h3>
+      <div class="resp"><span class="av"><svg class="ic"><use href="#i-ojo"/></svg></span><div><b>El/la profesional</b><span>Nuestro equipo prepara el espacio.</span></div></div>
+    </div>
+  </div>
+
+  <h3 class="mt5" style="font-size:13pt; color:var(--marca-600); margin-bottom:3mm">Qué preparar</h3>
+  <ul class="prep cols4">
+    <li><span class="bub"><svg class="ic"><use href="#i-luz"/></svg></span><b>Buena luz</b><span>Un espacio bien iluminado.</span></li>
+    <li><span class="bub"><svg class="ic"><use href="#i-privado"/></svg></span><b>Tranquilo y privado</b><span>En lo posible, con privacidad.</span></li>
+    <li><span class="bub"><svg class="ic"><use href="#i-mesa"/></svg></span><b>Mesa y 2 sillas</b><span>Para el profesional y el vecino.</span></li>
+    <li><span class="bub"><svg class="ic"><use href="#i-enchufe"/></svg></span><b>Enchufe cerca</b><span>Un tomacorriente cercano.</span></li>
+  </ul>
+
+  <div class="grid2 mt5">
+    <div>
+      <h3 style="font-size:13pt; color:var(--marca-600); margin-bottom:3mm">Qué hay que hacer</h3>
+      <ol class="pasos v">
+        <li><span>Antes de empezar, <b>armá el espacio</b> con todo lo de arriba.</span></li>
+        <li><span>Hacé pasar a cada persona <b>en el orden de su número</b>, con los datos ya guardados.</span></li>
+        <li><span><b>No interrumpas</b> la evaluación: el profesional necesita conversar con cada persona y escuchar sus consultas.</span></li>
+        <li><span>Si necesita anteojos, acompañala al <b>asesoramiento óptico</b>.</span></li>
+      </ol>
+    </div>
+    <div class="destacado" style="border-color:var(--petroleo)">
+      <span class="etq" style="background:var(--petroleo)">Privacidad</span>
+      <div style="display:flex; gap:4mm; align-items:flex-start; margin-top:1.5mm">
+        <span style="flex:none; width:12mm; height:12mm; border-radius:50%; background:var(--petroleo-50); color:var(--petroleo); display:flex; align-items:center; justify-content:center; font-size:17pt"><svg class="ic"><use href="#i-silencio"/></svg></span>
+        <p>Evitá ruidos e interrupciones. La persona tiene que poder <b>conversar tranquila</b> con el profesional y hacer sus consultas.</p>
+      </div>
+      <p class="chico mt3">Ubicá el control lejos de la recepción y de la espera.</p>
+    </div>
+  </div>
+
+  <div class="caja alerta mt5">
+    <h3><svg class="ic"><use href="#i-alerta"/></svg>Errores frecuentes</h3>
+    <ul class="items" style="display:grid; grid-template-columns:1fr 1fr; gap:2mm 6mm">
+      <li><svg class="ic"><use href="#i-x"/></svg><span>Armar el control en un lugar oscuro o con ruido.</span></li>
+      <li><svg class="ic"><use href="#i-x"/></svg><span>Entrar a consultar mientras el profesional evalúa.</span></li>
+      <li><svg class="ic"><use href="#i-x"/></svg><span>Ubicarlo pegado a la espera, sin privacidad.</span></li>
+      <li><svg class="ic"><use href="#i-x"/></svg><span>Elegir un lugar sin enchufe cerca.</span></li>
+    </ul>
+  </div>
+
+  <footer class="pie"><span><b>Lista 47</b> · Gestión Territorial</span><span>4</span></footer>
+</section>
+
+<!-- ============ 5. ETAPA 3 · ASESORAMIENTO ÓPTICO ============ -->
+<section class="page">
+  <header class="cab"><span class="marca"><span class="sello"><small>LISTA</small><span>47</span></span>Guía · Operativo de Salud Visual</span><span class="seccion">Etapa 3 · Asesoramiento óptico</span></header>
+
+  <div class="etapa-cab c3">
+    <span class="num">3</span>
+    <div class="txt"><p class="k">Etapa 3 · Elección de anteojos</p><h2>Asesoramiento óptico</h2></div>
+    <svg class="ilu" viewBox="0 0 60 60" aria-hidden="true">
+      <rect x="6" y="38" width="48" height="5" rx="2.5" fill="#fff"/>
+      <rect x="10" y="43" width="3.5" height="12" fill="#fff" opacity=".8"/><rect x="46.5" y="43" width="3.5" height="12" fill="#fff" opacity=".8"/>
+      <g fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><circle cx="20" cy="27" r="7"/><circle cx="40" cy="27" r="7"/><path d="M27 26.5c2-1.6 4-1.6 6 0"/></g>
+      <g fill="none" stroke="#aae7c0" stroke-width="2" stroke-linecap="round"><rect x="9" y="8" width="11" height="7" rx="3.5"/><rect x="24" y="8" width="11" height="7" rx="3.5"/><rect x="39" y="8" width="11" height="7" rx="3.5"/></g>
+    </svg>
+  </div>
+
+  <div class="meta">
+    <div class="caja"><h3><svg class="ic"><use href="#i-objetivo"/></svg>Objetivo</h3><p>Que quienes necesitan anteojos conozcan los modelos disponibles y elijan el armazón que más les guste, con el asesoramiento del óptico.</p></div>
+    <div class="caja celeste"><h3><svg class="ic"><use href="#i-persona"/></svg>Responsable</h3>
+      <div class="resp"><span class="av"><svg class="ic"><use href="#i-anteojos"/></svg></span><div><b>El óptico</b><span>Nuestro equipo prepara el espacio.</span></div></div>
+    </div>
+  </div>
+
+  <div class="grid2 mt5">
+    <div>
+      <h3 style="font-size:13pt; color:#0b5f63; margin-bottom:3mm">Qué hay que hacer</h3>
+      <ol class="pasos t">
+        <li><span>La persona conoce los modelos y <b>elige su armazón</b> con el óptico.</span></li>
+        <li><span>Se hace <b>una última verificación de los datos personales</b> para asegurarnos de que todo esté correcto.</span></li>
+        <li><span>Con los datos revisados, se pasa a <b>confirmar el pedido</b> (etapa 4).</span></li>
+      </ol>
+    </div>
+    <div>
+      <h3 style="font-size:13pt; color:#0b5f63; margin-bottom:3mm">Qué preparar</h3>
+      <ul class="prep">
+        <li><span class="bub"><svg class="ic"><use href="#i-mesa"/></svg></span><div><b>Una mesa</b><span>Para exhibir los armazones.</span></div></li>
+        <li><span class="bub"><svg class="ic"><use href="#i-silla"/></svg></span><div><b>Tres sillas</b><span>Para el óptico y quienes se asesoran.</span></div></li>
+        <li><span class="bub"><svg class="ic"><use href="#i-privado"/></svg></span><div><b>Un espacio cómodo y separado</b><span>De la recepción y del control visual.</span></div></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="caja verde mt5">
+    <h3><svg class="ic"><use href="#i-escucha"/></svg>Recomendación</h3>
+    <p>En esta etapa <b>se conversa bastante con cada persona</b>: elegir anteojos lleva su tiempo. Por eso es importante que el espacio tenga cierta tranquilidad y que nadie apure a quien se está asesorando.</p>
+  </div>
+
+  <div class="caja alerta mt5">
+    <h3><svg class="ic"><use href="#i-alerta"/></svg>Errores frecuentes</h3>
+    <ul class="items">
+      <li><svg class="ic"><use href="#i-x"/></svg><span>Poner la mesa de armazones pegada a la espera o a la recepción.</span></li>
+      <li><svg class="ic"><use href="#i-x"/></svg><span>Saltear la última verificación de datos antes de confirmar el pedido.</span></li>
+      <li><svg class="ic"><use href="#i-x"/></svg><span>Apurar la elección: cada persona necesita su tiempo para decidir.</span></li>
+    </ul>
+  </div>
+
+  <footer class="pie"><span><b>Lista 47</b> · Gestión Territorial</span><span>5</span></footer>
+</section>
+
+<!-- ============ 6. ETAPA 4 · CONFIRMACIÓN ============ -->
+<section class="page">
+  <header class="cab"><span class="marca"><span class="sello"><small>LISTA</small><span>47</span></span>Guía · Operativo de Salud Visual</span><span class="seccion">Etapa 4 · Confirmación del pedido</span></header>
+
+  <div class="etapa-cab c4">
+    <span class="num">4</span>
+    <div class="txt"><p class="k">Etapa 4 · Cierre del recorrido</p><h2>Confirmación del pedido y comunicación al vecino</h2></div>
+    <svg class="ilu" viewBox="0 0 60 60" aria-hidden="true">
+      <rect x="18" y="4" width="24" height="46" rx="5" fill="#fff"/>
+      <rect x="22" y="12" width="16" height="9" rx="2.5" fill="#66ba47"/>
+      <rect x="22" y="24" width="12" height="3" rx="1.5" fill="#3f742c" opacity=".5"/>
+      <rect x="22" y="30" width="15" height="3" rx="1.5" fill="#3f742c" opacity=".5"/>
+      <rect x="22" y="36" width="10" height="3" rx="1.5" fill="#3f742c" opacity=".5"/>
+      <circle cx="44" cy="12" r="7" fill="#aae7c0"/><path d="m40.8 12.2 2.2 2.2 4.2-4.4" fill="none" stroke="#325d23" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </div>
+
+  <div class="meta">
+    <div class="caja"><h3><svg class="ic"><use href="#i-objetivo"/></svg>Objetivo</h3><p>Confirmar el pedido de anteojos y que el vecino se vaya sabiendo qué información le va a llegar al celular.</p></div>
+    <div class="caja celeste"><h3><svg class="ic"><use href="#i-persona"/></svg>Responsable</h3>
+      <div class="resp"><span class="av"><svg class="ic"><use href="#i-anteojos"/></svg></span><div><b>El óptico confirma</b><span>El sistema envía el mensaje.</span></div></div>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns: 62mm 1fr; gap:7mm; margin-top:5mm; align-items:start">
+    <!-- celular con el mensaje (solo los campos, sin datos reales) -->
+    <div style="background:#1f2a3a; border-radius:9mm; padding:3.5mm; box-shadow:0 2mm 5mm rgba(0,0,0,.15)">
+      <div style="background:#eaf3ee; border-radius:6.5mm; padding:5mm 4mm 6mm">
+        <p style="text-align:center; font-size:8.5pt; color:var(--gris); font-weight:700">WhatsApp o mensaje de texto</p>
+        <div style="background:#fff; border-radius:3.5mm 3.5mm 3.5mm 1mm; padding:3.5mm; margin-top:4mm; font-size:10pt; line-height:1.35; box-shadow:0 .4mm 1mm rgba(0,0,0,.08)">
+          <p style="font-weight:800; color:var(--marca)">Pedido confirmado</p>
+          <p class="mt3"><b>Código de la ficha virtual:</b><br><span style="color:var(--gris)">• • • • • •</span></p>
+          <p class="mt3"><b>Seña abonada:</b><br><span style="color:var(--gris)">$ • • • •</span></p>
+          <p class="mt3"><b>Saldo para la entrega:</b><br><span style="color:var(--gris)">$ • • • •</span></p>
+        </div>
+        <p style="text-align:center; font-size:8.5pt; color:var(--gris); margin-top:4mm">Imagen ilustrativa</p>
+      </div>
+    </div>
+    <div>
+      <h3 style="font-size:13pt; color:var(--marca-600); margin-bottom:3mm">Qué hay que hacer</h3>
+      <ol class="pasos g">
+        <li><span>Con los datos ya verificados, el óptico <b>confirma el pedido</b>.</span></li>
+        <li><span>El sistema <b>envía un mensaje al celular registrado</b>, por WhatsApp o mensaje de texto.</span></li>
+        <li><span>Contale al vecino que va a recibir ese mensaje con:</span></li>
+      </ol>
+      <ul class="prep mt3" style="margin-left:9.5mm">
+        <li><span class="bub"><svg class="ic"><use href="#i-recepcion"/></svg></span><div><b>Código de la ficha virtual</b></div></li>
+        <li><span class="bub"><svg class="ic"><use href="#i-check"/></svg></span><div><b>Importe abonado como seña</b></div></li>
+        <li><span class="bub"><svg class="ic"><use href="#i-espera"/></svg></span><div><b>Saldo pendiente</b><span>Para el momento de la entrega.</span></div></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="destacado mt5" style="border-color:var(--alerta)">
+    <span class="etq" style="background:var(--alerta)">Por qué importa el celular</span>
+    <p style="margin-top:1mm">El mensaje llega <b>al celular que se cargó en la recepción</b>. Si tiene un número de más o de menos, el vecino no recibe su código, ni la seña, ni el saldo. Por eso se verifica dos veces: <b>en la recepción y antes de confirmar el pedido</b>.</p>
+  </div>
+
+  <div class="caja alerta mt5">
+    <h3><svg class="ic"><use href="#i-alerta"/></svg>Errores frecuentes</h3>
+    <ul class="items" style="display:grid; grid-template-columns:1fr 1fr; gap:2mm 6mm">
+      <li><svg class="ic"><use href="#i-x"/></svg><span>Confirmar el pedido sin revisar el celular.</span></li>
+      <li><svg class="ic"><use href="#i-x"/></svg><span>Que el vecino se vaya sin saber que le llega un mensaje.</span></li>
+    </ul>
+  </div>
+
+  <footer class="pie"><span><b>Lista 47</b> · Gestión Territorial</span><span>6</span></footer>
+</section>
+
+<!-- ============ 7. ORGANIZACIÓN DEL ESPACIO ============ -->
+<section class="page">
+  <header class="cab"><span class="marca"><span class="sello"><small>LISTA</small><span>47</span></span>Guía · Operativo de Salud Visual</span><span class="seccion">Organización del espacio</span></header>
+
+  <p class="kicker">Antes del operativo</p>
+  <h2 class="titulo-pag">Organización del espacio</h2>
+  <p class="bajada">Necesitamos <b>tres espacios diferenciados</b> y separados por cierta distancia, para que cada equipo trabaje sin interrupciones y los vecinos reciban una atención cómoda y personalizada.</p>
+
+  <!-- plano orientativo -->
+  <div style="margin-top:5mm; border-radius:5mm; background:var(--fondo); padding:4mm">
+    <svg viewBox="-9 0 189 98" style="width:100%; height:auto" aria-label="Plano orientativo del lugar">
+      <defs>
+        <marker id="pt" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 10 5 0 10z" fill="#66ba47"/></marker>
+      </defs>
+      <rect x="3" y="3" width="174" height="90" rx="4" fill="#fff" stroke="#c9d3db" stroke-width="1.2"/>
+      <!-- entrada -->
+      <rect x="10" y="90" width="22" height="6" fill="#fff"/>
+      <text x="40" y="96.4" font-family="Nunito Sans" font-weight="800" font-size="4" fill="#5b6678" text-anchor="middle">ENTRADA</text>
+      <!-- recepción -->
+      <g>
+        <rect x="9" y="58" width="44" height="26" rx="3" fill="#e8f2f5" stroke="#106985" stroke-width=".8"/>
+        <text x="31" y="65" font-family="Montserrat" font-weight="800" font-size="3.9" fill="#0c546b" text-anchor="middle">1 · RECEPCIÓN</text>
+        <rect x="19" y="70" width="24" height="6" rx="1.2" fill="#106985" opacity=".35"/>
+        <text x="31" y="81.5" font-family="Nunito Sans" font-size="3.4" fill="#0c546b" text-anchor="middle">Carga de datos y número</text>
+      </g>
+      <!-- espera -->
+      <g>
+        <rect x="62" y="56" width="52" height="30" rx="3" fill="#eff8eb" stroke="#66ba47" stroke-width=".8" stroke-dasharray="2 1.4"/>
+        <text x="88" y="63" font-family="Montserrat" font-weight="800" font-size="3.9" fill="#3f742c" text-anchor="middle">ESPERA</text>
+        <g fill="#66ba47" opacity=".7">
+          <rect x="69" y="67" width="6" height="6" rx="1.2"/><rect x="78" y="67" width="6" height="6" rx="1.2"/><rect x="87" y="67" width="6" height="6" rx="1.2"/><rect x="96" y="67" width="6" height="6" rx="1.2"/>
+          <rect x="69" y="76" width="6" height="6" rx="1.2"/><rect x="78" y="76" width="6" height="6" rx="1.2"/><rect x="87" y="76" width="6" height="6" rx="1.2"/><rect x="96" y="76" width="6" height="6" rx="1.2"/>
+        </g>
+        <text x="108" y="71" font-family="Nunito Sans" font-size="3.4" fill="#3f742c" text-anchor="middle">Agua</text>
+        <circle cx="108" cy="76" r="2.4" fill="#106985" opacity=".5"/>
+      </g>
+      <!-- control visual (con privacidad) -->
+      <g>
+        <rect x="122" y="10" width="48" height="38" rx="3" fill="#eff8eb" stroke="#3f742c" stroke-width="1"/>
+        <path d="M122 40h14" stroke="#3f742c" stroke-width="2.2"/>
+        <text x="146" y="17" font-family="Montserrat" font-weight="800" font-size="3.9" fill="#325d23" text-anchor="middle">2 · CONTROL VISUAL</text>
+        <rect x="134" y="24" width="18" height="7" rx="1.2" fill="#3f742c" opacity=".35"/>
+        <circle cx="131" cy="27.5" r="2.4" fill="#3f742c" opacity=".7"/><circle cx="155" cy="27.5" r="2.4" fill="#3f742c" opacity=".7"/>
+        <rect x="162" y="22" width="5" height="10" rx="1" fill="#fff" stroke="#324158" stroke-width=".6"/>
+        <text x="164.5" y="28.4" font-family="Montserrat" font-weight="900" font-size="4" fill="#324158" text-anchor="middle">E</text>
+        <g transform="translate(166 40)"><rect x="-3.2" y="-3.2" width="6.4" height="6.4" rx="1.2" fill="#fdf3e2" stroke="#a15c07" stroke-width=".6"/><path d="M-1.1 -1.6v1.5M1.1 -1.6v1.5M-1.6 0h3.2v.6a1.6 1.6 0 0 1-3.2 0z" stroke="#a15c07" stroke-width=".6" fill="none"/></g>
+        <text x="146" y="44.5" font-family="Nunito Sans" font-size="3.4" fill="#325d23" text-anchor="middle">Luz · silencio · enchufe</text>
+      </g>
+      <!-- óptica -->
+      <g>
+        <rect x="9" y="10" width="62" height="38" rx="3" fill="#e6f4f2" stroke="#13807d" stroke-width="1"/>
+        <text x="40" y="17" font-family="Montserrat" font-weight="800" font-size="3.9" fill="#0b5f63" text-anchor="middle">3 · ASESORAMIENTO ÓPTICO</text>
+        <rect x="20" y="23" width="40" height="8" rx="1.2" fill="#13807d" opacity=".3"/>
+        <g fill="none" stroke="#0b5f63" stroke-width=".8"><circle cx="27" cy="27" r="1.8"/><circle cx="31" cy="27" r="1.8"/><circle cx="38" cy="27" r="1.8"/><circle cx="42" cy="27" r="1.8"/><circle cx="49" cy="27" r="1.8"/><circle cx="53" cy="27" r="1.8"/></g>
+        <circle cx="28" cy="37" r="2.4" fill="#13807d" opacity=".7"/><circle cx="40" cy="37" r="2.4" fill="#13807d" opacity=".7"/><circle cx="52" cy="37" r="2.4" fill="#13807d" opacity=".7"/>
+        <text x="40" y="44.5" font-family="Nunito Sans" font-size="3.4" fill="#0b5f63" text-anchor="middle">Mesa de armazones · 3 sillas</text>
+      </g>
+      <!-- sanitario -->
+      <rect x="80" y="10" width="30" height="14" rx="2.5" fill="#f4f7f5" stroke="#c9d3db" stroke-width=".8"/>
+      <text x="95" y="18.5" font-family="Montserrat" font-weight="800" font-size="3.8" fill="#5b6678" text-anchor="middle">SANITARIO</text>
+      <!-- salida: puerta en la pared izquierda, junto a la óptica -->
+      <rect x="1.5" y="22" width="3" height="14" fill="#fff"/>
+      <text transform="translate(-3.5 29) rotate(-90)" font-family="Nunito Sans" font-weight="800" font-size="4" fill="#5b6678" text-anchor="middle">SALIDA</text>
+      <!-- circulación -->
+      <g fill="none" stroke="#66ba47" stroke-width="1.3" stroke-dasharray="3 2" marker-end="url(#pt)">
+        <path d="M21 92.5V87"/>
+        <path d="M53 71h8"/>
+        <path d="M114 62c8 0 22-4 25-13"/>
+        <path d="M122 30H72"/>
+        <path d="M9 29H1"/>
+      </g>
+      <text x="97" y="27.6" font-family="Nunito Sans" font-weight="700" font-size="3.2" fill="#3f742c" text-anchor="middle">si necesita anteojos</text>
+    </svg>
+    <p class="chico" style="margin-top:2.5mm; display:flex; gap:2mm; align-items:center"><svg class="ic" style="color:var(--alerta); font-size:12pt; flex:none"><use href="#i-alerta"/></svg><span><b>Plano orientativo.</b> La distribución se adapta al lugar disponible y a lo que necesite el equipo profesional. La línea verde muestra el recorrido de los vecinos.</span></p>
+  </div>
+
+  <h3 class="mt5" style="font-size:13pt; color:var(--petroleo-600); margin-bottom:3mm">Qué necesita cada espacio</h3>
+  <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:3mm; font-size:11.5pt; line-height:1.3">
+    <div class="caja celeste" style="padding:3.5mm"><h3 style="font-size:9pt"><svg class="ic"><use href="#i-recepcion"/></svg>Recepción</h3><p>Talonario de números.</p><p class="mt3">Celular o compu para cargar los datos.</p></div>
+    <div class="caja verde" style="padding:3.5mm"><h3 style="font-size:9pt"><svg class="ic"><use href="#i-ojo"/></svg>Control</h3><p>Mesa y 2 sillas.</p><p class="mt3"><b>Iluminación:</b> espacio bien iluminado.</p><p class="mt3"><b>Electricidad:</b> tomacorriente cercano.</p></div>
+    <div class="caja" style="padding:3.5mm; background:#e6f4f2"><h3 style="font-size:9pt; color:#0b5f63"><svg class="ic"><use href="#i-anteojos"/></svg>Óptica</h3><p>Mesa para exhibir armazones.</p><p class="mt3">3 sillas.</p><p class="mt3">Espacio separado.</p></div>
+    <div class="caja" style="padding:3.5mm"><h3 style="font-size:9pt; color:var(--gris)"><svg class="ic"><use href="#i-espera"/></svg>Espera</h3><p>Lugar cómodo, preferentemente con sillas.</p><p class="mt3">Agua o jugo.</p><p class="mt3">Sanitario limpio y con elementos básicos.</p></div>
+  </div>
+
+  <footer class="pie"><span><b>Lista 47</b> · Gestión Territorial</span><span>7</span></footer>
+</section>
+
+<!-- ============ 8. RECORDATORIOS ============ -->
+<section class="page">
+  <header class="cab"><span class="marca"><span class="sello"><small>LISTA</small><span>47</span></span>Guía · Operativo de Salud Visual</span><span class="seccion">Recordatorios</span></header>
+
+  <p class="kicker">Para el día del operativo</p>
+  <h2 class="titulo-pag">Recordatorios importantes</h2>
+
+  <ul class="recordatorios" style="display:grid; grid-template-columns:1fr 1fr; gap:4.5mm; margin-top:7mm">
+    <li class="caja verde" style="display:flex; gap:3.5mm; align-items:flex-start"><svg class="ic" style="font-size:20pt; color:var(--marca); flex:none"><use href="#i-ticket"/></svg><p style="font-size:13pt"><b>Orden de llegada.</b> Un número para cada vecino.</p></li>
+    <li class="caja" style="display:flex; gap:3.5mm; align-items:flex-start; background:var(--alerta-50)"><svg class="ic" style="font-size:20pt; color:var(--alerta); flex:none"><use href="#i-celular"/></svg><p style="font-size:13pt"><b>Celular bien escrito.</b> Leelo en voz alta y confirmalo.</p></li>
+    <li class="caja celeste" style="display:flex; gap:3.5mm; align-items:flex-start"><svg class="ic" style="font-size:20pt; color:var(--petroleo); flex:none"><use href="#i-recepcion"/></svg><p style="font-size:13pt"><b>Datos guardados</b> antes de pasar al control.</p></li>
+    <li class="caja verde" style="display:flex; gap:3.5mm; align-items:flex-start"><svg class="ic" style="font-size:20pt; color:var(--marca); flex:none"><use href="#i-ojo"/></svg><p style="font-size:13pt"><b>Control visual:</b> luz, silencio, privacidad y un enchufe cerca.</p></li>
+    <li class="caja celeste" style="display:flex; gap:3.5mm; align-items:flex-start"><svg class="ic" style="font-size:20pt; color:var(--petroleo); flex:none"><use href="#i-anteojos"/></svg><p style="font-size:13pt"><b>Tres espacios separados:</b> recepción, control y óptica.</p></li>
+    <li class="caja verde" style="display:flex; gap:3.5mm; align-items:flex-start"><svg class="ic" style="font-size:20pt; color:var(--marca); flex:none"><use href="#i-check"/></svg><p style="font-size:13pt"><b>Última verificación de datos</b> antes de confirmar el pedido.</p></li>
+    <li class="caja celeste" style="display:flex; gap:3.5mm; align-items:flex-start"><svg class="ic" style="font-size:20pt; color:var(--petroleo); flex:none"><use href="#i-mensaje"/></svg><p style="font-size:13pt"><b>Avisale al vecino</b> que le llega un mensaje con su código, la seña y el saldo.</p></li>
+    <li class="caja verde" style="display:flex; gap:3.5mm; align-items:flex-start"><svg class="ic" style="font-size:20pt; color:var(--marca); flex:none"><use href="#i-agua"/></svg><p style="font-size:13pt"><b>Espera cómoda:</b> sillas, agua o jugo y sanitario disponible.</p></li>
+  </ul>
+
+  <div style="margin-top:6mm; border-radius:6mm; padding:6mm 7mm; color:#fff; background:linear-gradient(120deg, #0c546b, #106985 55%, #3f742c)">
+    <p style="display:flex; align-items:center; gap:2.5mm; font-family:var(--titulo); font-weight:900; font-size:16pt"><svg class="ic" style="color:#aae7c0; font-size:18pt"><use href="#i-corazon"/></svg>¡Lo más importante!</p>
+    <p style="margin-top:2.5mm; font-size:12.5pt">Que cada operativo sea una experiencia positiva para nuestra comunidad. <b>Recibir con una sonrisa, escuchar con paciencia, orientar con claridad y acompañar a cada persona</b> también es parte de nuestro trabajo.</p>
+    <p style="margin-top:2.5mm; font-size:11pt; opacity:.92">Desde Lista 47 seguimos acercando servicios y oportunidades a cada localidad, gracias al compromiso de nuestros referentes y al trabajo en equipo. ¡Gracias por ser parte!</p>
+  </div>
+
+  <div class="tip mt4">
+    <svg class="ic"><use href="#i-app"/></svg>
+    <p><b>En la app de Gestión Territorial,</b> la «Guía del operativo» de cada ficha te deja tildar lo que ya está listo. Esta guía te explica cómo hacerlo; la app te ayuda a no olvidarte de nada.</p>
+  </div>
+
+  <footer class="pie"><span><b>Lista 47</b> · Gestión Territorial</span><span>8</span></footer>
+</section>
+
+</body>
+</html>
