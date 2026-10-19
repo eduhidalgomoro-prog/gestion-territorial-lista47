@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cómo cargar una actividad · Lista 47</title>
+<!--
+  Instructivo de una hoja para la semana de carga de actividades.
+  Capturas: app en el celular con datos de prueba (guias/img/carga-*.jpg).
+  Regenerar el PDF (public/guias/instructivo-carga-actividades.pdf):  npm run guia:carga
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Nunito+Sans:wght@400;600;700;800&display=block" rel="stylesheet">
+<style>
+  :root {
+    --verde: #66ba47; --marca: #3f742c; --marca-600: #325d23; --verde-50: #eff8eb; --verde-100: #d9efcf;
+    --petroleo: #106985; --petroleo-600: #0c546b; --petroleo-50: #e8f2f5;
+    --tinta: #324158; --gris: #5b6678; --linea: #dfe5ea; --fondo: #f4f7f5; --alerta: #a15c07; --alerta-50: #fdf3e2;
+    --titulo: "Montserrat", system-ui, sans-serif; --texto: "Nunito Sans", system-ui, sans-serif;
+  }
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { font-family: var(--texto); color: var(--tinta); font-size: 10.5pt; line-height: 1.35; background: #cfd6dc; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  @media screen { .page { margin: 12px auto; box-shadow: 0 2px 12px rgba(0,0,0,.15); } }
+  .page { width: 210mm; height: 297mm; position: relative; overflow: hidden; background: #fff; }
+  h1, h2, h3 { font-family: var(--titulo); margin: 0; line-height: 1.12; }
+  p { margin: 0; }
+  ul, ol { margin: 0; padding: 0; list-style: none; }
+  .ic { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: inline-block; vertical-align: -0.14em; }
+
+  /* Encabezado */
+  .cab { background: linear-gradient(120deg, #0c546b 0%, #106985 48%, #2f7f4b 100%); color: #fff; padding: 8mm 13mm 7mm; position: relative; overflow: hidden; }
+  .cab::after { content: ""; position: absolute; right: -18mm; top: -22mm; width: 70mm; height: 70mm; border-radius: 50%; background: rgba(255,255,255,.07); }
+  .marca { display: flex; align-items: center; gap: 3mm; font-family: var(--titulo); font-weight: 800; font-size: 8.5pt; letter-spacing: .12em; text-transform: uppercase; }
+  .sello { width: 11mm; height: 11mm; border-radius: 50%; background: var(--verde); color: #fff; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; font-family: var(--titulo); font-weight: 900; line-height: .9; box-shadow: 0 0 0 .9mm rgba(255,255,255,.25); }
+  .sello small { font-size: 4.8pt; } .sello span { font-size: 11.5pt; }
+  .cab h1 { font-size: 23pt; font-weight: 900; margin-top: 4mm; }
+  .cab .sub { margin-top: 2mm; font-size: 11.5pt; opacity: .95; }
+  .cab .chip { display: inline-block; margin-top: 4mm; background: rgba(255,255,255,.16); border: .8pt solid rgba(255,255,255,.4); border-radius: 99px; padding: 1.2mm 3.5mm; font-weight: 800; font-size: 9pt; }
+
+  .cuerpo { padding: 6mm 13mm 0; }
+
+  /* Fila de capturas */
+  .fotos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4.5mm; }
+  .foto { text-align: center; }
+  .tel { position: relative; background: #1f2a3a; border-radius: 5.5mm; padding: 1.6mm; box-shadow: 0 1.2mm 3mm rgba(16,105,133,.18); }
+  .tel .pant { border-radius: 4mm; overflow: hidden; height: 64mm; position: relative; background: #fff; }
+  /* La captura y sus marcas se mueven juntas (las marcas van en % de la captura). */
+  .lienzo { position: relative; }
+  .lienzo img { width: 100%; display: block; }
+  /* «abajo»: se muestra la parte de abajo de la captura (se recorta la de arriba). */
+  .tel.desde-abajo .pant { display: flex; flex-direction: column; justify-content: flex-end; }
+  .tel.desde-abajo .lienzo { flex: none; }
+  .marcar { position: absolute; border: .9mm solid #f2b705; border-radius: 99px; box-shadow: 0 0 0 1.2mm rgba(242,183,5,.25); }
+  .num { position: absolute; top: -3mm; left: -2.5mm; width: 8mm; height: 8mm; border-radius: 50%; background: var(--verde); color: #fff; font-family: var(--titulo); font-weight: 900; font-size: 11pt; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 .8mm #fff; z-index: 2; }
+  .foto p { margin-top: 2.5mm; font-size: 9.5pt; line-height: 1.25; }
+  .foto p b { display: block; font-family: var(--titulo); font-size: 9.5pt; color: var(--petroleo-600); }
+
+  /* Pasos */
+  .titulo-sec { display: flex; align-items: center; gap: 2.5mm; font-size: 12.5pt; font-weight: 800; color: var(--petroleo-600); margin: 6mm 0 3mm; }
+  .titulo-sec .linea { flex: 1; height: 1pt; background: var(--verde-100); }
+  .pasos { display: grid; grid-template-columns: 1fr 1fr; gap: 2.8mm 4mm; }
+  .paso { display: flex; gap: 3mm; align-items: flex-start; background: var(--fondo); border-radius: 3.5mm; padding: 3mm 3.5mm; }
+  .paso .n { flex: none; width: 7mm; height: 7mm; border-radius: 50%; background: var(--petroleo); color: #fff; font-family: var(--titulo); font-weight: 900; font-size: 10pt; display: flex; align-items: center; justify-content: center; }
+  .paso h3 { font-size: 10.5pt; font-weight: 800; color: var(--petroleo-600); }
+  .paso p { font-size: 9.6pt; margin-top: .8mm; color: var(--tinta); }
+  .paso.final { background: var(--verde-50); }
+  .paso.final .n { background: var(--marca); }
+  .paso.final h3 { color: var(--marca-600); }
+
+  /* Revisá + consejos */
+  .abajo { display: grid; grid-template-columns: 1.15fr 1fr; gap: 4mm; margin-top: 4.5mm; }
+  .caja { border-radius: 3.5mm; padding: 3.5mm 4mm; }
+  .caja h3 { font-size: 9pt; letter-spacing: .1em; text-transform: uppercase; font-weight: 800; margin-bottom: 2mm; display: flex; align-items: center; gap: 1.8mm; }
+  .revisa { border: 1.3pt solid var(--verde); }
+  .revisa h3 { color: var(--marca); }
+  .revisa ul { display: grid; grid-template-columns: 1fr 1fr; gap: 1.4mm 3mm; font-size: 9.6pt; }
+  .revisa li { display: flex; gap: 1.6mm; align-items: flex-start; }
+  .revisa li .ic { color: var(--marca); flex: none; margin-top: .4mm; }
+  .tips { background: var(--alerta-50); }
+  .tips h3 { color: var(--alerta); }
+  .tips li { font-size: 9.6pt; display: flex; gap: 1.6mm; }
+  .tips li + li { margin-top: 1.2mm; }
+  .tips li::before { content: "•"; color: var(--alerta); font-weight: 900; }
+
+  .pie { position: absolute; left: 13mm; right: 13mm; bottom: 7mm; display: flex; justify-content: space-between; font-size: 8.5pt; color: var(--gris); border-top: 1pt solid var(--verde-100); padding-top: 2.5mm; }
+  .pie b { color: var(--marca); }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="m7.5 12.3 3 3 6-6.3"/></symbol>
+    <symbol id="i-alerta" viewBox="0 0 24 24"><path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5M12 17.3v.2"/></symbol>
+    <symbol id="i-lista" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><rect x="9" y="2.5" width="6" height="3.5" rx="1"/><path d="m8.5 12 1.5 1.5 3-3M8.5 17h7"/></symbol>
+    <symbol id="i-cel" viewBox="0 0 24 24"><rect x="6.5" y="2" width="11" height="20" rx="2.5"/><path d="M11 18.5h2"/></symbol>
+  </defs>
+</svg>
+
+<section class="page">
+  <header class="cab">
+    <div class="marca"><span class="sello"><small>LISTA</small><span>47</span></span><span>Lista 47 · Gestión Territorial</span></div>
+    <h1>Cómo cargar una actividad en la app</h1>
+    <p class="sub">Seis pasos, desde el celular o la computadora. Lleva menos de cinco minutos.</p>
+    <span class="chip">Semana de carga de actividades</span>
+  </header>
+
+  <div class="cuerpo">
+    <!-- Capturas reales de la app (datos de prueba) -->
+    <div class="fotos">
+      <div class="foto">
+        <div class="tel desde-abajo"><span class="num">1</span>
+          <div class="pant"><div class="lienzo"><img src="img/carga-inicio.jpg" alt="Inicio de la app con el botón Nueva"><span style="position:absolute; left:3%; top:92.4%; width:14%; height:7.4%; background:#fff"></span><span class="marcar" style="left:39.5%; top:88.6%; width:21%; height:9.6%"></span></div></div>
+        </div>
+        <p><b>Tocá «+ Nueva»</b>El botón verde de abajo, en el centro.</p>
+      </div>
+      <div class="foto">
+        <div class="tel"><span class="num">2</span>
+          <div class="pant"><div class="lienzo"><img src="img/carga-paso1.jpg" alt="Paso 1: información general"></div></div>
+        </div>
+        <p><b>Completá los datos</b>Nombre, responsable, zona y tipo.</p>
+      </div>
+      <div class="foto">
+        <div class="tel"><span class="num">3</span>
+          <div class="pant"><div class="lienzo"><img src="img/carga-mapa.jpg" alt="Paso 2: ubicar en el mapa"><span class="marcar" style="left:3.2%; top:42.3%; width:51%; height:7.2%"></span></div></div>
+        </div>
+        <p><b>Ubicala en el mapa</b>Y mové el marcador al lugar exacto.</p>
+      </div>
+      <div class="foto">
+        <div class="tel desde-abajo"><span class="num">4</span>
+          <div class="pant"><div class="lienzo"><img src="img/carga-guardar.jpg" alt="Paso 6: guardar actividad"><span class="marcar" style="left:3.2%; top:70.8%; width:93.6%; height:7.8%; border-radius:3mm"></span></div></div>
+        </div>
+        <p><b>Revisá y guardá</b>Tocá «Guardar actividad».</p>
+      </div>
+    </div>
+
+    <h2 class="titulo-sec"><svg class="ic"><use href="#i-lista"/></svg>Los 6 pasos del formulario<span class="linea"></span></h2>
+    <ol class="pasos">
+      <li class="paso"><span class="n">1</span><div><h3>Información general</h3><p>Un <b>nombre claro</b> (ej. «Taller de Tejido Crochet»), responsable, zona y tipo. Si tenés una sola zona, ya viene puesta.</p></div></li>
+      <li class="paso"><span class="n">2</span><div><h3>Fecha y ubicación</h3><p>Fecha, horario, barrio y dirección. Tocá <b>«Ubicar en el mapa»</b>. ¿Varias clases? «+ Agregar otra clase».</p></div></li>
+      <li class="paso"><span class="n">3</span><div><h3>Articulación y público</h3><p>A quién está dirigida y si se trabaja con otra mesa o institución.</p></div></li>
+      <li class="paso"><span class="n">4</span><div><h3>Logística</h3><p>Gazebos, mesas, sillas, luz, sonido y otros insumos. <b>Logística ve el pedido</b> y lo prepara.</p></div></li>
+      <li class="paso"><span class="n">5</span><div><h3>Comunicación e inscripción</h3><p>¿Necesita <b>flyer</b>? Le llega a Diseño. ¿Formulario de inscripción? Se crea un link para compartir (cupo opcional).</p></div></li>
+      <li class="paso final"><span class="n">6</span><div><h3>Confirmación</h3><p>Revisá el resumen y tocá <b>«Guardar actividad»</b>. Después se puede editar desde la ficha.</p></div></li>
+    </ol>
+
+    <div class="abajo">
+      <div class="caja revisa">
+        <h3><svg class="ic"><use href="#i-check"/></svg>Antes de guardar, revisá</h3>
+        <ul>
+          <li><svg class="ic"><use href="#i-check"/></svg><span>Nombre claro y completo</span></li>
+          <li><svg class="ic"><use href="#i-check"/></svg><span>Fecha y horario correctos</span></li>
+          <li><svg class="ic"><use href="#i-check"/></svg><span>Ubicada en el mapa</span></li>
+          <li><svg class="ic"><use href="#i-check"/></svg><span>Estado: Programada o Confirmada</span></li>
+        </ul>
+      </div>
+      <div class="caja tips">
+        <h3><svg class="ic"><use href="#i-alerta"/></svg>Para tener en cuenta</h3>
+        <ul>
+          <li><span><b>Borrador</b> es para ideas sin confirmar: no suma al objetivo de la zona.</span></li>
+          <li><span>Si es en el interior, elegí la <b>localidad</b>.</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <footer class="pie"><span><b>Lista 47</b> · Gestión Territorial</span><span>Ingresá en gestion-territorial-lista47.vercel.app</span></footer>
+</section>
+</body>
+</html>

@@ -1,10 +1,10 @@
 /**
- * Genera el PDF de la guía del operativo de salud visual (lo que abre «Ver la guía completa» en la app).
- *   Fuente:  guias/operativo-salud-visual.html  (diseño A4, ilustraciones vectoriales dentro del archivo)
- *   Salida:  public/guias/operativo-salud-visual.pdf
+ * Genera el PDF de una guía a partir de su diseño en HTML (A4, ilustraciones dentro del archivo).
+ *   Fuente:  guias/<nombre>.html
+ *   Salida:  public/guias/<nombre>.pdf  (se abre en la app y se puede compartir por WhatsApp)
  * Usa Chrome o Edge instalados, en modo sin ventana. Hace falta internet para las tipografías (quedan dentro del PDF).
  *
- * Uso:  npm run guia:visual
+ * Uso:  npm run guia:visual  ·  npm run guia:carga   (o: node scripts/generar-guia.mjs <nombre> [salida.pdf])
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
@@ -13,8 +13,13 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const raiz = resolve(import.meta.dirname, "..");
-const fuente = join(raiz, "guias", "operativo-salud-visual.html");
-const salida = resolve(process.argv[2] ?? join(raiz, "public", "guias", "operativo-salud-visual.pdf"));
+const nombre = process.argv[2] ?? "operativo-salud-visual";
+const fuente = join(raiz, "guias", `${nombre}.html`);
+const salida = resolve(process.argv[3] ?? join(raiz, "public", "guias", `${nombre}.pdf`));
+if (!existsSync(fuente)) {
+  console.error(`No existe ${fuente}`);
+  process.exit(1);
+}
 
 const candidatos = [
   process.env.CHROME_PATH,
@@ -38,11 +43,13 @@ execFileSync(
     "--disable-gpu",
     "--no-pdf-header-footer",
     "--run-all-compositor-stages-before-draw",
-    "--virtual-time-budget=15000", // espera a que carguen las tipografías
+    "--virtual-time-budget=15000", // espera a que carguen las tipografías y las imágenes
     `--print-to-pdf=${salida}`,
     pathToFileURL(fuente).href,
   ],
   { stdio: "inherit" },
 );
 console.log(`✓ ${salida} (${Math.round(statSync(salida).size / 1024)} KB)`);
-console.log("Recordá actualizar GUIA_VISUAL_VERSION en src/lib/guias.ts para que todos vean la versión nueva.");
+if (nombre === "operativo-salud-visual") {
+  console.log("Recordá actualizar GUIA_VISUAL_VERSION en src/lib/guias.ts para que todos vean la versión nueva.");
+}
