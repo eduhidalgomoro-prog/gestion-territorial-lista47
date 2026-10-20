@@ -52,11 +52,16 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
   const hoyISO = today();
   const s = await snapshot();
   const visibles = actividadesVisibles(yo, s.actividades, s.asignaciones);
+  // Calendario: lo ven todos los perfiles con TODAS las actividades (para responder «¿qué hay tal día?»).
+  // La ficha se abre solo en las que el rol permite; los borradores ajenos no se muestran.
+  const calendarioGeneral = vista === "calendario";
+  const puedeAbrir = new Set(visibles.map((a) => a.id));
+  const base = calendarioGeneral ? s.actividades.filter((a) => a.estado !== "BORRADOR" || puedeAbrir.has(a.id)) : visibles;
   // Capital / Interior / Toda la provincia: para quien ve más de una zona.
-  const conAmbito = !esResponsable(yo) && !esOperador(yo);
+  const conAmbito = calendarioGeneral || (!esResponsable(yo) && !esOperador(yo));
   if (!conAmbito || (f.ambito !== "capital" && f.ambito !== "interior")) f.ambito = "";
   const regiones = parseRegiones(s.config.regiones_interior);
-  const regionesUsadas = [...new Set([...regiones.map((r) => r.nombre), ...visibles.map((a) => a.zona).filter((z) => z && ambitoDe(z) === "interior")])];
+  const regionesUsadas = [...new Set([...regiones.map((r) => r.nombre), ...base.map((a) => a.zona).filter((z) => z && ambitoDe(z) === "interior")])];
   const conteos = conteosPorActividad(s);
   const huellasPorActividad = conteosHuellas(s.atenciones, s.animales);
   // Orden del listado (solo presentación). Sin elegir, el de siempre: por fecha (todo el año: lo más reciente primero).
@@ -75,7 +80,7 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
     inscriptos: (a, b) => inscriptosDe(b) - inscriptosDe(a) || porFecha(a, b),
     nombre: (a, b) => a.nombre.localeCompare(b.nombre, "es"),
   };
-  const lista = filtrarActividades(visibles, f)
+  const lista = filtrarActividades(base, f)
     .filter((a) => !proximas || (a.fecha >= hoyISO && a.estado !== "CANCELADA" && a.estado !== "REALIZADA"))
     .sort(
       vista === "listado" && orden
@@ -85,11 +90,11 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
   // Resumen sobre las tarjetas: cantidad, inscriptos y zonas distintas de lo que se está viendo.
   const totalInscriptos = lista.reduce((n, a) => n + inscriptosDe(a), 0);
   const zonasDistintas = new Set(lista.map((a) => a.zona).filter(Boolean)).size;
-  const delAmbito = f.ambito ? visibles.filter((a) => ambitoDe(a.zona) === f.ambito) : visibles;
+  const delAmbito = f.ambito ? base.filter((a) => ambitoDe(a.zona) === f.ambito) : base;
   const barrios = [...new Set(delAmbito.map((a) => a.barrio).filter(Boolean))].sort();
   const localidades = [...new Set(delAmbito.map((a) => a.localidad).filter(Boolean))].sort();
   const responsables = [...new Set(delAmbito.map((a) => a.responsable).filter(Boolean))].sort();
-  const tipos = [...new Set([...s.config.tipos_actividad, ...visibles.map((a) => a.tipo)].filter(Boolean))].sort();
+  const tipos = [...new Set([...s.config.tipos_actividad, ...base.map((a) => a.tipo)].filter(Boolean))].sort();
   const opcionesZona = [
     ...(f.ambito !== "interior" ? [...ZONAS_ACTIVIDAD.map((z) => [z, zonaLabel(z)] as const), ["SIN", "Sin zona"] as const] : []),
     ...(f.ambito !== "capital" ? regionesUsadas.sort().map((r) => [r, regionLabel(r)] as const) : []),
@@ -175,7 +180,7 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
             {!proximas && (
               <FiltroSelect chip name="anio" label="Año" activo={false} value={f.anio || anioActual} options={[anioActual - 1, anioActual, anioActual + 1].map((a) => [a, String(a)] as const)} />
             )}
-            {!esResponsable(yo) ? (
+            {!esResponsable(yo) || calendarioGeneral ? (
               <FiltroSelect chip name="zona" label="Zona o región" value={f.zona ?? ""} placeholder={f.ambito === "interior" ? "Región: todas" : "Zona: todas"} options={opcionesZona} />
             ) : misZonas(yo).length > 1 && (
               // Responsable con varias zonas: puede mirar una sola.
@@ -225,7 +230,7 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
       </FiltrosForm>
 
       {vista === "listado" && <Listado lista={lista} conteos={conteos} huellas={huellasPorActividad} />}
-      {vista === "calendario" && <Calendario lista={lista} anio={f.anio!} mes={f.mes!} keep={keep} conteos={conteos} huellas={huellasPorActividad} />}
+      {vista === "calendario" && <Calendario lista={lista} anio={f.anio!} mes={f.mes!} keep={keep} conteos={conteos} huellas={huellasPorActividad} puedeAbrir={puedeAbrir} />}
       {vista === "mapa" && <Mapa lista={lista} conteos={conteos} foco={sp(q, "foco")} emojis={emojisDe(s.config.emojis_mapa)} encuadre={encuadre} />}
     </>
   );
@@ -267,16 +272,16 @@ function LeyendaCalendario({ conInterior }: { conInterior: boolean }) {
 }
 
 /** Evento dentro de una celda: «16:00 · Nombre», con el color del estado (y un pin si es del interior). */
-function EventoCalendario({ a }: { a: Actividad }) {
+/** Actividad del calendario: si el rol puede abrirla, lleva a la ficha; si no, solo se ve (el detalle está en la agenda). */
+function EventoCalendario({ a, abrir }: { a: Actividad; abrir: boolean }) {
   const lugar = esInterior(a) ? `Interior · ${a.localidad || "sin localidad"}` : `Capital · ${ubicacionLabel(a)}`;
-  return (
-    <Link
-      href={`/actividades/${a.id}`}
-      className="flex items-start gap-1 rounded-md border-l-[3px] px-1.5 py-1 text-[12px] leading-tight text-tinta transition-[filter] hover:brightness-95"
-      style={{ borderColor: ESTADO_HEX[a.estado], background: `${ESTADO_HEX[a.estado]}1a` }}
-      title={`${a.hora_inicio ? `${a.hora_inicio} · ` : ""}${a.nombre}\n${lugar}\nEstado: ${titulo(a.estado)}`}
-      aria-label={`${a.hora_inicio ? `${a.hora_inicio}, ` : ""}${a.nombre}. ${lugar}. Estado: ${titulo(a.estado)}`}
-    >
+  const props = {
+    className: "flex items-start gap-1 rounded-md border-l-[3px] px-1.5 py-1 text-[12px] leading-tight text-tinta transition-[filter] hover:brightness-95",
+    style: { borderColor: ESTADO_HEX[a.estado], background: `${ESTADO_HEX[a.estado]}1a` },
+    title: `${a.hora_inicio ? `${a.hora_inicio} · ` : ""}${a.nombre}\n${lugar}${a.responsable ? `\nResponsable: ${titleCase(a.responsable)}` : ""}\nEstado: ${titulo(a.estado)}`,
+  };
+  const contenido = (
+    <>
       {esMarcandoHuellas(a) && <IconHuella size={12} className="mt-px shrink-0 text-marca" />}
       {esInterior(a) && <IconPin size={12} className="mt-px shrink-0 text-petroleo" />}
       {/* Nombre resumido: hasta 2 líneas (el completo está en la agenda, en el tooltip y en la ficha). */}
@@ -284,11 +289,20 @@ function EventoCalendario({ a }: { a: Actividad }) {
         {a.hora_inicio && <b className="font-bold">{a.hora_inicio} · </b>}
         {a.nombre}
       </span>
+    </>
+  );
+  return abrir ? (
+    <Link href={`/actividades/${a.id}`} {...props} aria-label={`${a.hora_inicio ? `${a.hora_inicio}, ` : ""}${a.nombre}. ${lugar}. Estado: ${titulo(a.estado)}`}>
+      {contenido}
     </Link>
+  ) : (
+    <a href={`#dia-${Number(a.fecha.slice(8, 10))}`} data-ir-dia={Number(a.fecha.slice(8, 10))} {...props}>
+      {contenido}
+    </a>
   );
 }
 
-function Calendario({ lista, anio, mes, keep, conteos, huellas }: { lista: Actividad[]; anio: number; mes: number; keep: Record<string, string | number | undefined>; conteos: ReturnType<typeof conteosPorActividad>; huellas: ReturnType<typeof conteosHuellas> }) {
+function Calendario({ lista, anio, mes, keep, conteos, huellas, puedeAbrir }: { lista: Actividad[]; anio: number; mes: number; keep: Record<string, string | number | undefined>; conteos: ReturnType<typeof conteosPorActividad>; huellas: ReturnType<typeof conteosHuellas>; puedeAbrir: Set<string> }) {
   const primero = new Date(Date.UTC(anio, mes - 1, 1));
   const diasMes = new Date(Date.UTC(anio, mes, 0)).getUTCDate();
   const offset = (primero.getUTCDay() + 6) % 7; // lunes primero
@@ -372,7 +386,7 @@ function Calendario({ lista, anio, mes, keep, conteos, huellas }: { lista: Activ
                     </div>
                     <ul className="space-y-1">
                       {acts.slice(0, n).map((a) => (
-                        <li key={a.id}><EventoCalendario a={a} /></li>
+                        <li key={a.id}><EventoCalendario a={a} abrir={puedeAbrir.has(a.id)} /></li>
                       ))}
                       {acts.length > n && (
                         <li>
@@ -446,8 +460,9 @@ function Calendario({ lista, anio, mes, keep, conteos, huellas }: { lista: Activ
                       const donde = esInterior(a)
                         ? [a.localidad, zonaLabel(a.zona), a.barrio && titleCase(a.barrio), a.lugar].filter(Boolean).join(" · ")
                         : [zonaLabel(a.zona), a.barrio && titleCase(a.barrio), a.lugar].filter(Boolean).join(" · ");
-                      return (
-                        <Link key={a.id} href={`/actividades/${a.id}`} className="flex items-stretch gap-3 rounded-xl border border-linea bg-white p-3 transition-colors hover:border-petroleo sm:p-3.5">
+                      const abrir = puedeAbrir.has(a.id);
+                      const contenido = (
+                        <>
                           <span className="w-1.5 shrink-0 rounded-full" style={{ background: ESTADO_HEX[a.estado] }} aria-hidden />
                           <span className="min-w-0 flex-1">
                             <span className="block text-[11px] font-bold tracking-[0.12em] text-gris uppercase">
@@ -457,6 +472,7 @@ function Calendario({ lista, anio, mes, keep, conteos, huellas }: { lista: Activ
                             <span className="mt-0.5 block text-sm text-gris">
                               <b className="font-semibold text-tinta">{a.hora_inicio ? `${a.hora_inicio}${a.hora_fin ? `–${a.hora_fin}` : ""}` : "Sin horario"}</b> · {donde}
                             </span>
+                            {a.responsable && <span className="mt-0.5 block text-sm text-gris">Responsable: <b className="font-semibold text-tinta">{titleCase(a.responsable)}</b></span>}
                             <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                               <EstadoBadge estado={a.estado} />
                               <GuiaBadge a={a} />
@@ -469,7 +485,14 @@ function Calendario({ lista, anio, mes, keep, conteos, huellas }: { lista: Activ
                               )}
                             </span>
                           </span>
-                        </Link>
+                        </>
+                      );
+                      const cls = "flex items-stretch gap-3 rounded-xl border border-linea bg-white p-3 sm:p-3.5";
+                      // Solo se abre la ficha de las actividades que el rol permite; el resto se ve como información.
+                      return abrir ? (
+                        <Link key={a.id} href={`/actividades/${a.id}`} className={cx(cls, "transition-colors hover:border-petroleo")}>{contenido}</Link>
+                      ) : (
+                        <div key={a.id} className={cls}>{contenido}</div>
                       );
                     })}
                   </div>

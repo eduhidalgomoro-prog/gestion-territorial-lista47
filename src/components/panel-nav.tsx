@@ -117,12 +117,12 @@ export function MobileNav({ permisos }: { permisos: NavPermisos }) {
 
   const todos = items(permisos);
   // 3 accesos directos en la barra (el resto va a «Más»). Diseño no tiene inicio: su pantalla principal es Flyers;
-  // la responsable de ferias, Ferias.
+  // la responsable de ferias, Ferias. El calendario (con todas las actividades) queda a mano para todos.
   const atajos = !permisos.inicio
     ? permisos.logistica
       ? ["/logistica", "/actividades", "/calendario"]
-      : permisos.flyers ? ["/flyers", "/actividades", "/mapa"] : ["/ferias", "/calendario", "/actividades"]
-    : ["/inicio", "/actividades", permisos.participantes ? "/participantes" : "/mapa"];
+      : permisos.flyers ? ["/flyers", "/actividades", "/calendario"] : ["/ferias", "/calendario", "/actividades"]
+    : ["/inicio", "/actividades", permisos.participantes ? "/participantes" : "/calendario"];
   const principales = atajos.map((h) => todos.find((i) => i.href === h)).filter((i): i is (typeof todos)[number] => !!i);
   const resto = todos.filter((i) => !principales.includes(i));
   const izquierda = principales.slice(0, 2);
