@@ -29,7 +29,7 @@ export default async function Ayudantes({ params }: { params: Promise<{ id: stri
   if (!a || !puede.verActividad(yo, a, s.asignaciones)) notFound();
   if (!puede.sumarAyudantes(yo, a)) return <Notice tone="alerta">Solo quien organiza la actividad puede sumar ayudantes.</Notice>;
 
-  const accesos = s.ayudantes.filter((x) => x.actividad_id === id).sort((x, y) => y.creado.localeCompare(x.creado));
+  const accesos = (s.ayudantes ?? []).filter((x) => x.actividad_id === id).sort((x, y) => y.creado.localeCompare(x.creado));
   const activos = accesos.filter((x) => vigente(x));
   const pasados = accesos.filter((x) => !vigente(x));
   const qrs = await Promise.all(activos.map((x) => QRCode.toString(linkAyudante(x.token), { type: "svg", margin: 1, errorCorrectionLevel: "M", color: { dark: "#0c546b", light: "#ffffff" } })));

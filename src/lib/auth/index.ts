@@ -55,7 +55,7 @@ export async function ayudanteActual(): Promise<Yo | null> {
   const sesion = await verifyAyudanteToken((await cookies()).get(AYUDANTE_COOKIE)?.value);
   if (!sesion) return null;
   const s = await snapshot();
-  const inv = s.ayudantes.find((x) => x.id === sesion.invitacionId && x.actividad_id === sesion.actividadId);
+  const inv = (s.ayudantes ?? []).find((x) => x.id === sesion.invitacionId && x.actividad_id === sesion.actividadId);
   if (!inv || !inv.activo || Date.parse(inv.vence) <= Date.now()) return null;
   return {
     email: `${sesion.nombre} (ayudante de ${inv.creado_por_nombre})`,

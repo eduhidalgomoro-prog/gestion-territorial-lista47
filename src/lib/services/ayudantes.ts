@@ -53,7 +53,7 @@ export async function crearAccesoAyudante(actividadId: string, yo: Yo): Promise<
 
 export async function cortarAccesoAyudante(id: string, yo: Yo) {
   const s = await snapshot();
-  const inv = s.ayudantes.find((x) => x.id === id);
+  const inv = (s.ayudantes ?? []).find((x) => x.id === id);
   if (!inv) throw new NotFoundError("El acceso");
   await actividadPara(inv.actividad_id, yo);
   if (inv.activo) await update("ayudantes", id, { activo: false }, yo.email, { accion: "cortar acceso de ayudantes" });
@@ -65,7 +65,7 @@ export type AccesoAyudante = { ok: true; inv: Ayudante; a: Actividad } | { ok: f
 export async function buscarAcceso(token: string): Promise<AccesoAyudante> {
   const t = cleanString(token, 60);
   const s = await snapshot();
-  const inv = t ? s.ayudantes.find((x) => x.token === t) : undefined;
+  const inv = t ? (s.ayudantes ?? []).find((x) => x.token === t) : undefined;
   const a = inv && s.actividades.find((x) => x.id === inv.actividad_id);
   if (!inv || !a) return { ok: false, motivo: "no_existe" };
   if (!vigente(inv) || a.estado === "CANCELADA") return { ok: false, motivo: "vencido" };
