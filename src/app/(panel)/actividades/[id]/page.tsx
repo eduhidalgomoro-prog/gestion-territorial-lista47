@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { CopyButton } from "@/components/copy-button";
 import { ActionForm, Input, Select, SubmitButton } from "@/components/forms";
-import { IconCheck, IconEdit, IconForm, IconGazebo, IconImage, IconLock, IconMap, IconPin, IconUpload, IconUsers, IconWhatsApp, IconX } from "@/components/icons";
+import { IconCheck, IconEdit, IconForm, IconGazebo, IconImage, IconLock, IconMap, IconPin, IconUpload, IconUserPlus, IconUsers, IconWhatsApp, IconX } from "@/components/icons";
 import { mensajeActividad, whatsappCompartir } from "@/lib/compartir";
 import { FlyersActividad } from "@/components/flyer-imagen";
 import { FlyerRapido } from "@/components/flyer-rapido";
@@ -58,6 +58,33 @@ export default async function FichaActividad({ params, searchParams }: { params:
   if (!a || !puede.verActividad(yo, a, s.asignaciones)) notFound();
 
   const r = resumenAsistencia(a.id, s);
+
+  // Ayudante con QR: solo lo que tiene que cargar (asistencia o atenciones), sin el resto de la ficha.
+  if (yo.ayudante) {
+    if (esMarcandoHuellas(a)) {
+      return (
+        <div className="tema-huellas">
+          <MarcandoHuellasHeader a={a} atenciones={s.atenciones.filter((x) => x.actividad_id === a.id && x.activo).length} puedeRegistrar={a.estado !== "CANCELADA"} />
+        </div>
+      );
+    }
+    const clases = cantidadClases(a) > 1 ? asistenciaPorClase(a, s) : [];
+    return (
+      <div className="space-y-3">
+        <TallerEncabezado
+          a={a}
+          estado={null}
+          numeros={{ inscriptos: r.inscriptos, presentes: r.presentes, ausentes: r.ausentesMarcados, pct: null }}
+        />
+        {clases.length > 1 ? (
+          <ClasesTaller id={a.id} clases={clases} actual={claseActual(fechasDeClases(a), today())} />
+        ) : (
+          <AccionAsistencia id={a.id} registrada={r.presentes + r.ausentesMarcados > 0} presentes={r.presentes} />
+        )}
+      </div>
+    );
+  }
+
   const editar = puede.editarActividad(yo, a);
   const asistencia = puede.tomarAsistencia(yo, a, s.asignaciones);
   const cerrar = puede.cerrarActividad(yo, a) && a.estado !== "CANCELADA";
@@ -135,6 +162,7 @@ export default async function FichaActividad({ params, searchParams }: { params:
               {verInscriptos && <AccionSec href={`/actividades/${a.id}/inscriptos`} Icon={IconUsers}>Ver inscriptos</AccionSec>}
               {editar && <AccionSec href={`/actividades/${a.id}/editar`} Icon={IconEdit}>Editar</AccionSec>}
               {puede.gestionarLogistica(yo) && <AccionSec href={`/actividades/${a.id}/logistica`} Icon={IconGazebo}>Logística</AccionSec>}
+              {puede.sumarAyudantes(yo, a) && a.estado !== "CANCELADA" && a.estado !== "REALIZADA" && <AccionSec href={`/actividades/${a.id}/ayudantes`} Icon={IconUserPlus}>Sumar ayudantes</AccionSec>}
               <AccionSec href={`/mapa?foco=${a.id}&mes=${a.mes || ""}&anio=${a.anio || ""}`} Icon={IconMap}>Ver mapa</AccionSec>
               <AccionSec href={whatsappCompartir(mensajeActividad(a, r))} Icon={IconWhatsApp} externo>Compartir actividad</AccionSec>
             </nav>
@@ -183,6 +211,7 @@ export default async function FichaActividad({ params, searchParams }: { params:
             {editar && <Accion href={`/actividades/${a.id}/editar`} Icon={IconEdit}>Editar actividad</Accion>}
             {puede.verFlyers(yo) && a.requiere_flyer && <Accion href={`/flyers?mes=${a.mes || 0}&anio=${a.anio || ""}#${(a.estado_flyer || "SOLICITADO").replace(/\s/g, "-")}`} Icon={IconImage}>Flyer</Accion>}
             {puede.gestionarLogistica(yo) && <Accion href={`/actividades/${a.id}/logistica`} Icon={IconGazebo}>Logística</Accion>}
+            {puede.sumarAyudantes(yo, a) && a.estado !== "CANCELADA" && a.estado !== "REALIZADA" && <Accion href={`/actividades/${a.id}/ayudantes`} Icon={IconUserPlus}>Sumar ayudantes</Accion>}
             <Accion href={`/mapa?foco=${a.id}&mes=${a.mes || ""}&anio=${a.anio || ""}`} Icon={IconMap}>Ver en mapa</Accion>
             <a
               href={whatsappCompartir(mensajeActividad(a, r))}

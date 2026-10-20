@@ -18,7 +18,7 @@ export default async function LogisticaDeActividad({ params }: { params: Promise
   const { id } = await params;
   const s = await snapshot();
   const a = s.actividades.find((x) => x.id === id);
-  if (!a || !puede.verActividad(yo, a, s.asignaciones)) notFound();
+  if (!a || !puede.verActividad(yo, a, s.asignaciones) || yo.ayudante) notFound();
   const r = resumenLogistico(a, s.requerimientos, s.logistica, today());
 
   // Historial: cada entrega/devolución (lote) con sus elementos; lo más reciente arriba.

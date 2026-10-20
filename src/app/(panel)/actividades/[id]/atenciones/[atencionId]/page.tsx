@@ -51,7 +51,7 @@ export default async function DetalleAtencion({ params, searchParams }: { params
         <h1 className="mt-2 font-titulo text-2xl font-extrabold">{p ? `${p.nombre} ${p.apellido}` : "—"}</h1>
         <p className="mt-1 text-[15px] text-gris">
           DNI {p?.dni ? (puede.verDniCompleto(yo) ? formatDni(p.dni) : maskDni(p.dni)) : "—"}
-          {p?.telefono && (puede.verTelefono(yo) || registrar) && <> · Tel. {formatPhone(p.telefono)}</>}
+          {p?.telefono && (puede.verTelefono(yo) || (registrar && !yo.ayudante)) &&<> · Tel. {formatPhone(p.telefono)}</>}
         </p>
         <p className="mt-2 font-bold">{textoAnimales(at.perros, at.gatos)}</p>
       </section>

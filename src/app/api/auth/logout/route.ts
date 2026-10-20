@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE } from "@/lib/auth/session";
+import { AYUDANTE_COOKIE, SESSION_COOKIE } from "@/lib/auth/session";
 import { VER_COMO_COOKIE } from "@/lib/permisos";
 
 export async function POST(request: NextRequest) {
@@ -9,5 +9,6 @@ export async function POST(request: NextRequest) {
   const res = NextResponse.redirect(new URL("/login", request.url), { status: 303 });
   res.cookies.delete(SESSION_COOKIE);
   res.cookies.delete(VER_COMO_COOKIE); // al salir, también termina «Ver la app como…»
+  res.cookies.delete(AYUDANTE_COOKIE); // y cualquier acceso de ayudante que haya quedado en el celular
   return res;
 }

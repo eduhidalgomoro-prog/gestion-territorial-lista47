@@ -17,6 +17,7 @@ import type { Yo } from "@/lib/permisos";
 import { aplicarVerComo, misZonas, puede, zonasForzadas } from "@/lib/permisos";
 import { asistenciaPorClase, cerrarActividad, crearActividad, marcarChecklist, resumenAsistencia, type ActividadInput } from "@/lib/services/actividades";
 import { esOperativoVisual, itemsHechos, progresoChecklist } from "@/lib/guias";
+import { cortarAccesoAyudante, crearAccesoAyudante, ingresarAyudante, venceAcceso, vigente } from "@/lib/services/ayudantes";
 import { limpiarPersona, upsertParticipantes } from "@/lib/services/participantes";
 import { agregarPresente, guardarAsistencia } from "@/lib/services/asistencia";
 import { anularLote, marcarPreparando, registrarMovimiento } from "@/lib/services/logistica";
@@ -640,6 +641,40 @@ describe("guía del operativo visual", () => {
     // Una actividad que no es operativo visual no tiene checklist.
     const taller = await crearActividad(input({ nombre: "Taller", fecha: "2099-05-11" }), admin);
     await expect(marcarChecklist(taller.id, "espacios", true, admin)).rejects.toThrow();
+  });
+});
+
+describe("ayudantes con QR", () => {
+  it("solo su actividad, sin datos de contacto, vence y se puede cortar", async () => {
+    const a = await crearActividad(input({ nombre: "Taller Ayudas", fecha: "2099-06-10" }), admin);
+    const otra = await crearActividad(input({ nombre: "Otra", fecha: "2099-06-11" }), admin);
+    await expect(crearAccesoAyudante(a.id, { ...admin, rol: "OPERADOR" })).rejects.toThrow(); // un operador no genera QR
+    const inv = await crearAccesoAyudante(a.id, respEste);
+    expect(inv).toMatchObject({ activo: true, vence: "2099-06-10T23:59:59-03:00", creado_por_nombre: "Resp Este" });
+    expect(venceAcceso({ fecha: "2020-01-01" }, "2026-10-20")).toBe("2026-10-20T23:59:59-03:00"); // si ya pasó, hasta hoy
+
+    const r = await ingresarAyudante(inv.token, "maría  lópez");
+    expect(r.nombre).toBe("María López");
+    await expect(ingresarAyudante(inv.token, "x")).rejects.toMatchObject({ fields: { nombre: expect.any(String) } });
+    await expect(ingresarAyudante("inventado", "Ana Pérez")).rejects.toThrow(/vigente/);
+
+    const ayudante: Yo = { email: "María López (ayudante de Resp Este)", nombre: "María López", rol: "OPERADOR", zona: "", usuarioId: "", ayudante: { invitacionId: inv.id, actividadId: a.id, de: "Resp Este", vence: inv.vence } };
+    expect(puede.tomarAsistencia(ayudante, a, [])).toBe(true);
+    expect(puede.verActividad(ayudante, otra, [])).toBe(false);
+    expect(puede.verInscriptos(ayudante, a, [])).toBe(false);
+    expect(puede.contactarInscriptos(ayudante, a, [])).toBe(false);
+    expect(puede.editarActividad(ayudante, a)).toBe(false);
+    expect(puede.sumarAyudantes(ayudante, a)).toBe(false);
+    // Lo que carga queda firmado con su nombre.
+    const p = await agregarPresente(a.id, { nombre: "Rosa", apellido: "Gómez", dni: "42111222", telefono: "", barrio: "" }, ayudante);
+    let s = await snapshot({ fresh: true });
+    expect(s.asistencias.find((x) => x.participante_id === p.participanteId && x.actividad_id === a.id)?.usuario).toBe("María López (ayudante de Resp Este)");
+    expect(s.ayudantes.find((x) => x.id === inv.id)?.ingresaron).toBe("María López");
+
+    await cortarAccesoAyudante(inv.id, respEste);
+    s = await snapshot({ fresh: true });
+    expect(vigente(s.ayudantes.find((x) => x.id === inv.id)!)).toBe(false);
+    await expect(ingresarAyudante(inv.token, "Otra Persona")).rejects.toThrow(/vigente/);
   });
 });
 

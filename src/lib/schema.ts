@@ -280,6 +280,20 @@ export interface Asignacion extends Meta {
   estado: (typeof ESTADOS_ASIGNACION)[number];
 }
 
+/**
+ * Acceso de ayudante: un QR/link que el responsable genera para que alguien del lugar ayude a cargar
+ * (asistencia o atenciones) en UNA actividad, sin usuario ni cuenta de Google. Vence solo y se puede cortar.
+ */
+export interface Ayudante extends Meta {
+  actividad_id: string;
+  token: string; // va en el link; la hoja es privada (solo administración)
+  creado_por: string; // email de quien lo generó
+  creado_por_nombre: string;
+  vence: string; // fecha/hora ISO (fin del día de la actividad)
+  activo: boolean; // false = acceso cortado
+  ingresaron: string; // nombres de quienes entraron, separados por coma
+}
+
 export interface Institucion extends Meta {
   nombre: string;
   tipo: string;
@@ -321,6 +335,7 @@ export interface EntityMap {
   atenciones: Atencion;
   animales: Animal;
   logistica: MovimientoLogistica;
+  ayudantes: Ayudante;
 }
 
 export type EntityTable = keyof EntityMap;
@@ -642,6 +657,22 @@ export const TABLES: Record<TableName, TableDef> = {
     boolean: ["anulado"],
     enums: { tipo: TIPOS_MOVIMIENTO, estado_elemento: ESTADOS_ELEMENTO },
   },
+  ayudantes: {
+    sheet: "AYUDANTES",
+    prefix: "AYU",
+    columns: [
+      ["id", "ID"],
+      ["actividad_id", "ID Actividad"],
+      ["token", "Código de acceso"],
+      ["creado_por", "Generado por"],
+      ["creado_por_nombre", "Nombre de quien lo generó"],
+      ["vence", "Vence"],
+      ["activo", "Activo"],
+      ["ingresaron", "Ayudantes que ingresaron"],
+      ...META,
+    ],
+    boolean: ["activo"],
+  },
   zonas_barrios: {
     sheet: "ZONAS_BARRIOS",
     columns: [
@@ -674,7 +705,7 @@ export const TABLES: Record<TableName, TableDef> = {
 };
 
 export const ENTITY_TABLES: EntityTable[] = [
-  "actividades", "participantes", "inscripciones", "asistencias", "requerimientos", "usuarios", "asignaciones", "instituciones", "feriantes", "puestos", "atenciones", "animales", "logistica",
+  "actividades", "participantes", "inscripciones", "asistencias", "requerimientos", "usuarios", "asignaciones", "instituciones", "feriantes", "puestos", "atenciones", "animales", "logistica", "ayudantes",
 ];
 export const ALL_TABLES = Object.keys(TABLES) as TableName[];
 

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
+import { AYUDANTE_COOKIE, SESSION_COOKIE, verifyAyudanteToken, verifySessionToken } from "@/lib/auth/session";
 
 /**
  * Primera barrera del panel: sin sesión válida se redirige a /login.
@@ -7,7 +7,8 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
  * El formulario público de inscripción (/inscripcion/...) queda separado y sin login.
  */
 // /guias/: guías de organización (sin datos personales), pensadas para compartir por WhatsApp.
-const PUBLIC_PREFIXES = ["/inscripcion/", "/feria/", "/login", "/privacidad", "/api/auth/", "/offline", "/icons/", "/guias/"];
+// /ayudante/: entrada con el QR de ayudante (pide el nombre y valida el acceso).
+const PUBLIC_PREFIXES = ["/inscripcion/", "/feria/", "/login", "/privacidad", "/api/auth/", "/offline", "/icons/", "/guias/", "/ayudante/"];
 const PUBLIC_FILES = ["/manifest.webmanifest", "/sw.js", "/favicon.ico", "/robots.txt"];
 
 export async function proxy(request: NextRequest) {
@@ -17,6 +18,17 @@ export async function proxy(request: NextRequest) {
   }
   const session = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value);
   if (session) return NextResponse.next();
+  // Ayudante con QR: solo las pantallas de SU actividad (lo demás lo lleva de vuelta ahí).
+  const ayudante = await verifyAyudanteToken(request.cookies.get(AYUDANTE_COOKIE)?.value);
+  if (ayudante) {
+    const base = `/actividades/${ayudante.actividadId}`;
+    if (pathname === base || pathname.startsWith(`${base}/`)) return NextResponse.next();
+    if (pathname.startsWith("/api/")) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    const url = request.nextUrl.clone();
+    url.pathname = base;
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
   if (pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }

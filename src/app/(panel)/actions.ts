@@ -13,6 +13,7 @@ import { crearUsuario, editarUsuario, guardarBarrio, guardarConfig, guardarInsti
 import { agregarPresente, buscarPorDni, guardarAsistencia, type Marca } from "@/lib/services/asistencia";
 import { geocodificar, type Ubicacion } from "@/lib/services/geocode";
 import { anularLote, marcarPreparando, registrarMovimiento, type MovimientoInput } from "@/lib/services/logistica";
+import { cortarAccesoAyudante, crearAccesoAyudante } from "@/lib/services/ayudantes";
 import {
   agregarFeriante, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, configurarFeria, crearFeria, generarPuestos, quitarAsignaciones, ubicarPuestos,
 } from "@/lib/services/ferias";
@@ -88,6 +89,15 @@ export async function asignarOperadorAction(actividadId: string, _: ActionResult
 
 export async function quitarOperadorAction(asignacionId: string): Promise<ActionResult> {
   return act((yo) => quitarOperador(asignacionId, yo), { ok: "Asignación quitada." });
+}
+
+/** Acceso de ayudantes con QR (desde la ficha). Se usan como action de un <form>. */
+export async function crearAyudanteAction(actividadId: string) {
+  await act((yo) => crearAccesoAyudante(actividadId, yo));
+}
+
+export async function cortarAyudanteAction(id: string) {
+  await act((yo) => cortarAccesoAyudante(id, yo));
 }
 
 export async function confirmacionAction(inscripcionId: string, valor: string): Promise<ActionResult> {

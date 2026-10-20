@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { snapshot } from "../db";
 import { ForbiddenError } from "../errors";
 import { aplicarVerComo, resolverUsuario, VER_COMO_COOKIE, type Yo } from "../permisos";
-import { SESSION_COOKIE, verifySessionToken, type Session } from "./session";
+import { AYUDANTE_COOKIE, SESSION_COOKIE, verifyAyudanteToken, verifySessionToken, type Session } from "./session";
 
 export async function getSession(): Promise<Session | null> {
   const jar = await cookies();
@@ -34,10 +34,37 @@ async function conVistaPrevia(yo: Yo | null): Promise<Yo | null> {
  */
 export async function requireUser(): Promise<Yo> {
   const s = await getSession();
-  if (!s) redirect("/login");
+  if (!s) {
+    // Sin usuario: puede ser un ayudante que entró con el QR de una actividad.
+    const ayudante = await ayudanteActual();
+    if (ayudante) return ayudante;
+    // Tenía un acceso de ayudante que venció o le cortaron: se le explica (no se lo manda a iniciar sesión).
+    if ((await cookies()).get(AYUDANTE_COOKIE)?.value) redirect("/ayudante/fin?motivo=vencido");
+    redirect("/login");
+  }
   const yo = await conVistaPrevia(await usuarioReal());
   if (!yo) redirect("/login?error=no_autorizado");
   return yo;
+}
+
+/**
+ * Ayudante con QR: se revalida en cada pedido (si el responsable cortó el acceso o venció, deja de entrar).
+ * Lo que carga queda firmado con su nombre y el de quien lo sumó.
+ */
+export async function ayudanteActual(): Promise<Yo | null> {
+  const sesion = await verifyAyudanteToken((await cookies()).get(AYUDANTE_COOKIE)?.value);
+  if (!sesion) return null;
+  const s = await snapshot();
+  const inv = s.ayudantes.find((x) => x.id === sesion.invitacionId && x.actividad_id === sesion.actividadId);
+  if (!inv || !inv.activo || Date.parse(inv.vence) <= Date.now()) return null;
+  return {
+    email: `${sesion.nombre} (ayudante de ${inv.creado_por_nombre})`,
+    nombre: sesion.nombre,
+    rol: "OPERADOR",
+    zona: "",
+    usuarioId: "",
+    ayudante: { invitacionId: inv.id, actividadId: inv.actividad_id, de: inv.creado_por_nombre, vence: inv.vence },
+  };
 }
 
 /** Para rutas de API: devuelve el usuario o null (sin redirigir). */

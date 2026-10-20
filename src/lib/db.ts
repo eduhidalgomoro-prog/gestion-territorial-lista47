@@ -29,6 +29,7 @@ export interface Snapshot {
   atenciones: EntityMap["atenciones"][];
   animales: EntityMap["animales"][];
   logistica: EntityMap["logistica"][];
+  ayudantes: EntityMap["ayudantes"][];
   barrios: ZonaBarrio[];
   config: AppConfig;
   leidoEn: number;
@@ -138,6 +139,7 @@ async function loadSnapshot(): Promise<Snapshot> {
     atenciones: parseTable("atenciones", data.atenciones),
     animales: parseTable("animales", data.animales),
     logistica: parseTable("logistica", data.logistica),
+    ayudantes: parseTable("ayudantes", data.ayudantes),
     barrios: (data.zonas_barrios ?? []).map((r) => fromRow<ZonaBarrio>("zonas_barrios", r)).filter((b) => b.barrio),
     config: parseConfig((data.config ?? []).map((r) => fromRow<ConfigRow>("config", r))),
     leidoEn: Date.now(),

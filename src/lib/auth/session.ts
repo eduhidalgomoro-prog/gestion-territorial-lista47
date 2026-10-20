@@ -43,6 +43,41 @@ export async function verifySessionToken(token: string | undefined): Promise<Ses
   }
 }
 
+/**
+ * Ayudante: entró con el QR de una actividad. Cookie aparte (no es un usuario de la planilla):
+ * lleva el acceso, la actividad y el nombre que escribió. Vence con el acceso y se revalida en cada pedido.
+ */
+export const AYUDANTE_COOKIE = "gt47_ayudante";
+
+export interface SesionAyudante {
+  invitacionId: string;
+  actividadId: string;
+  nombre: string;
+}
+
+export async function createAyudanteToken(a: SesionAyudante, vence: Date): Promise<string> {
+  return new SignJWT({ act: a.actividadId, nombre: a.nombre })
+    .setProtectedHeader({ alg: "HS256" })
+    .setSubject(a.invitacionId)
+    .setIssuedAt()
+    .setExpirationTime(Math.floor(vence.getTime() / 1000))
+    .setIssuer("gestion-territorial-47:ayudante")
+    .sign(key());
+}
+
+export async function verifyAyudanteToken(token: string | undefined): Promise<SesionAyudante | null> {
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(token, key(), { issuer: "gestion-territorial-47:ayudante", algorithms: ["HS256"] });
+    const invitacionId = String(payload.sub ?? "");
+    const actividadId = String(payload.act ?? "");
+    if (!invitacionId || !actividadId) return null;
+    return { invitacionId, actividadId, nombre: String(payload.nombre ?? "") };
+  } catch {
+    return null;
+  }
+}
+
 export const sessionCookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",

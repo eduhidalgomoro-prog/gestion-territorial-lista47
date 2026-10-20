@@ -4,9 +4,35 @@ import { salirVerComoAction } from "./ver-como-actions";
 import { requireUser } from "@/lib/auth";
 import { esDiseno, esFerias, esLogistica, misZonas, puede, ROL_LABEL } from "@/lib/permisos";
 import { zonaLabel } from "@/lib/labels";
+import { SelloLista47 } from "@/components/ui";
+import { formatDate } from "@/lib/util";
+import { salirAyudanteAction } from "../ayudante/actions";
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   const yo = await requireUser();
+  // Ayudante con QR: sin menú (solo su actividad), con su nombre, hasta cuándo puede cargar y cómo salir.
+  if (yo.ayudante) {
+    const hasta = formatDate(yo.ayudante.vence.slice(0, 10), { weekday: "long", day: "numeric" });
+    return (
+      <div className="min-h-dvh">
+        <header className="sticky top-0 z-30 bg-institucional px-4 py-2.5 text-white shadow-md">
+          <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <SelloLista47 size={36} />
+              <p className="min-w-0 leading-tight">
+                <b className="block truncate text-[15px]">{yo.nombre} · ayudante</b>
+                <span className="block truncate text-[12.5px] text-white/85">De {yo.ayudante.de} · hasta las 23:59 del {hasta}</span>
+              </p>
+            </div>
+            <form action={salirAyudanteAction}>
+              <button type="submit" className="h-9 shrink-0 rounded-full bg-white/15 px-3.5 text-[13.5px] font-bold ring-1 ring-white/40 hover:bg-white/25">Salir</button>
+            </form>
+          </div>
+        </header>
+        <main className="mx-auto w-full max-w-3xl px-4 pt-5 pb-16">{children}</main>
+      </div>
+    );
+  }
   const permisos = {
     crear: puede.crearActividad(yo),
     participantes: puede.verParticipantes(yo),

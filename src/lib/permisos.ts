@@ -15,6 +15,11 @@ export interface Yo {
   usuarioId: string; // "" si es administrador inicial (ADMIN_EMAILS) todavía no cargado en USUARIOS
   /** «Ver la app como…»: un administrador mirando la app con el rol de otra persona (solo lectura). */
   vistaPrevia?: { etiqueta: string };
+  /**
+   * Ayudante (entró con el QR de una actividad, sin usuario): solo carga asistencia o atenciones de ESA actividad.
+   * No ve el listado de inscriptos, ni teléfonos, ni el resto de la app.
+   */
+  ayudante?: { invitacionId: string; actividadId: string; de: string; vence: string };
 }
 
 /** Cookie de «Ver la app como…» (solo cuenta si quien la tiene es administrador). */
@@ -88,27 +93,33 @@ const generalDeCapital = (yo: Yo, act: Actividad) => (act.zona === "GENERAL" || 
 /** Responsable de ferias: cualquier feria, de cualquier zona. */
 const feriaSuya = (yo: Yo, act: Actividad) => esFerias(yo) && act.es_feria;
 
+/** Ayudante con QR: solo la actividad para la que se generó el acceso. */
+export const esAyudante = (yo: Yo) => !!yo.ayudante;
+const ayudanteDe = (yo: Yo, act: Actividad) => yo.ayudante?.actividadId === act.id;
+
 export const puede = {
   verActividad: (yo: Yo, act: Actividad, asig: Asignacion[]) =>
-    esAdmin(yo) || esDiseno(yo) || esAgenda(yo) || esLogistica(yo) || (esResponsable(yo) && (deSuZona(yo, act) || generalDeCapital(yo, act))) || (esOperador(yo) && asignada(yo, act, asig)) || feriaSuya(yo, act),
+    esAdmin(yo) || esDiseno(yo) || esAgenda(yo) || esLogistica(yo) || (esResponsable(yo) && (deSuZona(yo, act) || generalDeCapital(yo, act))) || (esOperador(yo) && asignada(yo, act, asig)) || feriaSuya(yo, act) || ayudanteDe(yo, act),
   crearActividad: (yo: Yo) => esAdmin(yo) || esResponsable(yo),
   /** Crear ferias (desde el menú Ferias). */
   crearFeria: (yo: Yo) => esAdmin(yo) || esResponsable(yo) || esFerias(yo),
   editarActividad: (yo: Yo, act: Actividad) => esAdmin(yo) || (esResponsable(yo) && deSuZona(yo, act)) || feriaSuya(yo, act),
   tomarAsistencia: (yo: Yo, act: Actividad, asig: Asignacion[]) =>
-    esAdmin(yo) || esLogistica(yo) || (esResponsable(yo) && deSuZona(yo, act)) || (esOperador(yo) && asignada(yo, act, asig)) || feriaSuya(yo, act),
+    esAdmin(yo) || esLogistica(yo) || (esResponsable(yo) && deSuZona(yo, act)) || (esOperador(yo) && asignada(yo, act, asig)) || feriaSuya(yo, act) || ayudanteDe(yo, act),
   /**
    * Confirmación por WhatsApp, link y mensajes del grupo: lo maneja el equipo de la actividad.
-   * Logística colabora con la asistencia pero no toca lo que cargan los responsables.
+   * Logística colabora con la asistencia pero no toca lo que cargan los responsables. Los ayudantes tampoco.
    */
-  contactarInscriptos: (yo: Yo, act: Actividad, asig: Asignacion[]) => !esLogistica(yo) && puede.tomarAsistencia(yo, act, asig),
+  contactarInscriptos: (yo: Yo, act: Actividad, asig: Asignacion[]) => !esLogistica(yo) && !esAyudante(yo) && puede.tomarAsistencia(yo, act, asig),
   /** Registrar preparación, entregas y devoluciones de elementos. */
   gestionarLogistica: (yo: Yo) => esAdmin(yo) || esLogistica(yo),
   cerrarActividad: (yo: Yo, act: Actividad) => esAdmin(yo) || (esResponsable(yo) && deSuZona(yo, act)) || feriaSuya(yo, act),
   importar: (yo: Yo, act: Actividad) => esAdmin(yo) || (esResponsable(yo) && deSuZona(yo, act)) || feriaSuya(yo, act),
   asignarOperadores: (yo: Yo, act: Actividad) => esAdmin(yo) || (esResponsable(yo) && deSuZona(yo, act)),
   /** Listado de inscriptos (nombres y datos de contacto): nunca para Diseño. */
-  verInscriptos: (yo: Yo, act: Actividad, asig: Asignacion[]) => !esDiseno(yo) && !esAgenda(yo) && puede.verActividad(yo, act, asig),
+  verInscriptos: (yo: Yo, act: Actividad, asig: Asignacion[]) => !esDiseno(yo) && !esAgenda(yo) && !esAyudante(yo) && puede.verActividad(yo, act, asig),
+  /** Generar o cortar el acceso de ayudantes (QR): quien organiza la actividad. */
+  sumarAyudantes: (yo: Yo, act: Actividad) => !esAyudante(yo) && (esAdmin(yo) || (esResponsable(yo) && deSuZona(yo, act)) || feriaSuya(yo, act)),
   /** Estado, imágenes y link del flyer: solo administración y diseño (el responsable solo lo pide y lo descarga). */
   editarFlyer: (yo: Yo, _act?: Actividad) => esAdmin(yo) || esDiseno(yo),
   /** Menú Ferias (inscriptas, puestos y croquis): administración y responsables (de su zona). */
