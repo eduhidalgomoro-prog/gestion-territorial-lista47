@@ -278,8 +278,13 @@ export async function cambiarEstadoFeriante(ferianteId: string, activa: boolean,
   const ins = s.inscripciones.find((i) => i.actividad_id === a.id && i.participante_id === f.participante_id);
   if (activa) {
     if (a.cupo && ferianteActivas(s, a.id).length >= a.cupo) throw new UserError("El cupo está completo: para sumarla, primero subí el cupo o da de baja a otra.");
-    if (!hayLugarEnGrupo(a, esGrupo(f.grupo) ? f.grupo : "", ferianteActivas(s, a.id))) throw new UserError("El cupo de su grupo está completo: cambiale el grupo, subí ese cupo o da de baja a otra.");
-    await update("feriantes", ferianteId, { estado: "INSCRIPTA" }, yo.email, { accion: "reincorporar feriante" });
+    let grupo = f.grupo;
+    // La lista de espera es una sola para todos los grupos: entra en el grupo que tenga lugar.
+    if (f.estado === "EN ESPERA" && conGrupos(a) && !hayLugarEnGrupo(a, esGrupo(grupo) ? grupo : "", ferianteActivas(s, a.id))) {
+      grupo = GRUPOS_FERIA.find((g) => parseCupos(a.cupos_grupos)[g] !== undefined && hayLugarEnGrupo(a, g, ferianteActivas(s, a.id))) ?? grupo;
+    }
+    if (!hayLugarEnGrupo(a, esGrupo(grupo) ? grupo : "", ferianteActivas(s, a.id))) throw new UserError("El cupo de su grupo está completo: cambiale el grupo, subí ese cupo o da de baja a otra.");
+    await update("feriantes", ferianteId, { estado: "INSCRIPTA", grupo }, yo.email, { accion: f.estado === "EN ESPERA" ? "de lista de espera a inscripta" : "reincorporar feriante" });
     await inscribir(a.id, [{ participanteId: f.participante_id }], "CARGA MANUAL", yo.email);
   } else {
     await update("feriantes", ferianteId, { estado: "BAJA", puesto: 0 }, yo.email, { accion: "baja de feriante" });

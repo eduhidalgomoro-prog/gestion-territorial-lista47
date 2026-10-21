@@ -62,7 +62,7 @@ export function ListaFeriantes({ filas, puestos, editable, grupos = false }: { f
               <div className="min-w-0 flex-1">
                 <p className="flex flex-wrap items-center gap-1.5 font-bold">
                   {f.nombre} {!f.activa && !f.enEspera && <Badge color="rojo">BAJA</Badge>}
-                  {grupos && (f.activa || f.enEspera) && (
+                  {grupos && f.activa && (
                     editable ? (
                       <select
                         aria-label={`Grupo de ${f.nombre}`}

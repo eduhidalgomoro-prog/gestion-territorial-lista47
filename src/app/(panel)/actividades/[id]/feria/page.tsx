@@ -252,8 +252,8 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
             <section className="mt-6 rounded-3xl border border-alerta/30 bg-alerta-50/40 p-3 sm:p-4">
               <h2 className="font-titulo text-xl font-extrabold">Lista de espera ({filasEspera.length})</h2>
               <p className="mb-3 text-sm text-gris">
-                Se anotaron cuando el cupo ya estaba completo, en orden de llegada. Si alguien se da de baja, pasá a la primera a inscripta
-                {usaGrupos ? " (si su grupo está completo, cambiale el grupo antes)" : ""}.
+                Se anotaron cuando el cupo ya estaba completo, en orden de llegada{usaGrupos ? " (una sola lista para todos los grupos)" : ""}. Si alguien se da de baja, pasá a la primera a inscripta
+                {usaGrupos ? ": entra en el grupo que tenga lugar" : ""}.
               </p>
               <ListaFeriantes filas={filasEspera} puestos={[]} editable={editable} grupos={usaGrupos} />
             </section>

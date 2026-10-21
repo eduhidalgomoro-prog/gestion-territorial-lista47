@@ -721,6 +721,10 @@ describe("feria: cupo por grupos", () => {
     const s = await snapshot({ fresh: true });
     expect(s.feriantes.filter((f) => f.actividad_id === a.id && f.estado === "INSCRIPTA").map((f) => f.grupo).sort()).toEqual(["ESPERA", "ORIGINAL", "ORIGINAL"]);
     expect(s.feriantes.filter((f) => f.actividad_id === a.id && f.estado === "EN ESPERA").map((f) => f.grupo)).toEqual(["ESPERA"]);
+    // Una sola lista de espera: al pasarla a inscripta entra en el grupo que tenga lugar (acá, extras).
+    const cris = s.feriantes.find((f) => f.actividad_id === a.id && f.estado === "EN ESPERA")!;
+    await cambiarEstadoFeriante(cris.id, true, admin);
+    expect((await snapshot({ fresh: true })).feriantes.find((f) => f.id === cris.id)).toMatchObject({ estado: "INSCRIPTA", grupo: "EXTRA" });
   });
 });
 
