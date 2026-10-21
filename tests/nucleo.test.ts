@@ -15,7 +15,8 @@ import { normalizeDni, normalizePhone, parseFechaFlexible, parseFechaNacimiento,
 import { parsePreguntas } from "@/lib/preguntas";
 import type { Yo } from "@/lib/permisos";
 import { aplicarVerComo, misZonas, puede, zonasForzadas } from "@/lib/permisos";
-import { asistenciaPorClase, cerrarActividad, crearActividad, marcarChecklist, resumenAsistencia, type ActividadInput } from "@/lib/services/actividades";
+import { asistenciaPorClase, cerrarActividad, crearActividad, editarFormulario, formularioInscripcion, marcarChecklist, preguntasEditables, resumenAsistencia, type ActividadInput } from "@/lib/services/actividades";
+import { preguntasFijas } from "@/lib/inscripcion-publica";
 import { esOperativoVisual, itemsHechos, progresoChecklist } from "@/lib/guias";
 import { cortarAccesoAyudante, crearAccesoAyudante, ingresarAyudante, venceAcceso, vigente } from "@/lib/services/ayudantes";
 import { limpiarPersona, upsertParticipantes } from "@/lib/services/participantes";
@@ -641,6 +642,42 @@ describe("guía del operativo visual", () => {
     // Una actividad que no es operativo visual no tiene checklist.
     const taller = await crearActividad(input({ nombre: "Taller", fecha: "2099-05-11" }), admin);
     await expect(marcarChecklist(taller.id, "espacios", true, admin)).rejects.toThrow();
+  });
+});
+
+describe("editar formulario de inscripción", () => {
+  it("saca preguntas fijas, guarda preguntas propias y respeta lo elegido al inscribirse", async () => {
+    const a = await crearActividad(input({ nombre: "Charla de salud", fecha: "2099-07-01", preguntas_extra: "" }), admin);
+    await expect(editarFormulario(a.id, { sin: [], preguntas: [{ texto: "¿Color?", tipo: "opciones", opciones: ["Rojo"] }], bienvenida: "", cupo: null }, admin)).rejects.toMatchObject({ fields: { "pregunta-0": expect.any(String) } });
+    await expect(editarFormulario(a.id, { sin: [], preguntas: [], bienvenida: "", cupo: null }, { ...admin, rol: "OPERADOR" })).rejects.toThrow();
+    await editarFormulario(
+      a.id,
+      {
+        sin: ["profe", "espacio", "inventada"],
+        preguntas: [
+          { texto: "¿Traés materiales? [x]", tipo: "sino", opciones: [] },
+          { texto: "¿Turno?", tipo: "opciones", opciones: ["Mañana", "Tarde", "Mañana"] },
+          { texto: "  ", tipo: "libre", opciones: [] }, // vacía: se descarta
+          { texto: "¿Algo más?", tipo: "libre", opciones: [] },
+        ],
+        bienvenida: "¡Te esperamos!",
+        cupo: 30,
+      },
+      admin,
+    );
+    let s = await snapshot({ fresh: true });
+    const g = s.actividades.find((x) => x.id === a.id)!;
+    expect(g).toMatchObject({ formulario_sin: "profe,espacio", bienvenida: "¡Te esperamos!", cupo: 30, preguntas_extra: "¿Traés materiales? x [Sí / No]\n¿Turno? [Mañana / Tarde]\n¿Algo más?" });
+    expect(preguntasEditables(g.preguntas_extra).map((q) => q.tipo)).toEqual(["sino", "opciones", "libre"]);
+    expect(preguntasFijas(g)).toEqual({ participo: true, profe: false, espacio: false });
+    // Aunque lleguen respuestas de preguntas apagadas, no se guardan.
+    await formularioInscripcion(a.id, true, admin);
+    s = await snapshot({ fresh: true });
+    const slug = s.actividades.find((x) => x.id === a.id)!.slug;
+    await inscribirPublico(slug, { ...publico, dni: "43555666", telefono: "3794555666", escuela: { ...publico.escuela, participo_antes: "SI", quiere_ser_profe: "SI", ensenaria: "Cocina" } });
+    s = await snapshot({ fresh: true });
+    const ins = s.inscripciones.find((i) => i.actividad_id === a.id)!;
+    expect(ins).toMatchObject({ participo_antes: "SI", quiere_ser_profe: "", ensenaria: "" });
   });
 });
 

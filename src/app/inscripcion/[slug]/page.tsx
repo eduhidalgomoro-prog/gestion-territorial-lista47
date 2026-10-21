@@ -13,7 +13,7 @@ import { IconCalendar, IconClock, IconHeart, IconPin } from "@/components/icons"
 import { rubroDe } from "@/components/taller";
 import { fechasDeClases } from "@/lib/clases";
 import { linkCalendario } from "@/lib/compartir";
-import { CIUDAD_CAPITAL, esTallerEscuela, preguntasSinRepetir } from "@/lib/inscripcion-publica";
+import { BIENVENIDA_POR_DEFECTO, CIUDAD_CAPITAL, esTallerEscuela, preguntasFijas, preguntasSinRepetir } from "@/lib/inscripcion-publica";
 import type { Actividad } from "@/lib/schema";
 import { nombrePropio, parseRegiones } from "@/lib/territorio";
 import { FeriaForm } from "./feria-form";
@@ -134,7 +134,7 @@ export default async function FormularioPublico({ params }: { params: Promise<{ 
                   <IconHeart size={24} fill="currentColor" strokeWidth={0} />
                 </span>
                 <div>
-                  <p className="font-titulo text-[22px] leading-tight font-extrabold text-petroleo-600">¡Qué bueno que quieras participar!</p>
+                  <p className="font-titulo text-[22px] leading-tight font-extrabold whitespace-pre-line text-petroleo-600">{a.bienvenida || BIENVENIDA_POR_DEFECTO}</p>
                   <p className="mt-1 text-[17px] leading-snug text-tinta">Completá tus datos para reservar tu lugar. Te va a llevar menos de 2 minutos.</p>
                 </div>
               </div>
@@ -155,6 +155,7 @@ export default async function FormularioPublico({ params }: { params: Promise<{ 
                 ciudades={ciudades}
                 ciudadInicial={ciudadInicial}
                 escuela={escuela}
+                fijas={preguntasFijas(a)}
                 listaEspera={lugares.libres === 0}
                 taller={{
                   nombre: a.nombre,

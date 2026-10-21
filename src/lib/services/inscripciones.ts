@@ -6,7 +6,7 @@ import { puede, type Yo } from "../permisos";
 import { CONFIRMACIONES, type Actividad, type Confirmacion, type Inscripcion, type OrigenInscripcion } from "../schema";
 import { cleanString, normalizeDni, nowIso, parseFechaFlexible, today } from "../util";
 import { parsePreguntas } from "../preguntas";
-import { CIUDAD_CAPITAL, esCapital, esTallerEscuela, fechaNacimientoPublica, limpiarEscuela, preguntasSinRepetir, validarInscripcion, type DatosInscripcion, type RespuestasEscuela } from "../inscripcion-publica";
+import { CIUDAD_CAPITAL, esCapital, esTallerEscuela, fechaNacimientoPublica, limpiarEscuela, preguntasFijas, preguntasSinRepetir, validarInscripcion, type DatosInscripcion, type RespuestasEscuela } from "../inscripcion-publica";
 
 const SIN_RESPUESTAS_ESCUELA: RespuestasEscuela = { participo_antes: "", ex_alumna: "", quiere_ser_profe: "", ensenaria: "", conoce_espacio: "", espacio: "" };
 import { ajustarPrimeraFecha, clavePersona, crearBuscador, limpiarPersona, upsertParticipantes, type PersonaInput, type PersonaLimpia } from "./participantes";
@@ -289,7 +289,17 @@ export async function inscribirPublico(slug: string, input: InscripcionPublicaIn
     { ...input, ciudad: esCapital(input.ciudad) ? CIUDAD_CAPITAL : input.ciudad, fecha_nacimiento: fechaNacimientoPublica(input.fecha_nacimiento) },
     { telefonoObligatorio: true, barrioObligatorio: esCapital(input.ciudad) }, // en el interior el barrio es opcional
   );
-  const escuela = esTallerEscuela(a) ? limpiarEscuela(input.escuela, (t) => cleanString(t, 500)) : SIN_RESPUESTAS_ESCUELA;
+  const escuelaCruda = esTallerEscuela(a) ? limpiarEscuela(input.escuela, (t) => cleanString(t, 500)) : SIN_RESPUESTAS_ESCUELA;
+  // Solo se guardan las preguntas fijas que esta actividad hace.
+  const fijas = preguntasFijas(a);
+  const escuela: RespuestasEscuela = {
+    ...escuelaCruda,
+    participo_antes: fijas.participo ? escuelaCruda.participo_antes : "",
+    quiere_ser_profe: fijas.profe ? escuelaCruda.quiere_ser_profe : "",
+    ensenaria: fijas.profe ? escuelaCruda.ensenaria : "",
+    conoce_espacio: fijas.espacio ? escuelaCruda.conoce_espacio : "",
+    espacio: fijas.espacio ? escuelaCruda.espacio : "",
+  };
   const preguntas = parsePreguntas(a.preguntas_extra);
   const visibles = new Set(preguntasSinRepetir(preguntas, esTallerEscuela(a)).map((x) => x.indice));
   const respuestas = preguntas

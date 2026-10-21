@@ -102,9 +102,9 @@ const snapshotCompartido = unstable_cache(
     if (JSON.stringify(s).length > MAX_BYTES) throw new DemasiadoGrande(); // no se guarda: se lee directo
     return s;
   },
-  // Cambiar la versión cuando se agrega una hoja nueva: la copia compartida sobrevive a los deploys
+  // Cambiar la versión cuando se agrega una hoja o columna nueva: la copia compartida sobrevive a los deploys
   // y, si no, el código nuevo leería una copia vieja sin esa hoja.
-  ["snapshot-v2"],
+  ["snapshot-v3"],
   { tags: [TAG], revalidate: REVALIDAR_S },
 );
 

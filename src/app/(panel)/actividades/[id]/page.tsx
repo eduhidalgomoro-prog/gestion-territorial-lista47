@@ -356,6 +356,9 @@ export default async function FichaActividad({ params, searchParams }: { params:
             <div className="flex flex-wrap gap-2">
               <CopyButton text={link} label="Copiar enlace" />
               <a href={`/inscripcion/${a.slug}`} target="_blank" rel="noopener noreferrer" className={btn("secundario", "sm")}>Ver formulario</a>
+              {editar && !a.es_feria && (
+                <Link href={`/actividades/${a.id}/formulario`} className={btn("petroleo", "sm")}><IconEdit size={16} /> Editar formulario</Link>
+              )}
               {editar && (
                 <ActionForm action={formularioAction.bind(null, a.id, !a.inscripcion_abierta)}>
                   <SubmitButton size="sm" variant={a.inscripcion_abierta ? "peligro" : "primario"} pendingText="…">

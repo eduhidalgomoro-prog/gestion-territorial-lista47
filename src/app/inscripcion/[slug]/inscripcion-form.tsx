@@ -5,7 +5,7 @@ import { useActionState, useEffect, useRef, useState, type ReactNode } from "rea
 import { useSubmitWithoutReset } from "@/components/forms";
 import { IconAlert, IconCalendar, IconCheck, IconClock, IconPin, IconShare, IconWhatsApp } from "@/components/icons";
 import { formatPhone, normalizePhone, titleCase } from "@/lib/format";
-import { ORDEN_CAMPOS, OTRO, esCapital, validarInscripcion } from "@/lib/inscripcion-publica";
+import { ORDEN_CAMPOS, OTRO, esCapital, validarInscripcion, type PreguntaFija } from "@/lib/inscripcion-publica";
 import type { Pregunta } from "@/lib/preguntas";
 import { inscribirAction, type InscripcionState } from "./actions";
 
@@ -87,8 +87,10 @@ function Bloque({ numero, titulo, texto, listo, children }: { numero: number; ti
 type Valores = Record<"nombre" | "apellido" | "dni" | "ciudad" | "ciudad_otra" | "barrio" | "barrio_otro" | "direccion" | "fn_dia" | "fn_mes" | "fn_anio" | "telefono", string>;
 
 export function InscripcionForm({
-  slug, token, preguntas, barrios, ciudades, ciudadInicial, escuela, taller, listaEspera = false,
+  slug, token, preguntas, barrios, ciudades, ciudadInicial, escuela, taller, listaEspera = false, fijas = { participo: true, profe: true, espacio: true },
 }: {
+  /** Preguntas fijas que hace esta actividad (cada actividad puede sacar las que no le sirven). */
+  fijas?: Record<PreguntaFija, boolean>;
   /** Cupo completo: el formulario anota en la lista de espera. */
   listaEspera?: boolean;
   slug: string;
@@ -179,11 +181,20 @@ export function InscripcionForm({
   }
 
   const datosListos = ORDEN_CAMPOS.filter((k) => k !== "consentimiento").every((k) => !validarInscripcion(datos)[k]);
-  const conocerteListo = escuela ? !!r.participo_antes : preguntas.length > 0 && preguntas.every((q) => extra[q.indice]);
-  const escuelaLista = !!r.quiere_ser_profe && !!r.conoce_espacio;
-  const pasos = escuela
-    ? [{ n: 1, t: "Tus datos", ok: datosListos }, { n: 2, t: "Conocerte", ok: conocerteListo }, { n: 3, t: "Escuela", ok: escuelaLista }]
-    : [];
+  // Cada actividad elige qué preguntas fijas hace (los datos personales van siempre).
+  const conParticipo = escuela && fijas.participo;
+  const verConocerte = conParticipo || preguntas.length > 0;
+  const verEscuela = escuela && (fijas.profe || fijas.espacio);
+  const conocerteListo = (!conParticipo || !!r.participo_antes) && preguntas.every((q) => extra[q.indice]);
+  const escuelaLista = (!fijas.profe || !!r.quiere_ser_profe) && (!fijas.espacio || !!r.conoce_espacio);
+  const nConocerte = 2;
+  const nEscuela = verConocerte ? 3 : 2;
+  const pasos = [
+    { n: 1, t: "Tus datos", ok: datosListos },
+    ...(verConocerte ? [{ n: nConocerte, t: escuela ? "Conocerte" : "Preguntas", ok: conocerteListo }] : []),
+    ...(verEscuela ? [{ n: nEscuela, t: "Escuela", ok: escuelaLista }] : []),
+  ];
+  if (pasos.length < 2) pasos.length = 0; // un solo bloque: sin guía de pasos
   const telOk = normalizePhone(v.telefono).length === 10;
   const hayErrores = Object.values(e).some(Boolean);
 
@@ -326,23 +337,36 @@ export function InscripcionForm({
         </Campo>
       </Bloque>
 
-      {escuela ? (
-        <>
-          <Bloque numero={2} titulo="Queremos conocerte" texto="Son preguntas cortitas. Nos ayudan a armar mejores talleres." listo={conocerteListo}>
+      {verConocerte && (
+        <Bloque
+          numero={nConocerte}
+          titulo={escuela ? "Queremos conocerte" : "Unas preguntas más"}
+          texto={escuela ? "Son preguntas cortitas. Nos ayudan a armar mejores talleres." : "Son cortitas."}
+          listo={conocerteListo}
+        >
+          {conParticipo && (
             <SiNo name="participo_antes" label="¿Participaste alguna vez de nuestras actividades?" value={r.participo_antes} onChange={(x) => setR((p) => ({ ...p, participo_antes: x }))} />
-            {preguntasExtra}
-          </Bloque>
+          )}
+          {preguntasExtra}
+        </Bloque>
+      )}
 
-          <Bloque numero={3} titulo="Sumate a la escuela" texto="También queremos conocer tus ideas y descubrir nuevos espacios para seguir haciendo talleres." listo={escuelaLista}>
-            <SiNo name="quiere_ser_profe" label="¿Te gustaría ser profe de nuestra escuela?" value={r.quiere_ser_profe} onChange={(x) => setR((p) => ({ ...p, quiere_ser_profe: x }))} />
-            {r.quiere_ser_profe === "SI" && (
+      {verEscuela && (
+        <>
+          <Bloque numero={nEscuela} titulo="Sumate a la escuela" texto="También queremos conocer tus ideas y descubrir nuevos espacios para seguir haciendo talleres." listo={escuelaLista}>
+            {fijas.profe && (
+              <SiNo name="quiere_ser_profe" label="¿Te gustaría ser profe de nuestra escuela?" value={r.quiere_ser_profe} onChange={(x) => setR((p) => ({ ...p, quiere_ser_profe: x }))} />
+            )}
+            {fijas.profe && r.quiere_ser_profe === "SI" && (
               <div className="-mt-1 mb-6 rounded-2xl bg-verde-50 p-4">
                 <label htmlFor="ensenaria" className="mb-1.5 block text-[17px] font-bold text-tinta">¿Qué te gustaría enseñar?</label>
                 <input id="ensenaria" name="ensenaria" value={r.ensenaria} onChange={(x) => setR((p) => ({ ...p, ensenaria: x.target.value }))} placeholder="Costura, cocina, manualidades, belleza, algún oficio…" className={field} maxLength={500} />
               </div>
             )}
-            <SiNo name="conoce_espacio" label="¿Conocés algún lugar o espacio donde podamos hacer nuestros talleres?" value={r.conoce_espacio} onChange={(x) => setR((p) => ({ ...p, conoce_espacio: x }))} />
-            {r.conoce_espacio === "SI" && (
+            {fijas.espacio && (
+              <SiNo name="conoce_espacio" label="¿Conocés algún lugar o espacio donde podamos hacer nuestros talleres?" value={r.conoce_espacio} onChange={(x) => setR((p) => ({ ...p, conoce_espacio: x }))} />
+            )}
+            {fijas.espacio && r.conoce_espacio === "SI" && (
               <div className="-mt-1 rounded-2xl bg-verde-50 p-4">
                 <label htmlFor="espacio" className="block text-[17px] font-bold text-tinta">¡Contanos un poquito más sobre el lugar!</label>
                 <p className="mt-1 mb-2 text-[15px] text-gris">Puede ser una casa, salón, patio, club, institución u otro espacio.</p>
@@ -352,12 +376,6 @@ export function InscripcionForm({
             )}
           </Bloque>
         </>
-      ) : (
-        preguntas.length > 0 && (
-          <Bloque numero={2} titulo="Unas preguntas más" texto="Son cortitas." listo={conocerteListo}>
-            {preguntasExtra}
-          </Bloque>
-        )
       )}
 
       <section className="rounded-[28px] border border-linea bg-white p-5 shadow-[0_1px_3px_rgba(16,105,133,0.06)] sm:p-7">
@@ -369,7 +387,7 @@ export function InscripcionForm({
               className="mt-0.5 size-7 shrink-0 cursor-pointer accent-[#3f742c]" aria-invalid={!!e.consentimiento}
             />
             <span className="text-[16px] leading-snug text-tinta">
-              Acepto que mis datos sean usados para gestionar mi inscripción y contactarme por actividades de la Escuela.
+              Acepto que mis datos sean usados para gestionar mi inscripción y contactarme por {verEscuela ? "actividades de la Escuela" : "futuras actividades"}.
             </span>
           </label>
           {e.consentimiento && <MensajeError>{e.consentimiento}</MensajeError>}

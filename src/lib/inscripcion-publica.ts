@@ -94,6 +94,26 @@ export function limpiarEscuela(r: RespuestasEscuela, limpiar: (s: string) => str
 }
 
 /**
+ * Preguntas fijas del formulario (además de los datos personales, que se piden siempre).
+ * Cada actividad puede sacar las que no le sirven (columna «formulario_sin»); por defecto se hacen todas.
+ */
+export const PREGUNTAS_FIJAS = [
+  { id: "participo", bloque: "conocerte", texto: "¿Participaste alguna vez de nuestras actividades?", detalle: "Respuesta Sí / No." },
+  { id: "profe", bloque: "escuela", texto: "¿Te gustaría ser profe de nuestra escuela?", detalle: "Si responde que sí, se le pregunta qué le gustaría enseñar." },
+  { id: "espacio", bloque: "escuela", texto: "¿Conocés algún lugar o espacio donde podamos hacer nuestros talleres?", detalle: "Si responde que sí, se le pide que cuente cómo es el lugar." },
+] as const;
+export type PreguntaFija = (typeof PREGUNTAS_FIJAS)[number]["id"];
+export const IDS_PREGUNTAS_FIJAS = PREGUNTAS_FIJAS.map((p) => p.id) as PreguntaFija[];
+
+/** Qué preguntas fijas hace esta actividad. */
+export function preguntasFijas(a: { formulario_sin?: string }): Record<PreguntaFija, boolean> {
+  const sin = new Set((a.formulario_sin ?? "").split(",").map((x) => x.trim()));
+  return { participo: !sin.has("participo"), profe: !sin.has("profe"), espacio: !sin.has("espacio") };
+}
+
+export const BIENVENIDA_POR_DEFECTO = "¡Qué bueno que quieras participar!";
+
+/**
  * Todos los formularios de inscripción son iguales (bloques «Queremos conocerte» y «Sumate a la escuela»),
  * salvo Marcando Huellas (no tiene inscripción) y las ferias (tienen su propio formulario de feriantes).
  */

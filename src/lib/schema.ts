@@ -124,6 +124,8 @@ export interface Actividad extends Meta {
   link_inscripcion: string;
   inscripcion_abierta: boolean;
   preguntas_extra: string; // una pregunta por línea
+  formulario_sin: string; // preguntas fijas del formulario que esta actividad NO hace (ids separados por coma; "" = todas)
+  bienvenida: string; // texto de bienvenida propio del formulario ("" = el de siempre)
   inscriptos: number; // se congelan al cerrar
   presentes: number;
   ausentes: number;
@@ -416,6 +418,8 @@ export const TABLES: Record<TableName, TableDef> = {
       ["link_inscripcion", "Link formulario inscripción"],
       ["inscripcion_abierta", "Inscripción abierta"],
       ["preguntas_extra", "Preguntas adicionales"],
+      ["formulario_sin", "Formulario: preguntas que no se hacen"],
+      ["bienvenida", "Formulario: texto de bienvenida"],
       ["inscriptos", "Inscriptos"],
       ["presentes", "Presentes"],
       ["ausentes", "Ausentes"],

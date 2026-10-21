@@ -6,8 +6,8 @@ import { requireUser } from "@/lib/auth";
 import { toActionError, UserError, type ActionResult } from "@/lib/errors";
 import { puede } from "@/lib/permisos";
 import {
-  actualizarFlyer, asignarOperador, cambiarEstado, cerrarActividad, crearActividad, editarActividad, formularioInscripcion, marcarChecklist, quitarOperador,
-  type ActividadInput,
+  actualizarFlyer, asignarOperador, cambiarEstado, cerrarActividad, crearActividad, editarActividad, editarFormulario, formularioInscripcion, marcarChecklist, quitarOperador,
+  type ActividadInput, type FormularioInput,
 } from "@/lib/services/actividades";
 import { crearUsuario, editarUsuario, guardarBarrio, guardarConfig, guardarInstitucion } from "@/lib/services/administracion";
 import { agregarPresente, buscarPorDni, guardarAsistencia, type Marca } from "@/lib/services/asistencia";
@@ -89,6 +89,10 @@ export async function asignarOperadorAction(actividadId: string, _: ActionResult
 
 export async function quitarOperadorAction(asignacionId: string): Promise<ActionResult> {
   return act((yo) => quitarOperador(asignacionId, yo), { ok: "Asignación quitada." });
+}
+
+export async function editarFormularioAction(actividadId: string, input: FormularioInput): Promise<ActionResult> {
+  return act((yo) => editarFormulario(actividadId, input, yo), { ok: "Formulario guardado. Ya se ve así en el link de inscripción." });
 }
 
 /** Acceso de ayudantes con QR (desde la ficha). Se usan como action de un <form>. */

@@ -11,8 +11,10 @@ import {
 } from "../schema";
 import { cantidadClases, claseDeMarca, estadoPorPersona, fechasDeClases } from "../clases";
 import { esOperativoVisual, IDS_CHECKLIST_VISUAL, itemsHechos } from "../guias";
+import { IDS_PREGUNTAS_FIJAS } from "../inscripcion-publica";
+import { parsePreguntas } from "../preguntas";
 import { ambitoDe, buscarLocalidad, nombrePropio, parseRegiones, SIN_REGION, zonaValida, type Region } from "../territorio";
-import { cleanString, isValidDate, isValidTime, mesAnio, normalizeBarrio, nowIso, nowLocal, pct, slugify, titleCase } from "../util";
+import { cleanString, isValidDate, isValidTime, mesAnio, normalizeBarrio, normalizeText, nowIso, nowLocal, pct, slugify, titleCase } from "../util";
 
 
 export interface InsumoInput {
@@ -271,6 +273,8 @@ export async function crearActividad(input: ActividadInput, yo: Yo, opts: { feri
         link_inscripcion: linkInscripcion(slug),
         inscripcion_abierta: !!slug,
         checklist: "",
+        formulario_sin: "",
+        bienvenida: "",
         inscriptos: 0, presentes: 0, ausentes: 0, pct_asistencia: 0,
         resultados: "", incidencias: "", fotos: "",
         link_flyer_historia: "",
@@ -345,6 +349,67 @@ export async function actualizarFlyer(id: string, estado: string, link: string, 
 }
 
 /** Genera (o reabre/cierra) el formulario público de inscripción. */
+/** Una pregunta propia del formulario, como se edita en la pantalla «Editar formulario». */
+export interface PreguntaEditable {
+  texto: string;
+  tipo: "libre" | "sino" | "opciones";
+  opciones: string[];
+}
+
+export interface FormularioInput {
+  sin: string[]; // preguntas fijas que NO se hacen
+  preguntas: PreguntaEditable[];
+  bienvenida: string;
+  cupo: number | null; // null o 0 = sin límite
+}
+
+/** Del texto guardado (una pregunta por línea) a la lista que se edita. */
+export function preguntasEditables(texto: string): PreguntaEditable[] {
+  return parsePreguntas(texto).map((q) => {
+    const sino = q.opciones?.length === 2 && q.opciones.map((o) => normalizeText(o)).join("/") === "si/no";
+    return { texto: q.texto, tipo: !q.opciones ? "libre" : sino ? "sino" : "opciones", opciones: q.opciones ?? [] };
+  });
+}
+
+/**
+ * Edición del formulario de inscripción de una actividad: qué preguntas fijas hace, preguntas propias,
+ * texto de bienvenida y cupo. Los datos personales se piden siempre (no se pueden sacar).
+ */
+export async function editarFormulario(id: string, input: FormularioInput, yo: Yo) {
+  const a = await actividadEditable(id, yo);
+  const f: Record<string, string> = {};
+  const sinCorchetes = (s: string, max: number) => cleanString(s, max).replace(/[[\]|/\r\n]+/g, " ").replace(/\s+/g, " ").trim();
+  const lineas: string[] = [];
+  (input.preguntas ?? []).forEach((q, i) => {
+    const texto = sinCorchetes(q.texto ?? "", 200);
+    if (!texto) return; // las preguntas vacías se descartan
+    if (q.tipo === "sino") lineas.push(`${texto} [Sí / No]`);
+    else if (q.tipo === "opciones") {
+      const opciones = [...new Set((q.opciones ?? []).map((o) => sinCorchetes(o, 60)).filter(Boolean))];
+      if (opciones.length < 2) f[`pregunta-${i}`] = "Poné al menos dos opciones para elegir.";
+      else if (opciones.length > 8) f[`pregunta-${i}`] = "Hasta 8 opciones por pregunta.";
+      else lineas.push(`${texto} [${opciones.join(" / ")}]`);
+    } else lineas.push(texto);
+  });
+  if (lineas.length > 15) f.preguntas = "Hasta 15 preguntas propias.";
+  const cupo = input.cupo === null || input.cupo === undefined || Number(input.cupo) === 0 ? 0 : Math.round(Number(input.cupo));
+  if (!Number.isFinite(cupo) || cupo < 0 || cupo > 5000) f.cupo = "El cupo tiene que ser un número entre 1 y 5000 (vacío = sin límite).";
+  if (Object.keys(f).length) throw new UserError("Revisá lo marcado.", f);
+  const sin = IDS_PREGUNTAS_FIJAS.filter((x) => (input.sin ?? []).includes(x));
+  return update(
+    "actividades",
+    id,
+    {
+      preguntas_extra: lineas.join("\n"),
+      formulario_sin: sin.join(","),
+      bienvenida: cleanString(input.bienvenida ?? "", 120),
+      ...(a.es_feria ? {} : { cupo }),
+    },
+    yo.email,
+    { accion: "editar formulario de inscripción" },
+  );
+}
+
 export async function formularioInscripcion(id: string, abrir: boolean, yo: Yo) {
   const a = await actividadEditable(id, yo);
   const s = await snapshot();
