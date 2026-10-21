@@ -9,7 +9,7 @@ import { TIPOS_PUESTO, type Actividad, type Feriante, type Puesto, type TipoPues
 import { cleanString, normalizePhone, nowIso, phoneKey } from "../util";
 import { after } from "next/server";
 import { BusyError } from "../lock";
-import { inicializada, inicializar, invalidarContadores, largoCola, reservar, sacarDeCola, verCola } from "../cola-feria";
+import { esperar, inicializada, inicializar, invalidarContadores, largoCola, reservar, sacarDeCola, verCola } from "../cola-feria";
 import { conGrupos, esGrupo, grupoAbierto, GRUPOS_FERIA, grupoDe, MENSAJE_GRUPO_CERRADO, mismaPersona, parseCupos, unicoGrupoAbierto, unirCupos, type GrupoFeria } from "../ferias-grupos";
 import { crearActividad, formularioInscripcion } from "./actividades";
 import { inscribir, inscripcionAbiertaPublica } from "./inscripciones";
@@ -320,6 +320,7 @@ function limpiarFeriante(input: FerianteInput) {
 export type ResultadoFeria =
   | { status: "inscripta"; nombre: string }
   | { status: "ya"; nombre: string }
+  | { status: "en_espera" | "ya_en_espera"; nombre: string } // cupo completo: quedó en la lista de espera
   | { status: "cerrada" | "completo"; motivo: string };
 
 const COMPLETO = "¡Se completó el cupo de esta feria! Gracias por tu interés: vas a tener oportunidad en la próxima.";
@@ -369,7 +370,7 @@ async function anotar(a: Actividad, input: FerianteInput, origen: "FORMULARIO PR
  */
 export async function inscribirFeriaPublico(slug: string, input: FerianteInput & { consentimiento: boolean }): Promise<ResultadoFeria> {
   const { resultado, actividadId } = await reservarLugarFeria(slug, input);
-  if (resultado.status === "inscripta" && actividadId) await despues(() => vaciarCola(actividadId));
+  if ((resultado.status === "inscripta" || resultado.status === "en_espera") && actividadId) await despues(() => vaciarCola(actividadId));
   return resultado;
 }
 
@@ -393,9 +394,12 @@ export async function reservarLugarFeria(slug: string, input: FerianteInput & { 
     await armarContadores(a.id);
     r = await reservar(a.id, grupo, maxGrupo, a.cupo || 0, claves, payload);
   }
-  const resultado: ResultadoFeria =
-    r === "ok" ? { status: "inscripta", nombre: persona.nombre } : r === "ya" ? { status: "ya", nombre: persona.nombre } : { status: "completo", motivo: COMPLETO };
-  return { resultado, actividadId: a.id };
+  if (r === "ok") return { resultado: { status: "inscripta", nombre: persona.nombre }, actividadId: a.id };
+  if (r === "ya") return { resultado: { status: "ya", nombre: persona.nombre }, actividadId: a.id };
+  // Sin lugar: queda en la lista de espera (en orden de llegada), para que la encargada la sume si se libera un lugar.
+  const e = await esperar(a.id, claves, JSON.stringify({ ...(JSON.parse(payload) as EnCola), espera: true } satisfies EnCola));
+  const status = e === "espera" ? "en_espera" : e === "ya" ? "ya" : "ya_en_espera";
+  return { resultado: { status, nombre: persona.nombre }, actividadId: a.id };
 }
 
 /** Lo que espera en la cola hasta guardarse en la planilla. */
@@ -404,6 +408,7 @@ interface EnCola {
   datos: ReturnType<typeof limpiarFeriante>["datos"];
   grupo: string;
   consentimiento: string;
+  espera?: boolean; // sin lugar: va a la lista de espera
 }
 
 /** Claves para no anotar dos veces a la misma persona: su teléfono y su DNI. */
@@ -449,15 +454,21 @@ async function armarContadoresYa(actividadId: string) {
     porGrupo[g] = (porGrupo[g] ?? 0) + 1;
     if (p) claves.push(...clavesPersona(p));
   };
+  const clavesEspera: string[] = [];
   for (const f of activas) sumar(f.grupo, personas.get(f.participante_id));
+  for (const f of feriantes) {
+    const p = personas.get(f.participante_id);
+    if (f.actividad_id === actividadId && f.estado === "EN ESPERA" && p) clavesEspera.push(...clavesPersona(p));
+  }
   for (const x of await verCola(actividadId)) {
     const e = JSON.parse(x) as EnCola;
-    sumar(e.grupo, e.persona);
+    if (e.espera) clavesEspera.push(...clavesPersona(e.persona));
+    else sumar(e.grupo, e.persona);
   }
   const total = Object.values(porGrupo).reduce((n, v) => n + v, 0);
   for (const g of GRUPOS_FERIA) porGrupo[g] ??= 0;
   porGrupo.TODAS ??= 0;
-  await inicializar(actividadId, { porGrupo, total, claves });
+  await inicializar(actividadId, { porGrupo, total, claves, clavesEspera });
 }
 
 /**
@@ -487,6 +498,14 @@ export async function vaciarCola(actividadId: string) {
         items.forEach((it, i) => {
           const pid = res[i].participante.id;
           const previa = porPart.get(pid);
+          if (it.espera) {
+            // A la lista de espera (si ya tenía lugar o ya estaba esperando, no se duplica).
+            if (vistos.has(pid) || previa?.estado === "INSCRIPTA" || previa?.estado === "EN ESPERA") return;
+            vistos.add(pid);
+            if (previa) reactivar.push({ id: previa.id, patch: { ...it.datos, estado: "EN ESPERA", puesto: 0, grupo: it.grupo } });
+            else crear.push({ actividad_id: actividadId, participante_id: pid, ...it.datos, estado: "EN ESPERA", puesto: 0, grupo: it.grupo, observaciones: "" });
+            return;
+          }
           if (vistos.has(pid) || previa?.estado === "INSCRIPTA") {
             sobran++; // ya estaba (misma persona con otro teléfono): no se duplica
             return;
@@ -599,7 +618,8 @@ export async function cargarListaFeria(actividadId: string, grupo: "ORIGINAL" | 
 /** Personas de las listas que todavía no se inscribieron (para avisarles). */
 export function faltanInscribirse(a: Actividad, s: Pick<Snapshot, "listas_feria" | "feriantes" | "participantes">) {
   const personas = new Map(s.participantes.map((p) => [p.id, p]));
-  const inscriptas = ferianteActivas(s, a.id).map((f) => {
+  // Las que quedaron en la lista de espera también se anotaron.
+  const inscriptas = s.feriantes.filter((f) => f.actividad_id === a.id && (f.estado === "INSCRIPTA" || f.estado === "EN ESPERA")).map((f) => {
     const p = personas.get(f.participante_id);
     return { nombre: `${p?.nombre ?? ""} ${p?.apellido ?? ""}`, telefono: p?.telefono ?? "" };
   });

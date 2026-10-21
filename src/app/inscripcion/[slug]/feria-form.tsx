@@ -31,6 +31,19 @@ export function FeriaForm({ slug, token, rubros }: { slug: string; token: string
   const onSubmit = useSubmitWithoutReset(action);
   const e = state.fields ?? {};
 
+  if (state.ok && (state.data?.status === "en_espera" || state.data?.status === "ya_en_espera")) {
+    return (
+      <div role="status" className="rounded-2xl bg-white p-6 text-center ring-1 ring-alerta/40">
+        <p className="font-titulo text-2xl font-extrabold text-tinta">Se completó el cupo{state.data.nombre ? `, ${state.data.nombre}` : ""}</p>
+        <p className="mt-2 text-[16px] leading-relaxed">
+          {state.data.status === "ya_en_espera"
+            ? "Ya estabas anotada en la lista de espera."
+            : "Quedaste anotada en la lista de espera, en orden de llegada."}{" "}
+          Si se libera un lugar, te avisamos por WhatsApp.
+        </p>
+      </div>
+    );
+  }
   if (state.ok && state.data) {
     return (
       <div role="status" className="rounded-2xl bg-white p-6 text-center ring-1 ring-verde">

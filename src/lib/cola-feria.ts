@@ -10,11 +10,13 @@ import { env } from "./env";
  */
 
 export type Reserva = "ok" | "ya" | "completo" | "init";
+export type Espera = "espera" | "ya" | "ya_espera";
 
 export interface Conteos {
   porGrupo: Record<string, number>;
   total: number;
   claves: string[]; // teléfonos / DNI de quienes ya tienen lugar (para no anotarlas dos veces)
+  clavesEspera: string[]; // y de quienes ya están en la lista de espera
 }
 
 const PREFIJO = () => `gt47:${(env.spreadsheetId() || "local").slice(0, 10)}:feria`;
@@ -35,6 +37,19 @@ redis.call('incr', KEYS[3])
 for i = 4, #ARGV do redis.call('hset', KEYS[4], ARGV[i], '1') end
 redis.call('rpush', KEYS[5], ARGV[3])
 return 'ok'`;
+
+// Lista de espera: no ocupa lugar; solo evita anotar dos veces a la misma persona.
+const ESPERAR = `
+for i = 2, #ARGV do
+  if redis.call('hexists', KEYS[1], ARGV[i]) == 1 then return 'ya' end
+end
+for i = 2, #ARGV do
+  if redis.call('hexists', KEYS[2], ARGV[i]) == 1 then return 'ya_espera' end
+end
+for i = 2, #ARGV do redis.call('hset', KEYS[2], ARGV[i], '1') end
+redis.call('expire', KEYS[2], ${3 * 86_400})
+redis.call('rpush', KEYS[3], ARGV[1])
+return 'espera'`;
 
 let redis: Redis | null | undefined;
 function getRedis(): Redis | null {
@@ -58,6 +73,7 @@ const mem = {
   },
   cnt: new Map<string, number>(),
   quien: new Map<string, Set<string>>(),
+  espera: new Map<string, Set<string>>(),
   cola: new Map<string, string[]>(),
 };
 
@@ -81,6 +97,20 @@ export async function reservar(id: string, grupo: string, maxGrupo: number, maxT
   return "ok";
 }
 
+/** Anota en la lista de espera (cuando ya no hay lugar): «espera», o «ya» / «ya_espera» si esa persona ya tenía lugar o ya estaba esperando. */
+export async function esperar(id: string, claves: string[], payload: string): Promise<Espera> {
+  const r = getRedis();
+  if (r) return (await r.eval(ESPERAR, [k(id, "quien"), k(id, "espera"), k(id, "cola")], [payload, ...claves])) as Espera;
+  const quien = mem.quien.get(id) ?? new Set();
+  if (claves.some((c) => quien.has(c))) return "ya";
+  const espera = mem.espera.get(id) ?? new Set();
+  if (claves.some((c) => espera.has(c))) return "ya_espera";
+  claves.forEach((c) => espera.add(c));
+  mem.espera.set(id, espera);
+  mem.cola.set(id, [...(mem.cola.get(id) ?? []), payload]);
+  return "espera";
+}
+
 /** ¿Los contadores ya están armados? (para que, si llegan muchas juntas, se armen una sola vez). */
 export async function inicializada(id: string): Promise<boolean> {
   const r = getRedis();
@@ -98,6 +128,9 @@ export async function inicializar(id: string, c: Conteos) {
     p.set(k(id, "cnt:total"), c.total, { ex: DIAS_INIT });
     if (c.claves.length) p.hset(k(id, "quien"), Object.fromEntries(c.claves.map((x) => [x, "1"])));
     p.expire(k(id, "quien"), DIAS_INIT);
+    p.del(k(id, "espera"));
+    if (c.clavesEspera.length) p.hset(k(id, "espera"), Object.fromEntries(c.clavesEspera.map((x) => [x, "1"])));
+    p.expire(k(id, "espera"), DIAS_INIT);
     p.set(k(id, "init"), "1", { ex: DIAS_INIT });
     await p.exec();
     return;
@@ -106,6 +139,7 @@ export async function inicializar(id: string, c: Conteos) {
   for (const [g, n] of Object.entries(c.porGrupo)) mem.cnt.set(`${id}:${g}`, n);
   mem.cnt.set(`${id}:total`, c.total);
   mem.quien.set(id, new Set(c.claves));
+  mem.espera.set(id, new Set(c.clavesEspera));
   mem.init.add(id);
 }
 
@@ -147,5 +181,6 @@ export function reiniciarMemoria() {
   mem.init.clear();
   mem.cnt.clear();
   mem.quien.clear();
+  mem.espera.clear();
   mem.cola.clear();
 }

@@ -195,9 +195,11 @@ describe("participantes, importación y asistencia", () => {
     expect(await inscribirFeriaPublico(feria.slug, persona("Bea", "Gómez", "3794222222", { al_lado_de: "Carla Ruiz", rubro: "Comida" }))).toMatchObject({ status: "inscripta" });
     expect(await inscribirFeriaPublico(feria.slug, persona("Ana", "Pérez", "379 4111111", { comparte: "NO" }))).toMatchObject({ status: "ya" }); // no se duplica
     expect(await inscribirFeriaPublico(feria.slug, persona("Carla", "Ruiz", "3794333333"))).toMatchObject({ status: "inscripta" });
-    expect(await inscribirFeriaPublico(feria.slug, persona("Dora", "Sosa", "3794444444"))).toMatchObject({ status: "completo" }); // cupo lleno
+    expect(await inscribirFeriaPublico(feria.slug, persona("Dora", "Sosa", "3794444444"))).toMatchObject({ status: "en_espera" }); // cupo lleno: lista de espera
+    expect(await inscribirFeriaPublico(feria.slug, persona("Dora", "Sosa", "3794444444"))).toMatchObject({ status: "ya_en_espera" }); // no se duplica
     s = await snapshot({ fresh: true });
     expect(s.feriantes.filter((f) => f.estado === "INSCRIPTA")).toHaveLength(3);
+    expect(s.feriantes.filter((f) => f.estado === "EN ESPERA")).toHaveLength(1);
     expect(s.inscripciones.filter((i) => i.actividad_id === a.id)).toHaveLength(3);
     await asignarAutomatico(a.id, admin);
     s = await snapshot({ fresh: true });
@@ -208,12 +210,13 @@ describe("participantes, importación y asistencia", () => {
     expect(puestoDe("Ana")).toBe(1); // no comparte → individual
     expect(puestoDe("Bea")).toBe(2); // quiere estar con Carla y ambas comparten → mismo gazebo compartido
     expect(puestoDe("Carla")).toBe(2);
-    // Una baja libera el cupo: ahora sí entra Dora.
+    // Una baja libera el cupo: ahora sí entra Dora (estaba en la lista de espera y pasa a inscripta).
     const ana = s.feriantes.find((f) => f.puesto === 1)!;
     await cambiarEstadoFeriante(ana.id, false, admin);
     expect(await inscribirFeriaPublico(feria.slug, persona("Dora", "Sosa", "3794444444", { lleva: ["Gazebo propio"] }))).toMatchObject({ status: "inscripta" });
     await asignarAutomatico(a.id, admin);
     s = await snapshot({ fresh: true });
+    expect(s.feriantes.filter((f) => f.estado === "EN ESPERA")).toHaveLength(0);
     expect(puestoDe("Dora")).toBe(3); // trae gazebo → puesto propio
     await expect(asignarPuesto(s.feriantes.find((f) => f.puesto === 3)!.id, 2, admin)).rejects.toThrow(/completo/);
     // Cambiar los sectores: el compartido pasa a ser el sector B con 2 gazebos; las asignaciones válidas se mantienen.
@@ -666,19 +669,29 @@ describe("feria: cupo por grupos", () => {
 
     expect(await inscribirFeriaPublico(slug, persona("Anita", "Otra", "3794100001"))).toMatchObject({ status: "inscripta" }); // por teléfono
     expect(await inscribirFeriaPublico(slug, persona("Bea", "Dos", "3794100002"))).toMatchObject({ status: "inscripta" }); // por nombre
-    expect(await inscribirFeriaPublico(slug, persona("Cris", "Tres", "3794100003"))).toMatchObject({ status: "completo" }); // originales completas
+    expect(await inscribirFeriaPublico(slug, persona("Cris", "Tres", "3794100003"))).toMatchObject({ status: "en_espera" }); // originales completas
     expect(await inscribirFeriaPublico(slug, persona("Dora", "Cuatro", "3794100004"))).toMatchObject({ status: "inscripta" });
-    expect(await inscribirFeriaPublico(slug, persona("Eva", "Cinco", "3794100005"))).toMatchObject({ status: "completo" }); // segundo grupo completo
-    expect(await inscribirFeriaPublico(slug, persona("Fabi", "Nueva", "3794100006"))).toMatchObject({ status: "inscripta" }); // extra
-    s = await snapshot({ fresh: true });
-    const grupos = s.feriantes.filter((f) => f.actividad_id === a.id).map((f) => f.grupo).sort();
-    expect(grupos).toEqual(["ESPERA", "EXTRA", "ORIGINAL", "ORIGINAL"]);
-    expect(faltanInscribirse(s.actividades.find((x) => x.id === a.id)!, s).map((l) => l.nombre).sort()).toEqual(["Cris Tres", "Eva Cinco"]);
-
     // Grupos cerrados: el segundo grupo todavía no puede inscribirse (la encargada sí puede sumarla a mano).
     await abrirGrupos(a.id, ["ORIGINAL", "EXTRA"], admin);
     expect(await inscribirFeriaPublico(slug, persona("Eva", "Cinco", "3794100005"))).toMatchObject({ status: "cerrada" });
     await abrirGrupos(a.id, ["ORIGINAL", "ESPERA", "EXTRA"], admin);
+
+    expect(await inscribirFeriaPublico(slug, persona("Eva", "Cinco", "3794100005"))).toMatchObject({ status: "en_espera" }); // segundo grupo completo
+    expect(await inscribirFeriaPublico(slug, persona("Fabi", "Nueva", "3794100006"))).toMatchObject({ status: "inscripta" }); // extra
+    s = await snapshot({ fresh: true });
+    const grupos = s.feriantes.filter((f) => f.actividad_id === a.id && f.estado === "INSCRIPTA").map((f) => f.grupo).sort();
+    expect(grupos).toEqual(["ESPERA", "EXTRA", "ORIGINAL", "ORIGINAL"]);
+    expect(s.feriantes.filter((f) => f.actividad_id === a.id && f.estado === "EN ESPERA").map((f) => f.grupo)).toEqual(["ORIGINAL", "ESPERA"]); // en orden de llegada
+    expect(faltanInscribirse(s.actividades.find((x) => x.id === a.id)!, s)).toEqual([]); // las de la lista de espera también se anotaron
+
+    // Lista de espera → inscripta: con su grupo completo no se puede; cambiándole el grupo y subiendo ese cupo, sí.
+    const cris = s.feriantes.find((f) => f.actividad_id === a.id && f.estado === "EN ESPERA" && f.grupo === "ORIGINAL")!;
+    await expect(cambiarEstadoFeriante(cris.id, true, admin)).rejects.toThrow(/cupo/);
+    await configurarGrupos(a.id, { ORIGINAL: 3, ESPERA: 1, EXTRA: 1 }, admin);
+    await cambiarEstadoFeriante(cris.id, true, admin);
+    s = await snapshot({ fresh: true });
+    expect(s.feriantes.find((f) => f.id === cris.id)!.estado).toBe("INSCRIPTA");
+    expect(s.inscripciones.some((i) => i.actividad_id === a.id && i.participante_id === cris.participante_id && i.estado === "INSCRIPTO")).toBe(true);
 
     // La encargada corrige un grupo.
     const fabi = s.feriantes.find((f) => f.actividad_id === a.id && f.grupo === "EXTRA")!;
@@ -699,14 +712,15 @@ describe("feria: cupo por grupos", () => {
     await abrirGrupos(a.id, ["ORIGINAL"], admin);
     expect(await inscribirFeriaPublico(slug, persona("Ana", "Sinlista", "3794300001"))).toMatchObject({ status: "inscripta" });
     expect(await inscribirFeriaPublico(slug, persona("Dora", "Cuatro", "3794300002"))).toMatchObject({ status: "inscripta" });
-    expect(await inscribirFeriaPublico(slug, persona("Bea", "Tarde", "3794300003"))).toMatchObject({ status: "completo" });
-    // Viernes: solo segundo grupo.
+    expect(await inscribirFeriaPublico(slug, persona("Bea", "Tarde", "3794300003"))).toMatchObject({ status: "en_espera" });
+    // Viernes: solo segundo grupo (Bea, que había quedado en espera, ahora entra).
     await abrirGrupos(a.id, ["ESPERA"], admin);
     expect(await inscribirFeriaPublico(slug, persona("Ana", "Sinlista", "3794300001"))).toMatchObject({ status: "ya" });
     expect(await inscribirFeriaPublico(slug, persona("Bea", "Tarde", "3794300003"))).toMatchObject({ status: "inscripta" });
-    expect(await inscribirFeriaPublico(slug, persona("Cris", "Otra", "3794300004"))).toMatchObject({ status: "completo" });
+    expect(await inscribirFeriaPublico(slug, persona("Cris", "Otra", "3794300004"))).toMatchObject({ status: "en_espera" });
     const s = await snapshot({ fresh: true });
-    expect(s.feriantes.filter((f) => f.actividad_id === a.id).map((f) => f.grupo).sort()).toEqual(["ESPERA", "ORIGINAL", "ORIGINAL"]);
+    expect(s.feriantes.filter((f) => f.actividad_id === a.id && f.estado === "INSCRIPTA").map((f) => f.grupo).sort()).toEqual(["ESPERA", "ORIGINAL", "ORIGINAL"]);
+    expect(s.feriantes.filter((f) => f.actividad_id === a.id && f.estado === "EN ESPERA").map((f) => f.grupo)).toEqual(["ESPERA"]);
   });
 });
 
@@ -734,6 +748,7 @@ describe("feria: inscripción rápida (pico de inscripciones)", () => {
     const res = await Promise.all(pedidos);
     expect(res.filter((r) => r.status === "inscripta").length).toBe(65);
     expect(res.filter((r) => r.status === "ya").length).toBe(1);
+    expect(res.filter((r) => r.status === "en_espera").length).toBe(35); // las que no entraron quedan en la lista de espera
     expect(await largoCola(a.id)).toBe(0); // todo guardado en la planilla
     const s = await snapshot({ fresh: true });
     const fs = s.feriantes.filter((f) => f.actividad_id === a.id && f.estado === "INSCRIPTA");

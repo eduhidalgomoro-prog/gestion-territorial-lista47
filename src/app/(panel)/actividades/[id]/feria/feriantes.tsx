@@ -23,6 +23,7 @@ export interface FilaFeriante {
   vecina: string; // a quién se refiere «al lado de» (si se reconoció)
   puesto: number;
   activa: boolean;
+  enEspera: boolean; // se anotó con el cupo completo
   grupo: string; // ferias con cupo por grupos: ORIGINAL | ESPERA | EXTRA
   whatsapp: string; // link con el mensaje del puesto ("" si no hay teléfono o puesto)
 }
@@ -50,7 +51,7 @@ export function ListaFeriantes({ filas, puestos, editable, grupos = false }: { f
       {filas.map((f) => {
         const tipo = tipoDe.get(f.puesto);
         return (
-          <li key={f.id} className={cx("rounded-3xl border bg-white p-3 sm:p-4", f.activa ? "border-linea" : "border-dashed border-linea opacity-60")}>
+          <li key={f.id} className={cx("rounded-3xl border bg-white p-3 sm:p-4", f.activa || f.enEspera ? "border-linea" : "border-dashed border-linea opacity-60")}>
             <div className="flex flex-wrap items-start gap-3">
               <span className="flex w-10 shrink-0 flex-col items-center gap-1">
                 <span className="text-sm font-bold text-gris">{f.orden}</span>
@@ -60,8 +61,8 @@ export function ListaFeriantes({ filas, puestos, editable, grupos = false }: { f
               </span>
               <div className="min-w-0 flex-1">
                 <p className="flex flex-wrap items-center gap-1.5 font-bold">
-                  {f.nombre} {!f.activa && <Badge color="rojo">BAJA</Badge>}
-                  {grupos && f.activa && (
+                  {f.nombre} {!f.activa && !f.enEspera && <Badge color="rojo">BAJA</Badge>}
+                  {grupos && (f.activa || f.enEspera) && (
                     editable ? (
                       <select
                         aria-label={`Grupo de ${f.nombre}`}
@@ -134,6 +135,26 @@ export function ListaFeriantes({ filas, puestos, editable, grupos = false }: { f
             {editable && (
               <div className="mt-2 flex items-center justify-between gap-2 border-t border-linea pt-2">
                 {msg?.id === f.id ? <span className={cx("text-sm font-semibold", msg.ok ? "text-ok" : "text-peligro")}>{msg.t}</span> : <span />}
+                {f.enEspera ? (
+                  <span className="flex flex-wrap items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      disabled={pendiente}
+                      onClick={() => confirm(`¿Sacar a ${f.nombre} de la lista de espera?`) && run(f.id, () => estadoFerianteAction(f.id, false))}
+                      className="text-sm font-bold text-gris hover:underline"
+                    >
+                      Sacar de la lista
+                    </button>
+                    <button
+                      type="button"
+                      disabled={pendiente}
+                      onClick={() => run(f.id, () => estadoFerianteAction(f.id, true))}
+                      className="min-h-10 rounded-xl bg-marca px-3 text-sm font-bold text-white hover:bg-marca-600"
+                    >
+                      Pasar a inscripta
+                    </button>
+                  </span>
+                ) : (
                 <button
                   type="button"
                   disabled={pendiente}
@@ -145,6 +166,7 @@ export function ListaFeriantes({ filas, puestos, editable, grupos = false }: { f
                 >
                   {f.activa ? "Dar de baja" : "Reincorporar"}
                 </button>
+                )}
               </div>
             )}
           </li>

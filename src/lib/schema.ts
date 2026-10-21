@@ -42,7 +42,8 @@ export const ESTADOS_REQUERIMIENTO = ["PENDIENTE", "CONSEGUIDO", "ANULADO"] as c
 export const ESTADOS_ASIGNACION = ["ACTIVA", "QUITADA"] as const;
 /** Ferias: tipos de puesto (el compartido es un gazebo para 2 feriantes). */
 export const TIPOS_PUESTO = ["INDIVIDUAL", "COMPARTIDO", "PROPIO"] as const;
-export const ESTADOS_FERIANTE = ["INSCRIPTA", "BAJA"] as const;
+/** «EN ESPERA»: se anotó por el formulario cuando el cupo ya estaba completo (no ocupa lugar ni puesto). */
+export const ESTADOS_FERIANTE = ["INSCRIPTA", "BAJA", "EN ESPERA"] as const;
 /** Marcando Huellas: especies atendidas. */
 export const ESPECIES = ["PERRO", "GATO"] as const;
 export type Especie = (typeof ESPECIES)[number];

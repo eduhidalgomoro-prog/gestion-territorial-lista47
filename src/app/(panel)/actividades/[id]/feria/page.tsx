@@ -100,17 +100,20 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
     ].filter(Boolean).join("\n");
   };
 
-  const filas: FilaFeriante[] = asignables.map((f, i) => {
+  const fila = (f: (typeof asignables)[number], i: number): FilaFeriante => {
     const p = personas.get(f.participante_id);
     const v = f.al_lado_de ? buscarVecina(f, asignables.filter((o) => o.estado === "INSCRIPTA")) : undefined;
     return {
-      id: f.id, orden: i + 1, nombre: f.nombre, telefono: verTel && p?.telefono ? formatPhone(p.telefono) : "",
+      id: f.id, orden: i + 1, nombre: f.nombre, enEspera: f.estado === "EN ESPERA", telefono: verTel && p?.telefono ? formatPhone(p.telefono) : "",
       emprendimiento: f.emprendimiento, rubro: f.rubro, lleva: f.lleva, comparte: f.comparte, al_lado_de: f.al_lado_de,
       vecina: v ? `${v.nombre} · ${v.emprendimiento}${v.puesto ? ` · N° ${v.puesto}` : ""}` : "",
       puesto: f.puesto, activa: f.estado === "INSCRIPTA", grupo: f.grupo,
       whatsapp: verTel && f.puesto && p?.telefono ? whatsappA(p.telefono, mensaje(f)) : "",
     };
-  });
+  };
+  const filas = asignables.filter((f) => f.estado !== "EN ESPERA").map(fila);
+  // Lista de espera: en orden de llegada.
+  const filasEspera = asignables.filter((f) => f.estado === "EN ESPERA").map(fila);
 
   // Listado del día, por número de puesto.
   const listado = puestos.map((p) => ({ ...p, quienes: asignables.filter((f) => f.estado === "INSCRIPTA" && f.puesto === p.numero) }));
@@ -134,6 +137,7 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
           { label: "Stands", valor: `${puestos.length} (${capacidadTotal} lugares)` },
           { label: "Inscriptas", valor: <>{activas.length} de {a.cupo}{activas.length >= a.cupo && <span className="ml-1.5 rounded-full bg-white px-2 py-0.5 text-[11px] font-extrabold text-feria-fucsia uppercase">Completo</span>}</> },
           { label: "Con puesto", valor: `${conPuesto} de ${activas.length}` },
+          ...(filasEspera.length ? [{ label: "En espera", valor: String(filasEspera.length) }] : []),
         ]}
       />
 
@@ -243,6 +247,16 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
             <Notice>Todavía no hay feriantes inscriptas. Compartí el link del formulario.</Notice>
           ) : (
             <ListaFeriantes filas={filas} puestos={puestos.map((p) => ({ numero: p.numero, tipo: p.tipo }))} editable={editable} grupos={usaGrupos} />
+          )}
+          {filasEspera.length > 0 && (
+            <section className="mt-6 rounded-3xl border border-alerta/30 bg-alerta-50/40 p-3 sm:p-4">
+              <h2 className="font-titulo text-xl font-extrabold">Lista de espera ({filasEspera.length})</h2>
+              <p className="mb-3 text-sm text-gris">
+                Se anotaron cuando el cupo ya estaba completo, en orden de llegada. Si alguien se da de baja, pasá a la primera a inscripta
+                {usaGrupos ? " (si su grupo está completo, cambiale el grupo antes)" : ""}.
+              </p>
+              <ListaFeriantes filas={filasEspera} puestos={[]} editable={editable} grupos={usaGrupos} />
+            </section>
           )}
           {usaGrupos && faltan.length > 0 && (
             <details className="mt-5 rounded-2xl border border-linea bg-white p-4">

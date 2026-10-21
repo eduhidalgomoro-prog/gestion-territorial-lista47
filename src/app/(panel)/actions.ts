@@ -236,7 +236,7 @@ export async function quitarAsignacionesAction(actividadId: string): Promise<Act
 }
 
 export async function estadoFerianteAction(ferianteId: string, activa: boolean): Promise<ActionResult> {
-  return act((yo) => cambiarEstadoFeriante(ferianteId, activa, yo), { ok: activa ? "Feriante reincorporada." : "Feriante dada de baja: se liberó su lugar." });
+  return act((yo) => cambiarEstadoFeriante(ferianteId, activa, yo), { ok: activa ? "Listo: quedó inscripta." : "Listo: quedó dada de baja." });
 }
 
 export async function agregarFerianteAction(actividadId: string, _: ActionResult, fd: FormData): Promise<ActionResult> {
