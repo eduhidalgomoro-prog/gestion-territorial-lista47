@@ -9,7 +9,8 @@ import { resumenHuellas, type AnimalInput } from "@/lib/huellas";
 import { editarAtencion, registrarAtencion } from "@/lib/services/huellas";
 import { compararIndicador, conclusionesEstadisticas, destacadosDelMes, estadoZona } from "@/lib/domain/resumen";
 import type { TipoPuesto } from "@/lib/schema";
-import { agregarPuesto, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, cambiarTipoPuesto, configurarFeria, crearFeria, eliminarPuesto, generarPuestos, inscribirFeriaPublico, intercambiarPuestos, puestosDe, type FerianteInput } from "@/lib/services/ferias";
+import { mismaPersona } from "@/lib/ferias-grupos";
+import { agregarPuesto, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, cambiarGrupoFeriante, cambiarTipoPuesto, cargarListaFeria, configurarFeria, configurarGrupos, crearFeria, eliminarPuesto, faltanInscribirse, generarPuestos, inscribirFeriaPublico, intercambiarPuestos, puestosDe, type FerianteInput } from "@/lib/services/ferias";
 import { ubicacionLabel } from "@/lib/labels";
 import { normalizeDni, normalizePhone, parseFechaFlexible, parseFechaNacimiento, parseHoraFlexible, phoneKey } from "@/lib/format";
 import { parsePreguntas } from "@/lib/preguntas";
@@ -642,6 +643,41 @@ describe("guía del operativo visual", () => {
     // Una actividad que no es operativo visual no tiene checklist.
     const taller = await crearActividad(input({ nombre: "Taller", fecha: "2099-05-11" }), admin);
     await expect(marcarChecklist(taller.id, "espacios", true, admin)).rejects.toThrow();
+  });
+});
+
+describe("feria: cupo por grupos", () => {
+  it("reconoce a cada persona en las listas y respeta el cupo de cada grupo", async () => {
+    expect(mismaPersona({ nombre: "María López", telefono: "" }, { nombre: "Maria Ines LOPEZ", telefono: "" })).toBe(true);
+    expect(mismaPersona({ nombre: "María López", telefono: "" }, { nombre: "María Gómez", telefono: "" })).toBe(false);
+    expect(mismaPersona({ nombre: "Otra", telefono: "3794 11-2233" }, { nombre: "Distinta", telefono: "+54 9 379 4112233" })).toBe(true);
+
+    const a = await crearActividad(input({ nombre: "Feria Grupos", zona: "NORTE", tipo: "FERIAS DE ESME", generar_formulario: false, fecha: "2099-11-22" }), admin);
+    await configurarFeria(a.id, 60, admin);
+    expect(await configurarGrupos(a.id, { ORIGINAL: 2, ESPERA: 1, EXTRA: 1 }, admin)).toEqual({ total: 4 });
+    expect(await cargarListaFeria(a.id, "ORIGINAL", [{ nombre: "Ana Uno", telefono: "3794100001", emprendimiento: "" }, { nombre: "Bea Dos", telefono: "", emprendimiento: "" }, { nombre: "Cris Tres", telefono: "", emprendimiento: "" }, { nombre: "ana uno", telefono: "", emprendimiento: "" }], admin)).toMatchObject({ cargadas: 3, repetidas: 1 });
+    await cargarListaFeria(a.id, "ESPERA", [{ nombre: "Dora Cuatro", telefono: "", emprendimiento: "" }, { nombre: "Eva Cinco", telefono: "", emprendimiento: "" }], admin);
+    let s = await snapshot({ fresh: true });
+    const slug = s.actividades.find((x) => x.id === a.id)!.slug;
+    expect(s.actividades.find((x) => x.id === a.id)!.cupo).toBe(4);
+    const persona = (nombre: string, apellido: string, tel: string) => ({ nombre, apellido, dni: "", telefono: tel, barrio: "", emprendimiento: `${nombre} Deco`, rubro: "Deco", lleva: [], al_lado_de: "", comparte: "SI", consentimiento: true });
+
+    expect(await inscribirFeriaPublico(slug, persona("Anita", "Otra", "3794100001"))).toMatchObject({ status: "inscripta" }); // por teléfono
+    expect(await inscribirFeriaPublico(slug, persona("Bea", "Dos", "3794100002"))).toMatchObject({ status: "inscripta" }); // por nombre
+    expect(await inscribirFeriaPublico(slug, persona("Cris", "Tres", "3794100003"))).toMatchObject({ status: "completo" }); // originales completas
+    expect(await inscribirFeriaPublico(slug, persona("Dora", "Cuatro", "3794100004"))).toMatchObject({ status: "inscripta" });
+    expect(await inscribirFeriaPublico(slug, persona("Eva", "Cinco", "3794100005"))).toMatchObject({ status: "completo" }); // segundo grupo completo
+    expect(await inscribirFeriaPublico(slug, persona("Fabi", "Nueva", "3794100006"))).toMatchObject({ status: "inscripta" }); // extra
+    s = await snapshot({ fresh: true });
+    const grupos = s.feriantes.filter((f) => f.actividad_id === a.id).map((f) => f.grupo).sort();
+    expect(grupos).toEqual(["ESPERA", "EXTRA", "ORIGINAL", "ORIGINAL"]);
+    expect(faltanInscribirse(s.actividades.find((x) => x.id === a.id)!, s).map((l) => l.nombre).sort()).toEqual(["Cris Tres", "Eva Cinco"]);
+
+    // La encargada corrige un grupo.
+    const fabi = s.feriantes.find((f) => f.actividad_id === a.id && f.grupo === "EXTRA")!;
+    await cambiarGrupoFeriante(fabi.id, "ESPERA", admin);
+    s = await snapshot({ fresh: true });
+    expect(s.feriantes.find((f) => f.id === fabi.id)!.grupo).toBe("ESPERA");
   });
 });
 

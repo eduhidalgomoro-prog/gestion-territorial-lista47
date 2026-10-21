@@ -139,6 +139,7 @@ export interface Actividad extends Meta {
   // Ferias (ver services/ferias.ts)
   es_feria: boolean;
   cupo: number; // ferias: máximo de feriantes · otras actividades: máximo de inscriptos por el formulario (0 = sin límite)
+  cupos_grupos: string; // ferias con cupo por grupos: «ORIGINAL:35,ESPERA:20,EXTRA:10» ("" = un solo cupo)
   croquis: string; // imagen del lugar donde se marcan los puestos
   checklist: string; // guía del operativo (ver guias.ts): ids de los ítems tildados, separados por coma
 }
@@ -182,7 +183,17 @@ export interface Feriante extends Meta {
   comparte: boolean; // puede compartir stand
   estado: EstadoFeriante;
   puesto: number; // número de puesto asignado (0 = sin asignar)
+  grupo: string; // ferias con cupo por grupos: ORIGINAL | ESPERA | EXTRA ("" = feria sin grupos)
   observaciones: string;
+}
+
+/** Ferias con cupo por grupos: las personas de cada lista (originales, segundo grupo) para reconocerlas al inscribirse. */
+export interface ListaFeria extends Meta {
+  actividad_id: string;
+  grupo: string; // ORIGINAL | ESPERA
+  nombre: string;
+  telefono: string;
+  emprendimiento: string;
 }
 
 /** Lugar numerado de una feria, ubicado sobre el croquis (x, y en % de la imagen; 0 = sin ubicar). */
@@ -338,6 +349,7 @@ export interface EntityMap {
   animales: Animal;
   logistica: MovimientoLogistica;
   ayudantes: Ayudante;
+  listas_feria: ListaFeria;
 }
 
 export type EntityTable = keyof EntityMap;
@@ -432,6 +444,7 @@ export const TABLES: Record<TableName, TableDef> = {
       ["creado_por", "Creado por"],
       ["es_feria", "Es feria"],
       ["cupo", "Cupo"],
+      ["cupos_grupos", "Cupos por grupo"],
       ["croquis", "Croquis"],
       ["checklist", "Checklist"],
       ...META,
@@ -575,12 +588,26 @@ export const TABLES: Record<TableName, TableDef> = {
       ["comparte", "Puede compartir stand"],
       ["estado", "Estado"],
       ["puesto", "Puesto"],
+      ["grupo", "Grupo"],
       ["observaciones", "Observaciones"],
       ...META,
     ],
     numeric: ["puesto"],
     boolean: ["comparte"],
     enums: { estado: ESTADOS_FERIANTE },
+  },
+  listas_feria: {
+    sheet: "FERIA_LISTAS",
+    prefix: "FLI",
+    columns: [
+      ["id", "ID"],
+      ["actividad_id", "ID Actividad"],
+      ["grupo", "Grupo"],
+      ["nombre", "Nombre y apellido"],
+      ["telefono", "Teléfono"],
+      ["emprendimiento", "Emprendimiento"],
+      ...META,
+    ],
   },
   puestos: {
     sheet: "PUESTOS",
@@ -709,7 +736,7 @@ export const TABLES: Record<TableName, TableDef> = {
 };
 
 export const ENTITY_TABLES: EntityTable[] = [
-  "actividades", "participantes", "inscripciones", "asistencias", "requerimientos", "usuarios", "asignaciones", "instituciones", "feriantes", "puestos", "atenciones", "animales", "logistica", "ayudantes",
+  "actividades", "participantes", "inscripciones", "asistencias", "requerimientos", "usuarios", "asignaciones", "instituciones", "feriantes", "puestos", "atenciones", "animales", "logistica", "ayudantes", "listas_feria",
 ];
 export const ALL_TABLES = Object.keys(TABLES) as TableName[];
 

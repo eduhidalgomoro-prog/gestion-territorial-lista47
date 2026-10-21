@@ -30,6 +30,7 @@ export interface Snapshot {
   animales: EntityMap["animales"][];
   logistica: EntityMap["logistica"][];
   ayudantes: EntityMap["ayudantes"][];
+  listas_feria: EntityMap["listas_feria"][];
   barrios: ZonaBarrio[];
   config: AppConfig;
   leidoEn: number;
@@ -104,7 +105,7 @@ const snapshotCompartido = unstable_cache(
   },
   // Cambiar la versión cuando se agrega una hoja o columna nueva: la copia compartida sobrevive a los deploys
   // y, si no, el código nuevo leería una copia vieja sin esa hoja.
-  ["snapshot-v3"],
+  ["snapshot-v4"],
   { tags: [TAG], revalidate: REVALIDAR_S },
 );
 
@@ -142,6 +143,7 @@ async function loadSnapshot(): Promise<Snapshot> {
     animales: parseTable("animales", data.animales),
     logistica: parseTable("logistica", data.logistica),
     ayudantes: parseTable("ayudantes", data.ayudantes),
+    listas_feria: parseTable("listas_feria", data.listas_feria),
     barrios: (data.zonas_barrios ?? []).map((r) => fromRow<ZonaBarrio>("zonas_barrios", r)).filter((b) => b.barrio),
     config: parseConfig((data.config ?? []).map((r) => fromRow<ConfigRow>("config", r))),
     leidoEn: Date.now(),

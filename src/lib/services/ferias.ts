@@ -6,7 +6,8 @@ import { withLock } from "../lock";
 import { esResponsable, misZonas, puede, type Yo } from "../permisos";
 import { ambitoDe } from "../territorio";
 import { TIPOS_PUESTO, type Actividad, type Feriante, type Puesto, type TipoPuesto } from "../schema";
-import { cleanString, nowIso } from "../util";
+import { cleanString, normalizePhone, nowIso } from "../util";
+import { conGrupos, esGrupo, GRUPOS_FERIA, grupoDe, mismaPersona, parseCupos, unirCupos, type GrupoFeria } from "../ferias-grupos";
 import { crearActividad, formularioInscripcion } from "./actividades";
 import { inscribir, inscripcionAbiertaPublica } from "./inscripciones";
 import { limpiarPersona, upsertParticipantes, type PersonaInput } from "./participantes";
@@ -273,6 +274,7 @@ export async function cambiarEstadoFeriante(ferianteId: string, activa: boolean,
   const ins = s.inscripciones.find((i) => i.actividad_id === a.id && i.participante_id === f.participante_id);
   if (activa) {
     if (a.cupo && ferianteActivas(s, a.id).length >= a.cupo) throw new UserError("El cupo está completo: para sumarla, primero subí el cupo o da de baja a otra.");
+    if (!hayLugarEnGrupo(a, esGrupo(f.grupo) ? f.grupo : "", ferianteActivas(s, a.id))) throw new UserError("El cupo de su grupo está completo: cambiale el grupo, subí ese cupo o da de baja a otra.");
     await update("feriantes", ferianteId, { estado: "INSCRIPTA" }, yo.email, { accion: "reincorporar feriante" });
     await inscribir(a.id, [{ participanteId: f.participante_id }], "CARGA MANUAL", yo.email);
   } else {
@@ -315,9 +317,27 @@ export type ResultadoFeria =
   | { status: "ya"; nombre: string }
   | { status: "cerrada" | "completo"; motivo: string };
 
-/** Inscribe a una feriante respetando el cupo. Si ya estaba inscripta, no se duplica. */
-async function anotar(a: Actividad, input: FerianteInput, origen: "FORMULARIO PROPIO" | "CARGA MANUAL", user: string): Promise<ResultadoFeria> {
+const COMPLETO = "¡Se completó el cupo de esta feria! Gracias por tu interés: vas a tener oportunidad en la próxima.";
+
+/** Grupo de una feriante en una feria con cupo por grupos ("" si la feria no usa grupos). */
+async function grupoPara(a: Actividad, persona: { nombre: string; apellido: string; telefono: string }, forzado?: string): Promise<GrupoFeria | ""> {
+  if (!conGrupos(a)) return "";
+  if (forzado && esGrupo(forzado)) return forzado;
+  const lista = (await snapshot()).listas_feria.filter((l) => l.actividad_id === a.id);
+  return grupoDe({ nombre: `${persona.nombre} ${persona.apellido}`, telefono: persona.telefono }, lista);
+}
+
+/** ¿Queda lugar en el grupo? (ferias con cupo por grupos). */
+function hayLugarEnGrupo(a: Actividad, grupo: GrupoFeria | "", activas: Feriante[]): boolean {
+  if (!grupo) return true;
+  const cupo = parseCupos(a.cupos_grupos)[grupo];
+  return cupo === undefined || activas.filter((f) => f.grupo === grupo).length < cupo;
+}
+
+/** Inscribe a una feriante respetando el cupo (y el de su grupo, si la feria tiene grupos). Si ya estaba inscripta, no se duplica. */
+async function anotar(a: Actividad, input: FerianteInput, origen: "FORMULARIO PROPIO" | "CARGA MANUAL", user: string, grupoForzado?: string): Promise<ResultadoFeria> {
   const { persona, datos } = limpiarFeriante(input);
+  const grupo = await grupoPara(a, persona, grupoForzado);
   return withLock(`feria:${a.id}`, async () => {
     const [r] = await upsertParticipantes([persona], origen, user, origen === "FORMULARIO PROPIO" ? { consentimiento: nowIso() } : {});
     const feriantes = (await readFresh("feriantes")).filter((f) => f.actividad_id === a.id);
@@ -326,10 +346,11 @@ async function anotar(a: Actividad, input: FerianteInput, origen: "FORMULARIO PR
       await update("feriantes", previa.id, datos, user, { accion: "actualizar datos de feriante", lock: false });
       return { status: "ya", nombre: persona.nombre };
     }
-    const activas = feriantes.filter((f) => f.estado === "INSCRIPTA").length;
-    if (a.cupo && activas >= a.cupo) return { status: "completo", motivo: "¡Se completó el cupo de esta feria! Gracias por tu interés: vas a tener oportunidad en la próxima." };
-    if (previa) await update("feriantes", previa.id, { ...datos, estado: "INSCRIPTA", puesto: 0 }, user, { accion: "reinscripción a feria", lock: false });
-    else await insert("feriantes", { actividad_id: a.id, participante_id: r.participante.id, ...datos, estado: "INSCRIPTA", puesto: 0, observaciones: "" }, user);
+    const activas = feriantes.filter((f) => f.estado === "INSCRIPTA");
+    if (a.cupo && activas.length >= a.cupo) return { status: "completo", motivo: COMPLETO };
+    if (!hayLugarEnGrupo(a, grupo, activas)) return { status: "completo", motivo: COMPLETO };
+    if (previa) await update("feriantes", previa.id, { ...datos, estado: "INSCRIPTA", puesto: 0, grupo }, user, { accion: "reinscripción a feria", lock: false });
+    else await insert("feriantes", { actividad_id: a.id, participante_id: r.participante.id, ...datos, estado: "INSCRIPTA", puesto: 0, grupo, observaciones: "" }, user);
     await inscribir(a.id, [{ participanteId: r.participante.id, respuestas: `Emprendimiento: ${datos.emprendimiento}\nRubro: ${datos.rubro}` }], origen, user);
     return { status: "inscripta", nombre: persona.nombre };
   });
@@ -345,8 +366,80 @@ export async function inscribirFeriaPublico(slug: string, input: FerianteInput &
   return anotar(a, input, "FORMULARIO PROPIO", "formulario-publico");
 }
 
-/** Carga manual desde el panel (ej. alguien que se anotó por WhatsApp). */
-export async function agregarFeriante(actividadId: string, input: FerianteInput, yo: Yo): Promise<ResultadoFeria> {
+/** Carga manual desde el panel (ej. alguien que se anotó por WhatsApp). En ferias con grupos se puede elegir el grupo. */
+export async function agregarFeriante(actividadId: string, input: FerianteInput, yo: Yo, grupo = ""): Promise<ResultadoFeria> {
   const { a } = await feriaEditable(actividadId, yo);
-  return anotar(a, input, "CARGA MANUAL", yo.email);
+  return anotar(a, input, "CARGA MANUAL", yo.email, grupo);
+}
+
+// ---------------------------------------------------------------------------
+// Cupo por grupos (originales / segundo grupo / extras)
+// ---------------------------------------------------------------------------
+
+/** Reparte el cupo en grupos (0 en todos = un solo cupo, como antes). El cupo total pasa a ser la suma. */
+export async function configurarGrupos(actividadId: string, cupos: Partial<Record<GrupoFeria, number>>, yo: Yo) {
+  await feriaEditable(actividadId, yo);
+  const limpio: Partial<Record<GrupoFeria, number>> = {};
+  for (const g of GRUPOS_FERIA) {
+    const n = Math.round(Number(cupos[g]) || 0);
+    if (n < 0 || n > 500) throw new UserError("Cada cupo tiene que ser un número entre 0 y 500.", { [`cupo_${g}`]: "Número inválido." });
+    if (n > 0) limpio[g] = n;
+  }
+  const total = Object.values(limpio).reduce((x, n) => x + n, 0);
+  if (total > 500) throw new UserError("El cupo total no puede pasar de 500.");
+  await update("actividades", actividadId, total ? { cupos_grupos: unirCupos(limpio), cupo: total } : { cupos_grupos: "" }, yo.email, { accion: `feria: cupos por grupo ${unirCupos(limpio) || "(sin grupos)"}` });
+  return { total };
+}
+
+/** La encargada cambia el grupo de una feriante (ej. el cruce por nombre no la reconoció). */
+export async function cambiarGrupoFeriante(ferianteId: string, grupo: string, yo: Yo) {
+  if (!esGrupo(grupo)) throw new UserError("Grupo inválido.");
+  const s = await snapshot({ fresh: true });
+  const f = s.feriantes.find((x) => x.id === ferianteId);
+  if (!f) throw new NotFoundError("La feriante");
+  await feriaEditable(f.actividad_id, yo);
+  if (f.grupo !== grupo) await update("feriantes", ferianteId, { grupo }, yo.email, { accion: `grupo → ${grupo}` });
+}
+
+/**
+ * Carga la lista de un grupo (originales o segundo grupo). Junta repetidas (misma persona por teléfono o nombre)
+ * y no vuelve a cargar a quien ya está en la lista. Después reacomoda el grupo de las que ya se inscribieron.
+ */
+export async function cargarListaFeria(actividadId: string, grupo: "ORIGINAL" | "ESPERA", filas: { nombre: string; telefono: string; emprendimiento: string }[], yo: Yo) {
+  await feriaEditable(actividadId, yo);
+  return withLock(`feria:${actividadId}`, async () => {
+    const existentes = (await readFresh("listas_feria")).filter((l) => l.actividad_id === actividadId);
+    const nuevas: { nombre: string; telefono: string; emprendimiento: string }[] = [];
+    for (const fila of filas) {
+      const p = { nombre: cleanString(fila.nombre, 120), telefono: normalizePhone(cleanString(fila.telefono, 40)), emprendimiento: cleanString(fila.emprendimiento, 120) };
+      if (!p.nombre) continue;
+      const ya = [...existentes.filter((l) => l.grupo === grupo), ...nuevas].some((l) => mismaPersona(l, p));
+      if (!ya) nuevas.push(p);
+    }
+    await insertMany("listas_feria", nuevas.map((p) => ({ actividad_id: actividadId, grupo, ...p })), yo.email, `lista de feria: ${grupo}`);
+    // Las que ya estaban inscriptas se reacomodan según las listas.
+    const s = await snapshot({ fresh: true });
+    const lista = s.listas_feria.filter((l) => l.actividad_id === actividadId);
+    const personas = new Map(s.participantes.map((p) => [p.id, p]));
+    const patches = ferianteActivas(s, actividadId)
+      .map((f) => {
+        const p = personas.get(f.participante_id);
+        const g = grupoDe({ nombre: `${p?.nombre ?? ""} ${p?.apellido ?? ""}`, telefono: p?.telefono ?? "" }, lista);
+        return { id: f.id, patch: { grupo: g }, cambia: f.grupo !== g };
+      })
+      .filter((x) => x.cambia)
+      .map(({ id, patch }) => ({ id, patch }));
+    await updateMany("feriantes", patches, yo.email, "reacomodar grupos según las listas");
+    return { cargadas: nuevas.length, repetidas: filas.length - nuevas.length, reacomodadas: patches.length };
+  });
+}
+
+/** Personas de las listas que todavía no se inscribieron (para avisarles). */
+export function faltanInscribirse(a: Actividad, s: Pick<Snapshot, "listas_feria" | "feriantes" | "participantes">) {
+  const personas = new Map(s.participantes.map((p) => [p.id, p]));
+  const inscriptas = ferianteActivas(s, a.id).map((f) => {
+    const p = personas.get(f.participante_id);
+    return { nombre: `${p?.nombre ?? ""} ${p?.apellido ?? ""}`, telefono: p?.telefono ?? "" };
+  });
+  return s.listas_feria.filter((l) => l.actividad_id === a.id && !inscriptas.some((i) => mismaPersona(i, l)));
 }

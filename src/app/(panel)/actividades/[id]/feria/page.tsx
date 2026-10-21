@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { CopyButton } from "@/components/copy-button";
 import { CroquisEditor, CroquisVista } from "@/components/croquis";
 import { CroquisAuto } from "@/components/croquis-auto";
-import { ActionForm, Field, Input, SubmitButton } from "@/components/forms";
+import { ActionForm, Field, Input, Select, SubmitButton } from "@/components/forms";
 import { IconWhatsApp } from "@/components/icons";
 import { FeriaHero } from "@/components/feria-ui";
 import { Card, cx, Notice } from "@/components/ui";
@@ -15,10 +15,11 @@ import { SectoresEditor } from "@/components/sectores-editor";
 import { buscarVecina, CAPACIDAD, describirPuesto, LLEVA_OPCIONES, SECTORES_INICIALES, sectoresDe, TIPO_PUESTO_HEX, TIPO_PUESTO_LABEL } from "@/lib/ferias";
 import { puede } from "@/lib/permisos";
 import type { Actividad } from "@/lib/schema";
-import { ferianteActivas, puestosDe } from "@/lib/services/ferias";
+import { faltanInscribirse, ferianteActivas, puestosDe } from "@/lib/services/ferias";
+import { conGrupos, GRUPO_LABEL, GRUPO_UNO, GRUPOS_FERIA, parseCupos, type GrupoFeria } from "@/lib/ferias-grupos";
 import { formatDate, formatPhone } from "@/lib/util";
 import { sp, type SP } from "@/lib/view";
-import { agregarFerianteAction, asignarAutomaticoAction, feriaConfigAction, puestosAction, quitarAsignacionesAction } from "../../../actions";
+import { agregarFerianteAction, asignarAutomaticoAction, feriaConfigAction, gruposFeriaAction, puestosAction, quitarAsignacionesAction } from "../../../actions";
 import { ListaFeriantes, type FilaFeriante } from "./feriantes";
 import { BotonAccion } from "./boton-accion";
 import { OrganizarPuestos } from "./organizar";
@@ -79,6 +80,11 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
   const fecha = a.fecha ? formatDate(a.fecha, { weekday: "long", day: "numeric", month: "long" }) : "";
   const conPuesto = activas.filter((f) => f.puesto).length;
   const capacidadTotal = puestos.reduce((n, p) => n + CAPACIDAD[p.tipo], 0);
+  // Cupo por grupos (originales / segundo grupo / extras).
+  const usaGrupos = conGrupos(a);
+  const cupos = parseCupos(a.cupos_grupos);
+  const enGrupo = (g: GrupoFeria) => activas.filter((f) => f.grupo === g).length;
+  const faltan = usaGrupos ? faltanInscribirse(a, s) : [];
 
   const mensaje = (f: (typeof asignables)[number]) => {
     const compañeras = activas.filter((o) => o.puesto === f.puesto && o.id !== f.id).map((o) => nombre(o.participante_id));
@@ -97,7 +103,7 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
       id: f.id, orden: i + 1, nombre: f.nombre, telefono: verTel && p?.telefono ? formatPhone(p.telefono) : "",
       emprendimiento: f.emprendimiento, rubro: f.rubro, lleva: f.lleva, comparte: f.comparte, al_lado_de: f.al_lado_de,
       vecina: v ? `${v.nombre} · ${v.emprendimiento}${v.puesto ? ` · N° ${v.puesto}` : ""}` : "",
-      puesto: f.puesto, activa: f.estado === "INSCRIPTA",
+      puesto: f.puesto, activa: f.estado === "INSCRIPTA", grupo: f.grupo,
       whatsapp: verTel && f.puesto && p?.telefono ? whatsappA(p.telefono, mensaje(f)) : "",
     };
   });
@@ -126,6 +132,32 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
           { label: "Con puesto", valor: `${conPuesto} de ${activas.length}` },
         ]}
       />
+
+      {usaGrupos && (
+        <Card className="mb-4 p-4">
+          <p className="mb-2 text-sm font-bold text-gris uppercase">Cupo por grupos</p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {GRUPOS_FERIA.filter((g) => cupos[g]).map((g) => {
+              const n = enGrupo(g);
+              const max = cupos[g]!;
+              return (
+                <div key={g}>
+                  <p className="flex items-baseline justify-between gap-2">
+                    <b className="text-[15px]">{GRUPO_LABEL[g]}</b>
+                    <span className={cx("font-titulo text-lg font-extrabold tabular-nums", n > max ? "text-peligro" : n === max ? "text-marca-600" : "text-petroleo-600")}>{n} / {max}</span>
+                  </p>
+                  <div className="mt-1 h-2 overflow-hidden rounded-full bg-fondo" role="progressbar" aria-valuenow={n} aria-valuemax={max} aria-label={`${GRUPO_LABEL[g]}: ${n} de ${max}`}>
+                    <div className={cx("h-full rounded-full", n > max ? "bg-peligro" : "bg-verde")} style={{ width: `${Math.min(100, (n / max) * 100)}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[13.5px] text-gris">
+            Al inscribirse, cada persona se busca en las listas por teléfono y por nombre: si está en la de originales entra como original, si está en la del segundo grupo como segundo grupo, y si no está en ninguna como extra. Cuando un grupo se completa, no entran más de ese grupo.
+          </p>
+        </Card>
+      )}
 
       <Card className="mb-4 p-4">
         <p className="mb-1 text-sm font-bold text-gris uppercase">Formulario de inscripción</p>
@@ -182,7 +214,42 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
           {filas.length === 0 ? (
             <Notice>Todavía no hay feriantes inscriptas. Compartí el link del formulario.</Notice>
           ) : (
-            <ListaFeriantes filas={filas} puestos={puestos.map((p) => ({ numero: p.numero, tipo: p.tipo }))} editable={editable} />
+            <ListaFeriantes filas={filas} puestos={puestos.map((p) => ({ numero: p.numero, tipo: p.tipo }))} editable={editable} grupos={usaGrupos} />
+          )}
+          {usaGrupos && faltan.length > 0 && (
+            <details className="mt-5 rounded-2xl border border-linea bg-white p-4">
+              <summary className="cursor-pointer font-bold text-petroleo">De las listas, todavía no se inscribieron ({faltan.length})</summary>
+              <p className="mt-2 text-sm text-gris">Si todavía hay lugar en su grupo, podés mandarles el link para que se inscriban.</p>
+              {(["ORIGINAL", "ESPERA"] as const).map((g) => {
+                const lista = faltan.filter((l) => l.grupo === g);
+                if (!lista.length) return null;
+                return (
+                  <div key={g} className="mt-3">
+                    <p className="mb-1 text-[13px] font-extrabold tracking-wide text-gris uppercase">{GRUPO_LABEL[g]} · {lista.length}</p>
+                    <ul className="divide-y divide-linea rounded-xl ring-1 ring-linea">
+                      {lista.map((l) => (
+                        <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-[14.5px]">
+                          <span className="min-w-0">
+                            <b>{l.nombre}</b>
+                            {l.emprendimiento && <span className="text-gris"> · {l.emprendimiento}</span>}
+                          </span>
+                          {verTel && l.telefono && a.link_inscripcion && a.inscripcion_abierta && (
+                            <a
+                              href={whatsappA(l.telefono, `Hola ${l.nombre.split(" ")[0]} 👋 Ya podés inscribirte a *${a.nombre}*${fecha ? ` (${fecha})` : ""}. Tenés tu lugar reservado: ${a.link_inscripcion}`)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-[#1f8f4e]/40 px-2.5 text-[13px] font-bold text-[#1f8f4e]"
+                            >
+                              <IconWhatsApp size={16} /> Mandar link
+                            </a>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </details>
           )}
           {editable && (
             <details className="mt-5 rounded-2xl border border-linea bg-white p-4">
@@ -217,6 +284,11 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
                   </div>
                 </fieldset>
                 <Field label="Quiere estar al lado de" name="al_lado_de" optional><Input name="al_lado_de" /></Field>
+                {usaGrupos && (
+                  <Field label="Grupo" name="grupo" hint="Automático: la busca en las listas (si no está en ninguna, entra como extra).">
+                    <Select name="grupo" defaultValue="" options={[["", "Automático según las listas"], ...GRUPOS_FERIA.map((g) => [g, GRUPO_UNO[g]] as const)]} />
+                  </Field>
+                )}
                 <SubmitButton>Agregar feriante</SubmitButton>
               </ActionForm>
             </details>
@@ -245,11 +317,27 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
               </Card>
               <Card className="p-4 sm:p-5">
                 <h2 className="mb-1 text-lg font-bold">Cupo</h2>
-                <p className="mb-3 text-sm text-gris">Con los puestos de arriba entran {capacidadTotal} feriantes.</p>
-                <ActionForm action={feriaConfigAction.bind(null, a.id)}>
-                  <Field label="Cupo de feriantes" name="cupo"><Input name="cupo" type="number" min={1} max={500} inputMode="numeric" defaultValue={String(a.cupo)} /></Field>
-                  <SubmitButton variant="secundario">Guardar cupo</SubmitButton>
-                </ActionForm>
+                <p className="mb-3 text-sm text-gris">Con los puestos de arriba entran {capacidadTotal} feriantes.{usaGrupos ? ` El cupo total es ${a.cupo}: la suma de los grupos.` : ""}</p>
+                {!usaGrupos && (
+                  <ActionForm action={feriaConfigAction.bind(null, a.id)}>
+                    <Field label="Cupo de feriantes" name="cupo"><Input name="cupo" type="number" min={1} max={500} inputMode="numeric" defaultValue={String(a.cupo)} /></Field>
+                    <SubmitButton variant="secundario">Guardar cupo</SubmitButton>
+                  </ActionForm>
+                )}
+                <details className={cx(!usaGrupos && "mt-4 border-t border-linea pt-3")} open={usaGrupos}>
+                  <summary className="cursor-pointer font-bold text-petroleo">Cupo por grupos (originales, segundo grupo, extras)</summary>
+                  <ActionForm action={gruposFeriaAction.bind(null, a.id)} className="mt-3">
+                    <div className="grid grid-cols-3 gap-2">
+                      {GRUPOS_FERIA.map((g) => (
+                        <Field key={g} label={GRUPO_LABEL[g]} name={`cupo_${g}`}>
+                          <Input name={`cupo_${g}`} type="number" min={0} max={500} inputMode="numeric" defaultValue={String(cupos[g] ?? 0)} />
+                        </Field>
+                      ))}
+                    </div>
+                    <p className="mb-3 text-sm text-gris">Dejá todos en 0 para volver a un solo cupo. Las listas de originales y segundo grupo las carga la administración.</p>
+                    <SubmitButton variant="secundario">Guardar cupos por grupo</SubmitButton>
+                  </ActionForm>
+                </details>
               </Card>
             </div>
           )}

@@ -15,7 +15,7 @@ import { geocodificar, type Ubicacion } from "@/lib/services/geocode";
 import { anularLote, marcarPreparando, registrarMovimiento, type MovimientoInput } from "@/lib/services/logistica";
 import { cortarAccesoAyudante, crearAccesoAyudante } from "@/lib/services/ayudantes";
 import {
-  agregarFeriante, agregarPuesto, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, cambiarTipoPuesto, configurarFeria, crearFeria, eliminarPuesto, generarPuestos,
+  agregarFeriante, agregarPuesto, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, cambiarGrupoFeriante, cambiarTipoPuesto, configurarFeria, configurarGrupos, crearFeria, eliminarPuesto, generarPuestos,
   intercambiarPuestos, quitarAsignaciones, ubicarPuestos,
 } from "@/lib/services/ferias";
 import type { TipoPuesto } from "@/lib/schema";
@@ -166,6 +166,16 @@ export async function feriaConfigAction(actividadId: string, _: ActionResult, fd
   return act((yo) => configurarFeria(actividadId, num(fd, "cupo"), yo), { ok: "Feria configurada. El formulario de inscripción ya tiene cupo." });
 }
 
+export async function gruposFeriaAction(actividadId: string, _: ActionResult, fd: FormData): Promise<ActionResult> {
+  const r = await act((yo) => configurarGrupos(actividadId, { ORIGINAL: num(fd, "cupo_ORIGINAL"), ESPERA: num(fd, "cupo_ESPERA"), EXTRA: num(fd, "cupo_EXTRA") }, yo));
+  if (!r.ok || !r.data) return r;
+  return { ok: true, message: r.data.total ? `Cupos por grupo guardados: ${r.data.total} lugares en total.` : "La feria vuelve a tener un solo cupo." };
+}
+
+export async function grupoFerianteAction(ferianteId: string, grupo: string): Promise<ActionResult> {
+  return act((yo) => cambiarGrupoFeriante(ferianteId, grupo, yo), { ok: "Grupo cambiado." });
+}
+
 /** Sectores de la feria que manda el editor como JSON ([{ tipo, cantidad }]). */
 function sectoresDeForm(fd: FormData): SectorFeria[] {
   try {
@@ -234,10 +244,11 @@ export async function agregarFerianteAction(actividadId: string, _: ActionResult
         emprendimiento: str(fd, "emprendimiento"), rubro: str(fd, "rubro"), lleva: fd.getAll("lleva").map(String), al_lado_de: str(fd, "al_lado_de"), comparte: str(fd, "comparte"),
       },
       yo,
+      str(fd, "grupo"),
     ),
   );
   if (!r.ok || !r.data) return r;
-  if (r.data.status === "completo" || r.data.status === "cerrada") return { ok: false, message: "El cupo está completo: subí el cupo o da de baja a alguien." };
+  if (r.data.status === "completo" || r.data.status === "cerrada") return { ok: false, message: "El cupo (o el de su grupo) está completo: subí el cupo, cambiá el grupo o da de baja a alguien." };
   return { ok: true, message: r.data.status === "ya" ? "Ya estaba inscripta: se actualizaron sus datos." : "Feriante agregada." };
 }
 

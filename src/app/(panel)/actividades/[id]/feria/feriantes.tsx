@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { asignarPuestoAction, estadoFerianteAction } from "@/app/(panel)/actions";
+import { asignarPuestoAction, estadoFerianteAction, grupoFerianteAction } from "@/app/(panel)/actions";
+import { esGrupo, GRUPO_UNO, GRUPOS_FERIA } from "@/lib/ferias-grupos";
 import { IconoRubro } from "@/components/feria-ui";
 import { IconWhatsApp } from "@/components/icons";
 import { Badge, cx } from "@/components/ui";
@@ -22,11 +23,14 @@ export interface FilaFeriante {
   vecina: string; // a quién se refiere «al lado de» (si se reconoció)
   puesto: number;
   activa: boolean;
+  grupo: string; // ferias con cupo por grupos: ORIGINAL | ESPERA | EXTRA
   whatsapp: string; // link con el mensaje del puesto ("" si no hay teléfono o puesto)
 }
 
+const COLOR_GRUPO: Record<string, string> = { ORIGINAL: "bg-verde-50 text-marca-600 ring-marca/30", ESPERA: "bg-petroleo-50 text-petroleo-600 ring-petroleo/30", EXTRA: "bg-alerta-50 text-alerta ring-alerta/30" };
+
 /** Lista de feriantes: ordenadas por inscripción, con el puesto para elegir y el aviso por WhatsApp. */
-export function ListaFeriantes({ filas, puestos, editable }: { filas: FilaFeriante[]; puestos: { numero: number; tipo: TipoPuesto }[]; editable: boolean }) {
+export function ListaFeriantes({ filas, puestos, editable, grupos = false }: { filas: FilaFeriante[]; puestos: { numero: number; tipo: TipoPuesto }[]; editable: boolean; grupos?: boolean }) {
   const router = useRouter();
   const [pendiente, start] = useTransition();
   const [msg, setMsg] = useState<{ id: string; t: string; ok: boolean } | null>(null);
@@ -55,8 +59,26 @@ export function ListaFeriantes({ filas, puestos, editable }: { filas: FilaFerian
                 </span>
               </span>
               <div className="min-w-0 flex-1">
-                <p className="font-bold">
+                <p className="flex flex-wrap items-center gap-1.5 font-bold">
                   {f.nombre} {!f.activa && <Badge color="rojo">BAJA</Badge>}
+                  {grupos && f.activa && (
+                    editable ? (
+                      <select
+                        aria-label={`Grupo de ${f.nombre}`}
+                        value={f.grupo}
+                        disabled={pendiente}
+                        onChange={(e) => run(f.id, () => grupoFerianteAction(f.id, e.target.value))}
+                        className={cx("h-7 rounded-full px-2 text-[12px] font-extrabold uppercase ring-1", COLOR_GRUPO[f.grupo] ?? "bg-fondo text-gris ring-linea")}
+                      >
+                        {!esGrupo(f.grupo) && <option value="">Sin grupo</option>}
+                        {GRUPOS_FERIA.map((g) => <option key={g} value={g}>{GRUPO_UNO[g]}</option>)}
+                      </select>
+                    ) : (
+                      <span className={cx("rounded-full px-2 py-0.5 text-[12px] font-extrabold uppercase ring-1", COLOR_GRUPO[f.grupo] ?? "bg-fondo text-gris ring-linea")}>
+                        {esGrupo(f.grupo) ? GRUPO_UNO[f.grupo] : "Sin grupo"}
+                      </span>
+                    )
+                  )}
                 </p>
                 <p className="text-[15px]">
                   <b className="text-marca-600">{f.emprendimiento}</b>
