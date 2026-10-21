@@ -4,12 +4,12 @@ import { mensajeActividad } from "@/lib/compartir";
 import { invalidate, setConfigValue, snapshot } from "@/lib/db";
 import { conteosPorActividad, cumplimiento, filtrarActividades, indicadores } from "@/lib/domain/metricas";
 import { parseRegiones } from "@/lib/territorio";
-import { armarFilas, sectoresDe } from "@/lib/ferias";
+import { armarFilas, FILA_NUEVA, sectoresDe } from "@/lib/ferias";
 import { resumenHuellas, type AnimalInput } from "@/lib/huellas";
 import { editarAtencion, registrarAtencion } from "@/lib/services/huellas";
 import { compararIndicador, conclusionesEstadisticas, destacadosDelMes, estadoZona } from "@/lib/domain/resumen";
 import type { TipoPuesto } from "@/lib/schema";
-import { asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, configurarFeria, crearFeria, generarPuestos, inscribirFeriaPublico, type FerianteInput } from "@/lib/services/ferias";
+import { agregarPuesto, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, cambiarTipoPuesto, configurarFeria, crearFeria, eliminarPuesto, generarPuestos, inscribirFeriaPublico, intercambiarPuestos, puestosDe, type FerianteInput } from "@/lib/services/ferias";
 import { ubicacionLabel } from "@/lib/labels";
 import { normalizeDni, normalizePhone, parseFechaFlexible, parseFechaNacimiento, parseHoraFlexible, phoneKey } from "@/lib/format";
 import { parsePreguntas } from "@/lib/preguntas";
@@ -642,6 +642,52 @@ describe("guía del operativo visual", () => {
     // Una actividad que no es operativo visual no tiene checklist.
     const taller = await crearActividad(input({ nombre: "Taller", fecha: "2099-05-11" }), admin);
     await expect(marcarChecklist(taller.id, "espacios", true, admin)).rejects.toThrow();
+  });
+});
+
+describe("feria: organizar lugares a mano", () => {
+  it("agrega, saca y cambia puestos corriendo los números; intercambia feriantes", async () => {
+    const a = await crearActividad(input({ nombre: "Feria Organizar", zona: "NORTE", tipo: "FERIAS DE ESME", generar_formulario: false, fecha: "2099-11-21" }), admin);
+    await configurarFeria(a.id, 10, admin);
+    await generarPuestos(a.id, [{ tipo: "INDIVIDUAL", cantidad: 2 }, { tipo: "COMPARTIDO", cantidad: 1 }], admin); // A: 1-2 · B: 3
+    let s = await snapshot({ fresh: true });
+    const slug = s.actividades.find((x) => x.id === a.id)!.slug;
+    const persona = (n: string, tel: string) => ({ nombre: n, apellido: "Feria", dni: "", telefono: tel, barrio: "", emprendimiento: `${n} Deco`, rubro: "Deco", lleva: [], al_lado_de: "", comparte: "SI", consentimiento: true });
+    for (const [n, t] of [["Ana", "3794000101"], ["Bea", "3794000102"], ["Ceci", "3794000103"]]) await inscribirFeriaPublico(slug, persona(n, t));
+    s = await snapshot({ fresh: true });
+    const fs = s.feriantes.filter((f) => f.actividad_id === a.id).sort((x, y) => x.creado.localeCompare(y.creado));
+    await asignarPuesto(fs[0].id, 1, admin);
+    await asignarPuesto(fs[1].id, 3, admin);
+    await asignarPuesto(fs[2].id, 2, admin);
+
+    // Agregar en la fila A: queda N° 3 y el compartido pasa a ser el 4 (con su feriante).
+    expect(await agregarPuesto(a.id, "A", "INDIVIDUAL", admin)).toMatchObject({ corridos: 1 });
+    s = await snapshot({ fresh: true });
+    const numeros = () => puestosDe(s, a.id).map((p) => `${p.numero}${p.sector}${p.tipo[0]}`);
+    expect(numeros()).toEqual(["1AI", "2AI", "3AI", "4BC"]);
+    expect(s.feriantes.find((f) => f.id === fs[1].id)!.puesto).toBe(4);
+
+    // Intercambiar: Ana (1) ↔ Ceci (2).
+    await intercambiarPuestos(fs[0].id, fs[2].id, admin);
+    s = await snapshot({ fresh: true });
+    expect([fs[0], fs[2]].map((f) => s.feriantes.find((x) => x.id === f.id)!.puesto)).toEqual([2, 1]);
+
+    // Sacar el 1: Ceci queda sin puesto y los demás bajan un número.
+    await eliminarPuesto(a.id, 1, admin);
+    s = await snapshot({ fresh: true });
+    expect(numeros()).toEqual(["1AI", "2AI", "3BC"]);
+    expect(fs.map((f) => s.feriantes.find((x) => x.id === f.id)!.puesto)).toEqual([1, 3, 0]);
+
+    // El compartido pasa a individual: entra una sola (Bea sigue porque está sola).
+    await cambiarTipoPuesto(a.id, 3, "INDIVIDUAL", admin);
+    s = await snapshot({ fresh: true });
+    expect(numeros()).toEqual(["1AI", "2AI", "3BI"]);
+    expect(s.feriantes.find((x) => x.id === fs[1].id)!.puesto).toBe(3);
+
+    // Fila nueva al final.
+    await agregarPuesto(a.id, FILA_NUEVA, "PROPIO", admin);
+    s = await snapshot({ fresh: true });
+    expect(numeros()).toEqual(["1AI", "2AI", "3BI", "4CP"]);
   });
 });
 

@@ -1,7 +1,7 @@
 import "server-only";
 import { insert, insertMany, readFresh, snapshot, update, updateMany, NotFoundError, type Snapshot } from "../db";
 import { ForbiddenError, UserError } from "../errors";
-import { CAPACIDAD, letraSector, LLEVA_OPCIONES, proponerAsignacion, type SectorFeria } from "../ferias";
+import { CAPACIDAD, FILA_NUEVA, letraSector, LLEVA_OPCIONES, proponerAsignacion, type SectorFeria } from "../ferias";
 import { withLock } from "../lock";
 import { esResponsable, misZonas, puede, type Yo } from "../permisos";
 import { ambitoDe } from "../territorio";
@@ -154,6 +154,91 @@ export async function asignarPuesto(ferianteId: string, numero: number, yo: Yo) 
     if (ocupado >= CAPACIDAD[p.tipo]) throw new UserError(`El puesto N° ${n} ya está completo.`);
   }
   return update("feriantes", ferianteId, { puesto: n }, yo.email, { accion: n ? `puesto → ${n}` : "quitar puesto" });
+}
+
+/** Dos feriantes se cambian de lugar (cada una queda en el puesto de la otra). */
+export async function intercambiarPuestos(ferianteA: string, ferianteB: string, yo: Yo) {
+  const s = await snapshot({ fresh: true });
+  const a = s.feriantes.find((x) => x.id === ferianteA);
+  const b = s.feriantes.find((x) => x.id === ferianteB);
+  if (!a || !b || a.actividad_id !== b.actividad_id) throw new NotFoundError("La feriante");
+  await feriaEditable(a.actividad_id, yo);
+  if (a.puesto === b.puesto) return;
+  await updateMany(
+    "feriantes",
+    [
+      { id: a.id, patch: { puesto: b.puesto } },
+      { id: b.id, patch: { puesto: a.puesto } },
+    ],
+    yo.email,
+    `intercambio de puestos ${a.puesto || "sin puesto"} ↔ ${b.puesto || "sin puesto"}`,
+  );
+}
+
+/**
+ * Cambios puntuales de puestos (después de armarlos): agregar uno en una fila, sacar uno, cambiar su tipo.
+ * Los números siguen de corrido: al agregar o sacar, los puestos que siguen (y sus feriantes) se corren uno.
+ */
+async function editarPuestos(actividadId: string, yo: Yo, accion: string, fn: (puestos: Puesto[], feriantes: Feriante[]) => { puestos: { id: string; patch: Partial<Puesto> }[]; feriantes: { id: string; patch: Partial<Feriante> }[]; nuevo?: Omit<Puesto, "id" | "creado" | "actualizado" | "actualizado_por" | "version"> }) {
+  await feriaEditable(actividadId, yo);
+  return withLock(`puestos:${actividadId}`, async () => {
+    const puestos = (await readFresh("puestos")).filter((p) => p.actividad_id === actividadId);
+    const feriantes = (await readFresh("feriantes")).filter((f) => f.actividad_id === actividadId);
+    const r = fn(puestos, feriantes);
+    await updateMany("puestos", r.puestos, yo.email, accion);
+    if (r.nuevo) await insert("puestos", r.nuevo, yo.email);
+    await updateMany("feriantes", r.feriantes, yo.email, accion);
+    return { corridos: r.feriantes.filter((x) => x.patch.puesto).length };
+  });
+}
+
+/** Agrega un puesto al final de una fila (sector). Los que siguen se corren un número. */
+export async function agregarPuesto(actividadId: string, sector: string, tipo: TipoPuesto, yo: Yo) {
+  if (!(TIPOS_PUESTO as readonly string[]).includes(tipo)) throw new UserError("Tipo de puesto inválido.");
+  return editarPuestos(actividadId, yo, "agregar puesto", (puestos, feriantes) => {
+    const activos = puestos.filter((p) => p.activo).sort((a, b) => a.numero - b.numero);
+    if (activos.length >= 400) throw new UserError("Son demasiados puestos (máximo 400).");
+    const delSector = sector === FILA_NUEVA ? [] : activos.filter((p) => p.sector === sector);
+    // Al final de la fila elegida; si la fila no existe, una fila nueva al final.
+    const numero = delSector.length ? delSector[delSector.length - 1].numero + 1 : (activos[activos.length - 1]?.numero ?? 0) + 1;
+    const letra = delSector.length ? sector : letraSector(new Set(activos.map((p) => p.sector)).size);
+    return {
+      puestos: puestos.filter((p) => p.numero >= numero && p.numero > 0).map((p) => ({ id: p.id, patch: { numero: p.numero + 1 } })),
+      feriantes: feriantes.filter((f) => f.puesto >= numero).map((f) => ({ id: f.id, patch: { puesto: f.puesto + 1 } })),
+      nuevo: { actividad_id: actividadId, numero, tipo, sector: letra, x: 0, y: 0, activo: true, observaciones: "" },
+    };
+  });
+}
+
+/** Saca un puesto: quien estaba ahí queda «sin puesto» y los que siguen se corren un número para abajo. */
+export async function eliminarPuesto(actividadId: string, numero: number, yo: Yo) {
+  return editarPuestos(actividadId, yo, `sacar puesto ${numero}`, (puestos, feriantes) => {
+    const p = puestos.find((x) => x.activo && x.numero === numero);
+    if (!p) throw new UserError(`No existe el puesto N° ${numero}.`);
+    return {
+      puestos: [
+        { id: p.id, patch: { activo: false, numero: 0 } },
+        ...puestos.filter((x) => x.id !== p.id && x.numero > numero).map((x) => ({ id: x.id, patch: { numero: x.numero - 1 } })),
+      ],
+      feriantes: feriantes
+        .filter((f) => f.puesto >= numero)
+        .map((f) => ({ id: f.id, patch: { puesto: f.puesto === numero ? 0 : f.puesto - 1 } })),
+    };
+  });
+}
+
+/** Cambia el tipo de un puesto. Si ahora entra menos gente, la última que se había asignado queda sin puesto. */
+export async function cambiarTipoPuesto(actividadId: string, numero: number, tipo: TipoPuesto, yo: Yo) {
+  if (!(TIPOS_PUESTO as readonly string[]).includes(tipo)) throw new UserError("Tipo de puesto inválido.");
+  return editarPuestos(actividadId, yo, `puesto ${numero} → ${tipo}`, (puestos, feriantes) => {
+    const p = puestos.find((x) => x.activo && x.numero === numero);
+    if (!p) throw new UserError(`No existe el puesto N° ${numero}.`);
+    const ahi = feriantes.filter((f) => f.estado === "INSCRIPTA" && f.puesto === numero).sort((a, b) => a.actualizado.localeCompare(b.actualizado));
+    return {
+      puestos: p.tipo === tipo ? [] : [{ id: p.id, patch: { tipo } }],
+      feriantes: ahi.slice(CAPACIDAD[tipo]).map((f) => ({ id: f.id, patch: { puesto: 0 } })),
+    };
+  });
 }
 
 /** Completa los lugares de las que todavía no tienen (no toca las ya asignadas). */

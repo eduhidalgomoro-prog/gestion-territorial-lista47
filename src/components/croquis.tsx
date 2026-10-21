@@ -76,11 +76,11 @@ export function CroquisEditor({ actividadId, url, puestos }: { actividadId: stri
   const inputRef = useRef<HTMLInputElement>(null);
   const tipoDe = useMemo(() => new Map(puestos.map((p) => [p.numero, p.tipo])), [puestos]);
   const cambios = puestos.some((p) => {
-    const q = pos.get(p.numero)!;
+    const q = pos.get(p.numero) ?? { x: p.x, y: p.y };
     return q.x !== p.x || q.y !== p.y;
   });
   const sinUbicar = puestos.filter((p) => {
-    const q = pos.get(p.numero)!;
+    const q = pos.get(p.numero) ?? { x: p.x, y: p.y };
     return !q.x && !q.y;
   }).length;
 
@@ -92,7 +92,7 @@ export function CroquisEditor({ actividadId, url, puestos }: { actividadId: stri
     const next = new Map(pos).set(elegido, { x, y });
     setPos(next);
     // Siguiente puesto sin ubicar (en orden).
-    const sig = puestos.find((p) => p.numero > elegido && !next.get(p.numero)!.x && !next.get(p.numero)!.y) ?? puestos.find((p) => !next.get(p.numero)!.x && !next.get(p.numero)!.y);
+    const sig = puestos.find((p) => p.numero > elegido && !next.get(p.numero)?.x && !next.get(p.numero)?.y) ?? puestos.find((p) => !next.get(p.numero)?.x && !next.get(p.numero)?.y);
     setElegido(sig?.numero ?? 0);
     setMsg(null);
   }
@@ -158,7 +158,7 @@ export function CroquisEditor({ actividadId, url, puestos }: { actividadId: stri
         {/* eslint-disable-next-line @next/next/no-img-element -- imagen subida a Vercel Blob, tamaño variable */}
         <img src={url} alt="Croquis del lugar" className="block h-auto w-full select-none" draggable={false} />
         {puestos.map((p) => {
-          const q = pos.get(p.numero)!;
+          const q = pos.get(p.numero) ?? { x: p.x, y: p.y };
           return q.x || q.y ? (
             <Pin key={p.numero} p={{ ...p, ...q }} activo={p.numero === elegido} onClick={() => setElegido(p.numero)} />
           ) : null;
@@ -168,7 +168,7 @@ export function CroquisEditor({ actividadId, url, puestos }: { actividadId: stri
       <p className="mt-2 text-sm text-gris">Para mover un puesto, tocalo (queda marcado) y después tocá el lugar nuevo. Elegí cualquier número abajo para reubicarlo.</p>
       <div className="mt-2 flex flex-wrap gap-1">
         {puestos.map((p) => {
-          const q = pos.get(p.numero)!;
+          const q = pos.get(p.numero) ?? { x: p.x, y: p.y };
           return (
             <button
               key={p.numero}

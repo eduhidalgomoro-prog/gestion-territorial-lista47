@@ -152,6 +152,9 @@ export const SECTORES_INICIALES: SectorFeria[] = [
 
 export const letraSector = (i: number) => String.fromCharCode(65 + (i % 26));
 
+/** Al agregar un puesto: «fila nueva» al final del croquis (en lugar de sumarlo a un sector existente). */
+export const FILA_NUEVA = "__nueva";
+
 /** Sectores actuales a partir de los puestos (para editarlos). */
 export function sectoresDe(puestos: (PuestoAsignable & { sector?: string })[]): SectorFeria[] {
   const out: (SectorFeria & { s: string })[] = [];

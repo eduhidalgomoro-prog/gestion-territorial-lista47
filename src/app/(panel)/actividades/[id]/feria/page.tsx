@@ -21,6 +21,7 @@ import { sp, type SP } from "@/lib/view";
 import { agregarFerianteAction, asignarAutomaticoAction, feriaConfigAction, puestosAction, quitarAsignacionesAction } from "../../../actions";
 import { ListaFeriantes, type FilaFeriante } from "./feriantes";
 import { BotonAccion } from "./boton-accion";
+import { OrganizarPuestos } from "./organizar";
 
 export const metadata = { title: "Feria" };
 
@@ -103,7 +104,7 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
 
   // Listado del día, por número de puesto.
   const listado = puestos.map((p) => ({ ...p, quienes: asignables.filter((f) => f.estado === "INSCRIPTA" && f.puesto === p.numero) }));
-  const croquisAuto = listado.map((p) => ({ numero: p.numero, tipo: p.tipo, nombres: p.quienes.map((f) => f.emprendimiento) }));
+  const croquisAuto = listado.map((p) => ({ numero: p.numero, tipo: p.tipo, sector: p.sector, nombres: p.quienes.map((f) => f.emprendimiento) }));
   const textoListado = [
     `*${a.nombre}*${fecha ? ` · ${fecha}` : ""}`,
     "Listado de puestos:",
@@ -174,7 +175,8 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
           )}
           {editable && puestos.length > 0 && (
             <p className="mb-3 text-sm text-gris">
-              La asignación automática respeta el orden de inscripción: quien trae gazebo va a un puesto propio, quien puede compartir a uno compartido (si pidió estar con alguien que también comparte, van juntas) y el resto a uno individual. Después podés cambiar cualquiera a mano.
+              La asignación automática respeta el orden de inscripción: quien trae gazebo va a un puesto propio, quien puede compartir a uno compartido (si pidió estar con alguien que también comparte, van juntas) y el resto a uno individual. Después podés cambiar cualquiera a mano, o moverlas sobre el croquis en{" "}
+              <Link href={`/actividades/${a.id}/feria?tab=puestos`} className="font-bold text-petroleo underline">Puestos y croquis → Organizar lugares</Link>.
             </p>
           )}
           {filas.length === 0 ? (
@@ -224,6 +226,13 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
 
       {tab === "puestos" && (
         <div className="space-y-4">
+          {editable && puestos.length > 0 && (
+            <OrganizarPuestos
+              actividadId={a.id}
+              puestos={puestos.map((p) => ({ numero: p.numero, tipo: p.tipo, sector: p.sector }))}
+              feriantes={asignables.filter((f) => f.estado === "INSCRIPTA").map((f) => ({ id: f.id, nombre: f.nombre, emprendimiento: f.emprendimiento, puesto: f.puesto }))}
+            />
+          )}
           {editable && (
             <div className="grid gap-4 md:grid-cols-2">
               <Card className="p-4 sm:p-5">
@@ -256,7 +265,7 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
               <summary className="cursor-pointer font-bold text-petroleo">Opcional: foto o plano del lugar con los números</summary>
               <div className="mt-3">
                 {editable ? (
-                  <CroquisEditor actividadId={a.id} url={a.croquis} puestos={puestos.map((p) => ({ numero: p.numero, tipo: p.tipo, x: p.x, y: p.y }))} />
+                  <CroquisEditor key={puestos.map((p) => `${p.numero}${p.tipo}`).join()} actividadId={a.id} url={a.croquis} puestos={puestos.map((p) => ({ numero: p.numero, tipo: p.tipo, x: p.x, y: p.y }))} />
                 ) : (
                   <CroquisVista url={a.croquis} puestos={puestos} />
                 )}

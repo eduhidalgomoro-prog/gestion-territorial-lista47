@@ -15,8 +15,10 @@ import { geocodificar, type Ubicacion } from "@/lib/services/geocode";
 import { anularLote, marcarPreparando, registrarMovimiento, type MovimientoInput } from "@/lib/services/logistica";
 import { cortarAccesoAyudante, crearAccesoAyudante } from "@/lib/services/ayudantes";
 import {
-  agregarFeriante, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, configurarFeria, crearFeria, generarPuestos, quitarAsignaciones, ubicarPuestos,
+  agregarFeriante, agregarPuesto, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, cambiarTipoPuesto, configurarFeria, crearFeria, eliminarPuesto, generarPuestos,
+  intercambiarPuestos, quitarAsignaciones, ubicarPuestos,
 } from "@/lib/services/ferias";
+import type { TipoPuesto } from "@/lib/schema";
 import { confirmarImportacion, darDeBaja, pasarAInscripto, guardarLinkGrupo, guardarMensajes, marcarConfirmacion, vistaPreviaImportacion, type FilaImportada, type VistaPrevia } from "@/lib/services/inscripciones";
 import type { Yo } from "@/lib/permisos";
 import type { SectorFeria } from "@/lib/ferias";
@@ -186,6 +188,26 @@ export async function ubicarPuestosAction(actividadId: string, posiciones: { num
 
 export async function asignarPuestoAction(ferianteId: string, numero: number): Promise<ActionResult> {
   return act((yo) => asignarPuesto(ferianteId, numero, yo), { ok: numero ? `Puesto N° ${numero} asignado.` : "Puesto quitado." });
+}
+
+export async function intercambiarPuestosAction(ferianteA: string, ferianteB: string): Promise<ActionResult> {
+  return act((yo) => intercambiarPuestos(ferianteA, ferianteB, yo), { ok: "Se cambiaron de lugar." });
+}
+
+const avisoCorridos = (n: number) => (n ? ` Los números de los puestos que siguen cambiaron: si ya avisaste por WhatsApp, volvé a avisar a esas ${n === 1 ? "feriante" : `${n} feriantes`}.` : "");
+
+export async function agregarPuestoAction(actividadId: string, sector: string, tipo: TipoPuesto): Promise<ActionResult> {
+  const r = await act((yo) => agregarPuesto(actividadId, sector, tipo, yo));
+  return r.ok && r.data ? { ok: true, message: `Puesto agregado.${avisoCorridos(r.data.corridos)}` } : r;
+}
+
+export async function eliminarPuestoAction(actividadId: string, numero: number): Promise<ActionResult> {
+  const r = await act((yo) => eliminarPuesto(actividadId, numero, yo));
+  return r.ok && r.data ? { ok: true, message: `Puesto N° ${numero} eliminado.${avisoCorridos(r.data.corridos)}` } : r;
+}
+
+export async function tipoPuestoAction(actividadId: string, numero: number, tipo: TipoPuesto): Promise<ActionResult> {
+  return act((yo) => cambiarTipoPuesto(actividadId, numero, tipo, yo), { ok: `Puesto N° ${numero} actualizado.` });
 }
 
 export async function asignarAutomaticoAction(actividadId: string): Promise<ActionResult> {

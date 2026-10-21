@@ -8,6 +8,7 @@ import { cx } from "./ui";
 export interface PuestoConNombres {
   numero: number;
   tipo: TipoPuesto;
+  sector?: string; // fila del croquis (si no viene, se agrupa por tipo)
   nombres: string[]; // emprendimientos ubicados en el puesto
 }
 
