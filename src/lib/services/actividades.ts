@@ -274,7 +274,7 @@ export async function crearActividad(input: ActividadInput, yo: Yo, opts: { feri
         inscripcion_abierta: !!slug,
         checklist: "",
         formulario_sin: "",
-        bienvenida: "", cupos_grupos: "",
+        bienvenida: "", cupos_grupos: "", grupos_cerrados: "",
         inscriptos: 0, presentes: 0, ausentes: 0, pct_asistencia: 0,
         resultados: "", incidencias: "", fotos: "",
         link_flyer_historia: "",

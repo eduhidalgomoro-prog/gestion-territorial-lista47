@@ -30,6 +30,11 @@ export const unirCupos = (c: Partial<Record<GrupoFeria, number>>) =>
 
 export const conGrupos = (a: { cupos_grupos?: string }) => Object.keys(parseCupos(a.cupos_grupos ?? "")).length > 0;
 
+/** ¿Ese grupo ya puede inscribirse? (la encargada abre los grupos de a uno: ej. originales el jueves, segundo grupo el viernes). */
+export const grupoAbierto = (a: { grupos_cerrados?: string }, g: string) => !(a.grupos_cerrados ?? "").split(",").map((x) => x.trim()).includes(g);
+
+export const MENSAJE_GRUPO_CERRADO = "Todavía no abrió la inscripción para vos: te vamos a avisar por WhatsApp cuando puedas inscribirte. ¡Gracias por tu interés!";
+
 /** Palabras del nombre que sirven para comparar (sin tildes, sin palabras cortas). */
 const palabras = (s: string) => normalizeText(s).replace(/[^a-zñ ]/g, " ").split(/\s+/).filter((p) => p.length > 2);
 

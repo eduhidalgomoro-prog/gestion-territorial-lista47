@@ -15,7 +15,7 @@ import { geocodificar, type Ubicacion } from "@/lib/services/geocode";
 import { anularLote, marcarPreparando, registrarMovimiento, type MovimientoInput } from "@/lib/services/logistica";
 import { cortarAccesoAyudante, crearAccesoAyudante } from "@/lib/services/ayudantes";
 import {
-  agregarFeriante, agregarPuesto, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, cambiarGrupoFeriante, cambiarTipoPuesto, configurarFeria, configurarGrupos, crearFeria, eliminarPuesto, generarPuestos,
+  abrirGrupos, agregarFeriante, agregarPuesto, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, cambiarGrupoFeriante, cambiarTipoPuesto, configurarFeria, configurarGrupos, crearFeria, eliminarPuesto, generarPuestos,
   intercambiarPuestos, quitarAsignaciones, ubicarPuestos,
 } from "@/lib/services/ferias";
 import type { TipoPuesto } from "@/lib/schema";
@@ -170,6 +170,10 @@ export async function gruposFeriaAction(actividadId: string, _: ActionResult, fd
   const r = await act((yo) => configurarGrupos(actividadId, { ORIGINAL: num(fd, "cupo_ORIGINAL"), ESPERA: num(fd, "cupo_ESPERA"), EXTRA: num(fd, "cupo_EXTRA") }, yo));
   if (!r.ok || !r.data) return r;
   return { ok: true, message: r.data.total ? `Cupos por grupo guardados: ${r.data.total} lugares en total.` : "La feria vuelve a tener un solo cupo." };
+}
+
+export async function abrirGruposAction(actividadId: string, _: ActionResult, fd: FormData): Promise<ActionResult> {
+  return act((yo) => abrirGrupos(actividadId, fd.getAll("abierto").map(String), yo), { ok: "Listo: el formulario ya acepta solo a los grupos marcados." });
 }
 
 export async function grupoFerianteAction(ferianteId: string, grupo: string): Promise<ActionResult> {

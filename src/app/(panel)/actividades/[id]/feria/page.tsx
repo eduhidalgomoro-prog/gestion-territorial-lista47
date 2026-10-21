@@ -15,11 +15,12 @@ import { SectoresEditor } from "@/components/sectores-editor";
 import { buscarVecina, CAPACIDAD, describirPuesto, LLEVA_OPCIONES, SECTORES_INICIALES, sectoresDe, TIPO_PUESTO_HEX, TIPO_PUESTO_LABEL } from "@/lib/ferias";
 import { puede } from "@/lib/permisos";
 import type { Actividad } from "@/lib/schema";
-import { faltanInscribirse, ferianteActivas, puestosDe } from "@/lib/services/ferias";
-import { conGrupos, GRUPO_LABEL, GRUPO_UNO, GRUPOS_FERIA, parseCupos, type GrupoFeria } from "@/lib/ferias-grupos";
+import { faltanInscribirse, ferianteActivas, pendientesDeGuardar, puestosDe, vaciarCola } from "@/lib/services/ferias";
+import { after } from "next/server";
+import { conGrupos, GRUPO_LABEL, GRUPO_UNO, grupoAbierto, GRUPOS_FERIA, parseCupos, type GrupoFeria } from "@/lib/ferias-grupos";
 import { formatDate, formatPhone } from "@/lib/util";
 import { sp, type SP } from "@/lib/view";
-import { agregarFerianteAction, asignarAutomaticoAction, feriaConfigAction, gruposFeriaAction, puestosAction, quitarAsignacionesAction } from "../../../actions";
+import { abrirGruposAction, agregarFerianteAction, asignarAutomaticoAction, feriaConfigAction, gruposFeriaAction, puestosAction, quitarAsignacionesAction } from "../../../actions";
 import { ListaFeriantes, type FilaFeriante } from "./feriantes";
 import { BotonAccion } from "./boton-accion";
 import { OrganizarPuestos } from "./organizar";
@@ -85,6 +86,9 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
   const cupos = parseCupos(a.cupos_grupos);
   const enGrupo = (g: GrupoFeria) => activas.filter((f) => f.grupo === g).length;
   const faltan = usaGrupos ? faltanInscribirse(a, s) : [];
+  // Inscripción rápida: las que ya tienen lugar pero todavía se están guardando en la planilla.
+  const guardandose = await pendientesDeGuardar(a.id);
+  if (guardandose) after(() => vaciarCola(a.id).catch((e) => console.error("[feria] guardar inscripciones", e)));
 
   const mensaje = (f: (typeof asignables)[number]) => {
     const compañeras = activas.filter((o) => o.puesto === f.puesto && o.id !== f.id).map((o) => nombre(o.participante_id));
@@ -133,6 +137,12 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
         ]}
       />
 
+      {guardandose > 0 && (
+        <Notice className="mb-4">
+          <b>{guardandose === 1 ? "1 inscripción se está guardando" : `${guardandose} inscripciones se están guardando`}</b> en la planilla. Ya tienen su lugar: en unos segundos aparecen en la lista (recargá la página).
+        </Notice>
+      )}
+
       {usaGrupos && (
         <Card className="mb-4 p-4">
           <p className="mb-2 text-sm font-bold text-gris uppercase">Cupo por grupos</p>
@@ -156,6 +166,24 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
           <p className="mt-2 text-[13.5px] text-gris">
             Al inscribirse, cada persona se busca en las listas por teléfono y por nombre: si está en la de originales entra como original, si está en la del segundo grupo como segundo grupo, y si no está en ninguna como extra. Cuando un grupo se completa, no entran más de ese grupo.
           </p>
+          {editable ? (
+            <ActionForm action={abrirGruposAction.bind(null, a.id)} className="mt-3 rounded-xl bg-fondo p-3">
+              <p className="mb-2 text-[14px] font-bold">Inscripción abierta para:</p>
+              <div className="flex flex-wrap gap-2">
+                {GRUPOS_FERIA.filter((g) => cupos[g]).map((g) => (
+                  <label key={g} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl bg-white px-3 text-[15px] ring-1 ring-linea has-[:checked]:bg-verde-50 has-[:checked]:font-bold has-[:checked]:ring-marca">
+                    <input type="checkbox" name="abierto" value={g} defaultChecked={grupoAbierto(a, g)} className="size-5 accent-marca" /> {GRUPO_LABEL[g]}
+                  </label>
+                ))}
+              </div>
+              <p className="mt-2 mb-3 text-[13px] text-gris">Quien es de un grupo sin marcar ve «Todavía no abrió la inscripción para vos» y no se anota. Vos podés sumarla a mano igual.</p>
+              <SubmitButton size="md" variant="secundario">Guardar</SubmitButton>
+            </ActionForm>
+          ) : (
+            <p className="mt-2 text-[14px]">
+              <b>Inscripción abierta para:</b> {GRUPOS_FERIA.filter((g) => cupos[g] && grupoAbierto(a, g)).map((g) => GRUPO_LABEL[g]).join(", ") || "ningún grupo"}
+            </p>
+          )}
         </Card>
       )}
 

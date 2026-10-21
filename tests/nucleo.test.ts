@@ -10,7 +10,8 @@ import { editarAtencion, registrarAtencion } from "@/lib/services/huellas";
 import { compararIndicador, conclusionesEstadisticas, destacadosDelMes, estadoZona } from "@/lib/domain/resumen";
 import type { TipoPuesto } from "@/lib/schema";
 import { mismaPersona } from "@/lib/ferias-grupos";
-import { agregarPuesto, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, cambiarGrupoFeriante, cambiarTipoPuesto, cargarListaFeria, configurarFeria, configurarGrupos, crearFeria, eliminarPuesto, faltanInscribirse, generarPuestos, inscribirFeriaPublico, intercambiarPuestos, puestosDe, type FerianteInput } from "@/lib/services/ferias";
+import { largoCola, reiniciarMemoria } from "@/lib/cola-feria";
+import { abrirGrupos, agregarPuesto, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, cambiarGrupoFeriante, cambiarTipoPuesto, cargarListaFeria, configurarFeria, configurarGrupos, crearFeria, eliminarPuesto, faltanInscribirse, generarPuestos, inscribirFeriaPublico, intercambiarPuestos, puestosDe, type FerianteInput } from "@/lib/services/ferias";
 import { ubicacionLabel } from "@/lib/labels";
 import { normalizeDni, normalizePhone, parseFechaFlexible, parseFechaNacimiento, parseHoraFlexible, phoneKey } from "@/lib/format";
 import { parsePreguntas } from "@/lib/preguntas";
@@ -52,6 +53,7 @@ function input(p: Partial<ActividadInput> = {}): ActividadInput {
 beforeEach(() => {
   setStore(new MemoryStore());
   invalidate();
+  reiniciarMemoria(); // contadores de la inscripción rápida a ferias
 });
 
 describe("normalización", () => {
@@ -673,11 +675,54 @@ describe("feria: cupo por grupos", () => {
     expect(grupos).toEqual(["ESPERA", "EXTRA", "ORIGINAL", "ORIGINAL"]);
     expect(faltanInscribirse(s.actividades.find((x) => x.id === a.id)!, s).map((l) => l.nombre).sort()).toEqual(["Cris Tres", "Eva Cinco"]);
 
+    // Grupos cerrados: el segundo grupo todavía no puede inscribirse (la encargada sí puede sumarla a mano).
+    await abrirGrupos(a.id, ["ORIGINAL", "EXTRA"], admin);
+    expect(await inscribirFeriaPublico(slug, persona("Eva", "Cinco", "3794100005"))).toMatchObject({ status: "cerrada" });
+    await abrirGrupos(a.id, ["ORIGINAL", "ESPERA", "EXTRA"], admin);
+
     // La encargada corrige un grupo.
     const fabi = s.feriantes.find((f) => f.actividad_id === a.id && f.grupo === "EXTRA")!;
     await cambiarGrupoFeriante(fabi.id, "ESPERA", admin);
     s = await snapshot({ fresh: true });
     expect(s.feriantes.find((f) => f.id === fabi.id)!.grupo).toBe("ESPERA");
+  });
+});
+
+describe("feria: inscripción rápida (pico de inscripciones)", () => {
+  it("100 personas a la vez: entran justo las del cupo de cada grupo, sin duplicados, y todo queda guardado", async () => {
+    const a = await crearActividad(input({ nombre: "Feria Pico", zona: "NORTE", tipo: "FERIAS DE ESME", generar_formulario: false, fecha: "2099-11-23" }), admin);
+    await configurarFeria(a.id, 60, admin);
+    await configurarGrupos(a.id, { ORIGINAL: 35, ESPERA: 20, EXTRA: 10 }, admin);
+    const nombres = (pre: string, n: number) => Array.from({ length: n }, (_, i) => `${pre} Apellido${String.fromCharCode(65 + (i % 26))}${String.fromCharCode(65 + Math.floor(i / 26))}`);
+    const originales = nombres("Orig", 45);
+    const espera = nombres("Espe", 30);
+    await cargarListaFeria(a.id, "ORIGINAL", originales.map((nombre) => ({ nombre, telefono: "", emprendimiento: "" })), admin);
+    await cargarListaFeria(a.id, "ESPERA", espera.map((nombre) => ({ nombre, telefono: "", emprendimiento: "" })), admin);
+    const s0 = await snapshot({ fresh: true });
+    const slug = s0.actividades.find((x) => x.id === a.id)!.slug;
+    const extras = nombres("Extra", 25);
+    const todas = [...originales, ...espera, ...extras];
+    let tel = 3794200000;
+    const pedidos = todas.map((n) => {
+      const [nombre, apellido] = n.split(" ");
+      return inscribirFeriaPublico(slug, { nombre, apellido, dni: "", telefono: String(tel++), barrio: "", emprendimiento: `${nombre} Emp`, rubro: "Deco", lleva: [], al_lado_de: "", comparte: "SI", consentimiento: true });
+    });
+    // Y alguien que se inscribe dos veces.
+    pedidos.push(inscribirFeriaPublico(slug, { nombre: "Orig", apellido: "ApellidoAA", dni: "", telefono: "3794200000", barrio: "", emprendimiento: "x", rubro: "x", lleva: [], al_lado_de: "", comparte: "SI", consentimiento: true }));
+    const res = await Promise.all(pedidos);
+    expect(res.filter((r) => r.status === "inscripta").length).toBe(65);
+    expect(res.filter((r) => r.status === "ya").length).toBe(1);
+    expect(await largoCola(a.id)).toBe(0); // todo guardado en la planilla
+    const s = await snapshot({ fresh: true });
+    const fs = s.feriantes.filter((f) => f.actividad_id === a.id && f.estado === "INSCRIPTA");
+    expect(fs.length).toBe(65);
+    expect(["ORIGINAL", "ESPERA", "EXTRA"].map((g) => fs.filter((f) => f.grupo === g).length)).toEqual([35, 20, 10]);
+    expect(new Set(fs.map((f) => f.participante_id)).size).toBe(65);
+    expect(s.inscripciones.filter((i) => i.actividad_id === a.id && i.estado === "INSCRIPTO").length).toBe(65);
+
+    // Una baja libera el lugar: la próxima del grupo entra.
+    await cambiarEstadoFeriante(fs.find((f) => f.grupo === "EXTRA")!.id, false, admin);
+    expect(await inscribirFeriaPublico(slug, { nombre: "Nueva", apellido: "Extra", dni: "", telefono: "3794299999", barrio: "", emprendimiento: "y", rubro: "y", lleva: [], al_lado_de: "", comparte: "SI", consentimiento: true })).toMatchObject({ status: "inscripta" });
   });
 });
 

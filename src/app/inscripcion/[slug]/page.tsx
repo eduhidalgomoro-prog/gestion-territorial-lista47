@@ -14,6 +14,7 @@ import { rubroDe } from "@/components/taller";
 import { fechasDeClases } from "@/lib/clases";
 import { linkCalendario } from "@/lib/compartir";
 import { BIENVENIDA_POR_DEFECTO, CIUDAD_CAPITAL, esTallerEscuela, preguntasFijas, preguntasSinRepetir } from "@/lib/inscripcion-publica";
+import { conGrupos } from "@/lib/ferias-grupos";
 import type { Actividad } from "@/lib/schema";
 import { nombrePropio, parseRegiones } from "@/lib/territorio";
 import { FeriaForm } from "./feria-form";
@@ -122,7 +123,7 @@ export default async function FormularioPublico({ params }: { params: Promise<{ 
               <>
                 <h2 id="form-titulo" className="mb-1 text-2xl font-extrabold">Reservá tu lugar</h2>
                 <p className="mb-5 text-[15px] text-gris">
-                  Cupo limitado{libres !== null && libres <= 15 ? `: quedan ${libres} ${libres === 1 ? "lugar" : "lugares"}` : ""}. Te lleva un minuto.
+                  Cupo limitado{libres !== null && libres <= 15 && !conGrupos(a) ? `: quedan ${libres} ${libres === 1 ? "lugar" : "lugares"}` : ""}. Te lleva un minuto.
                 </p>
                 <FeriaForm slug={a.slug} token={formToken()} rubros={rubros} />
               </>

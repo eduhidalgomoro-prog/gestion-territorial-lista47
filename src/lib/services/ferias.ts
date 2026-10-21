@@ -6,8 +6,11 @@ import { withLock } from "../lock";
 import { esResponsable, misZonas, puede, type Yo } from "../permisos";
 import { ambitoDe } from "../territorio";
 import { TIPOS_PUESTO, type Actividad, type Feriante, type Puesto, type TipoPuesto } from "../schema";
-import { cleanString, normalizePhone, nowIso } from "../util";
-import { conGrupos, esGrupo, GRUPOS_FERIA, grupoDe, mismaPersona, parseCupos, unirCupos, type GrupoFeria } from "../ferias-grupos";
+import { cleanString, normalizePhone, nowIso, phoneKey } from "../util";
+import { after } from "next/server";
+import { BusyError } from "../lock";
+import { inicializada, inicializar, invalidarContadores, largoCola, reservar, sacarDeCola, verCola } from "../cola-feria";
+import { conGrupos, esGrupo, grupoAbierto, GRUPOS_FERIA, grupoDe, MENSAJE_GRUPO_CERRADO, mismaPersona, parseCupos, unirCupos, type GrupoFeria } from "../ferias-grupos";
 import { crearActividad, formularioInscripcion } from "./actividades";
 import { inscribir, inscripcionAbiertaPublica } from "./inscripciones";
 import { limpiarPersona, upsertParticipantes, type PersonaInput } from "./participantes";
@@ -78,6 +81,7 @@ export async function configurarFeria(actividadId: string, cupo: number, yo: Yo)
   const c = Math.round(Number(cupo));
   if (!Number.isFinite(c) || c < 1 || c > 500) throw new UserError("El cupo tiene que ser un número entre 1 y 500.", { cupo: "Número inválido." });
   await update("actividades", actividadId, { es_feria: true, cupo: c }, yo.email, { accion: `feria: cupo ${c}` });
+  await invalidarContadores(actividadId);
   if (!a.slug) await formularioInscripcion(actividadId, true, yo);
 }
 
@@ -281,6 +285,7 @@ export async function cambiarEstadoFeriante(ferianteId: string, activa: boolean,
     await update("feriantes", ferianteId, { estado: "BAJA", puesto: 0 }, yo.email, { accion: "baja de feriante" });
     if (ins && ins.estado === "INSCRIPTO") await update("inscripciones", ins.id, { estado: "DADO DE BAJA" }, yo.email, { accion: "baja de inscripción" });
   }
+  await invalidarContadores(a.id); // se liberó u ocupó un lugar
 }
 
 // ---------------------------------------------------------------------------
@@ -346,7 +351,9 @@ async function anotar(a: Actividad, input: FerianteInput, origen: "FORMULARIO PR
       await update("feriantes", previa.id, datos, user, { accion: "actualizar datos de feriante", lock: false });
       return { status: "ya", nombre: persona.nombre };
     }
-    const activas = feriantes.filter((f) => f.estado === "INSCRIPTA");
+    // Cuentan también las que se reservaron por la inscripción rápida y todavía se están guardando.
+    const enCola = (await verCola(a.id)).map((x) => ({ grupo: (JSON.parse(x) as EnCola).grupo }) as Feriante);
+    const activas = [...feriantes.filter((f) => f.estado === "INSCRIPTA"), ...enCola];
     if (a.cupo && activas.length >= a.cupo) return { status: "completo", motivo: COMPLETO };
     if (!hayLugarEnGrupo(a, grupo, activas)) return { status: "completo", motivo: COMPLETO };
     if (previa) await update("feriantes", previa.id, { ...datos, estado: "INSCRIPTA", puesto: 0, grupo }, user, { accion: "reinscripción a feria", lock: false });
@@ -356,20 +363,152 @@ async function anotar(a: Actividad, input: FerianteInput, origen: "FORMULARIO PR
   });
 }
 
+/**
+ * Inscripción pública RÁPIDA: el lugar se reserva al instante (Redis, sin pasarse del cupo ni del de cada grupo)
+ * y la inscripción se guarda en la planilla después, en tandas (ver vaciarCola). Soporta picos de muchas personas a la vez.
+ */
 export async function inscribirFeriaPublico(slug: string, input: FerianteInput & { consentimiento: boolean }): Promise<ResultadoFeria> {
+  const { resultado, actividadId } = await reservarLugarFeria(slug, input);
+  if (resultado.status === "inscripta" && actividadId) await despues(() => vaciarCola(actividadId));
+  return resultado;
+}
+
+/** Solo la reserva del lugar (instantánea); el guardado en la planilla lo hace vaciarCola. */
+export async function reservarLugarFeria(slug: string, input: FerianteInput & { consentimiento: boolean }): Promise<{ resultado: ResultadoFeria; actividadId: string }> {
   const s = await snapshot();
   const a = s.actividades.find((x) => x.slug === slug && x.es_feria);
   if (!a) throw new UserError("No encontramos esta feria.");
   const abierta = inscripcionAbiertaPublica(a);
-  if (!abierta.abierta) return { status: "cerrada", motivo: abierta.motivo };
+  if (!abierta.abierta) return { resultado: { status: "cerrada", motivo: abierta.motivo }, actividadId: a.id };
   if (!input.consentimiento) throw new UserError("Para inscribirte tenés que aceptar el uso de tus datos.", { consentimiento: "Marcá esta casilla para continuar." });
-  return anotar(a, input, "FORMULARIO PROPIO", "formulario-publico");
+  const { persona, datos } = limpiarFeriante(input);
+  const grupo = (await grupoPara(a, persona)) || "TODAS";
+  if (conGrupos(a) && !grupoAbierto(a, grupo)) return { resultado: { status: "cerrada", motivo: MENSAJE_GRUPO_CERRADO }, actividadId: a.id };
+  const cupos = parseCupos(a.cupos_grupos);
+  const maxGrupo = conGrupos(a) ? cupos[grupo as GrupoFeria] ?? 0 : -1;
+  const claves = clavesPersona(persona);
+  const payload = JSON.stringify({ persona, datos, grupo: grupo === "TODAS" ? "" : grupo, consentimiento: nowIso() } satisfies EnCola);
+  let r = await reservar(a.id, grupo, maxGrupo, a.cupo || 0, claves, payload);
+  if (r === "init") {
+    await armarContadores(a.id);
+    r = await reservar(a.id, grupo, maxGrupo, a.cupo || 0, claves, payload);
+  }
+  const resultado: ResultadoFeria =
+    r === "ok" ? { status: "inscripta", nombre: persona.nombre } : r === "ya" ? { status: "ya", nombre: persona.nombre } : { status: "completo", motivo: COMPLETO };
+  return { resultado, actividadId: a.id };
 }
+
+/** Lo que espera en la cola hasta guardarse en la planilla. */
+interface EnCola {
+  persona: ReturnType<typeof limpiarFeriante>["persona"];
+  datos: ReturnType<typeof limpiarFeriante>["datos"];
+  grupo: string;
+  consentimiento: string;
+}
+
+/** Claves para no anotar dos veces a la misma persona: su teléfono y su DNI. */
+function clavesPersona(p: { telefono: string; dni: string }): string[] {
+  return [phoneKey(p.telefono) && `tel:${phoneKey(p.telefono)}`, p.dni && `dni:${p.dni}`].filter(Boolean) as string[];
+}
+
+/** Corre después de responder (en Vercel no frena a quien se inscribe); fuera de un pedido web (scripts, pruebas), en el momento. */
+async function despues(fn: () => Promise<unknown>) {
+  try {
+    after(() => fn().catch((e) => console.error("[feria] guardar inscripciones", e)));
+  } catch {
+    await fn().catch((e) => console.error("[feria] guardar inscripciones", e));
+  }
+}
+
+/** Arma los contadores de lugares con lo que ya está en la planilla + lo que espera en la cola. */
+async function armarContadores(actividadId: string) {
+  await withLock(`feria:${actividadId}`, async () => {
+    // Si mientras esperaba ya los armó otra (llegaron muchas juntas), no se vuelve a leer la planilla.
+    if (await inicializada(actividadId)) return;
+    const [feriantes, participantes] = await Promise.all([readFresh("feriantes"), readFresh("participantes")]);
+    const personas = new Map(participantes.map((p) => [p.id, p]));
+    const activas = feriantes.filter((f) => f.actividad_id === actividadId && f.estado === "INSCRIPTA");
+    const porGrupo: Record<string, number> = {};
+    const claves: string[] = [];
+    const sumar = (grupo: string, p?: { telefono: string; dni: string }) => {
+      const g = grupo || "TODAS";
+      porGrupo[g] = (porGrupo[g] ?? 0) + 1;
+      if (p) claves.push(...clavesPersona(p));
+    };
+    for (const f of activas) sumar(f.grupo, personas.get(f.participante_id));
+    for (const x of await verCola(actividadId)) {
+      const e = JSON.parse(x) as EnCola;
+      sumar(e.grupo, e.persona);
+    }
+    const total = Object.values(porGrupo).reduce((n, v) => n + v, 0);
+    for (const g of GRUPOS_FERIA) porGrupo[g] ??= 0;
+    porGrupo.TODAS ??= 0;
+    await inicializar(actividadId, { porGrupo, total, claves });
+  });
+}
+
+/**
+ * Guarda en la planilla, en tandas, las inscripciones que esperan en la cola (pocas escrituras aunque sean muchas).
+ * Lo hace una sola instancia a la vez; si quedan pendientes (por ejemplo, Google tardó), se reintenta en el próximo envío.
+ */
+export async function vaciarCola(actividadId: string) {
+  for (let vuelta = 0; vuelta < 30; vuelta++) {
+    if (!(await largoCola(actividadId))) return;
+    const hecho = await withLock(
+      `feria:${actividadId}`,
+      async () => {
+        const lote = await verCola(actividadId, 40);
+        if (!lote.length) return 0;
+        const items = lote.map((x) => JSON.parse(x) as EnCola);
+        const s = await snapshot();
+        const a = s.actividades.find((x) => x.id === actividadId);
+        if (!a) return 0;
+        const res = await upsertParticipantes(items.map((i) => i.persona), "FORMULARIO PROPIO", "formulario-publico", { consentimiento: items[0].consentimiento });
+        const feriantes = (await readFresh("feriantes")).filter((f) => f.actividad_id === actividadId);
+        const porPart = new Map(feriantes.map((f) => [f.participante_id, f]));
+        const crear: Omit<Feriante, "id" | "creado" | "actualizado" | "actualizado_por" | "version">[] = [];
+        const reactivar: { id: string; patch: Partial<Feriante> }[] = [];
+        const vistos = new Set<string>();
+        const aInscribir: { participanteId: string; respuestas: string }[] = [];
+        let sobran = 0;
+        items.forEach((it, i) => {
+          const pid = res[i].participante.id;
+          const previa = porPart.get(pid);
+          if (vistos.has(pid) || previa?.estado === "INSCRIPTA") {
+            sobran++; // ya estaba (misma persona con otro teléfono): no se duplica
+            return;
+          }
+          vistos.add(pid);
+          if (previa) reactivar.push({ id: previa.id, patch: { ...it.datos, estado: "INSCRIPTA", puesto: 0, grupo: it.grupo } });
+          else crear.push({ actividad_id: actividadId, participante_id: pid, ...it.datos, estado: "INSCRIPTA", puesto: 0, grupo: it.grupo, observaciones: "" });
+          aInscribir.push({ participanteId: pid, respuestas: `Emprendimiento: ${it.datos.emprendimiento}\nRubro: ${it.datos.rubro}` });
+        });
+        await updateMany("feriantes", reactivar, "formulario-publico", "reinscripción a feria");
+        await insertMany("feriantes", crear, "formulario-publico", "inscripción rápida a feria");
+        await inscribir(actividadId, aInscribir, "FORMULARIO PROPIO", "formulario-publico");
+        await sacarDeCola(actividadId, lote.length);
+        // Si alguna sobró (ya estaba), los contadores quedaron de más: se rearman.
+        if (sobran) await invalidarContadores(actividadId);
+        return lote.length;
+      },
+      { waitMs: 25_000, ttlMs: 60_000 },
+    ).catch((e) => {
+      if (e instanceof BusyError) return -1; // otra instancia está guardando: ella sigue
+      throw e;
+    });
+    if (hecho <= 0) return;
+  }
+}
+
+/** Cuántas inscripciones esperan para guardarse (para mostrarlo en la feria). */
+export const pendientesDeGuardar = (actividadId: string) => largoCola(actividadId);
 
 /** Carga manual desde el panel (ej. alguien que se anotó por WhatsApp). En ferias con grupos se puede elegir el grupo. */
 export async function agregarFeriante(actividadId: string, input: FerianteInput, yo: Yo, grupo = ""): Promise<ResultadoFeria> {
   const { a } = await feriaEditable(actividadId, yo);
-  return anotar(a, input, "CARGA MANUAL", yo.email, grupo);
+  const r = await anotar(a, input, "CARGA MANUAL", yo.email, grupo);
+  await invalidarContadores(actividadId);
+  return r;
 }
 
 // ---------------------------------------------------------------------------
@@ -388,7 +527,15 @@ export async function configurarGrupos(actividadId: string, cupos: Partial<Recor
   const total = Object.values(limpio).reduce((x, n) => x + n, 0);
   if (total > 500) throw new UserError("El cupo total no puede pasar de 500.");
   await update("actividades", actividadId, total ? { cupos_grupos: unirCupos(limpio), cupo: total } : { cupos_grupos: "" }, yo.email, { accion: `feria: cupos por grupo ${unirCupos(limpio) || "(sin grupos)"}` });
+  await invalidarContadores(actividadId);
   return { total };
+}
+
+/** Qué grupos pueden inscribirse por el formulario (los demás ven «todavía no abrió para vos»). */
+export async function abrirGrupos(actividadId: string, abiertos: string[], yo: Yo) {
+  await feriaEditable(actividadId, yo);
+  const cerrados = GRUPOS_FERIA.filter((g) => !abiertos.includes(g));
+  await update("actividades", actividadId, { grupos_cerrados: cerrados.join(",") }, yo.email, { accion: `feria: abiertos ${abiertos.filter(esGrupo).join(",") || "ninguno"}` });
 }
 
 /** La encargada cambia el grupo de una feriante (ej. el cruce por nombre no la reconoció). */
@@ -399,6 +546,7 @@ export async function cambiarGrupoFeriante(ferianteId: string, grupo: string, yo
   if (!f) throw new NotFoundError("La feriante");
   await feriaEditable(f.actividad_id, yo);
   if (f.grupo !== grupo) await update("feriantes", ferianteId, { grupo }, yo.email, { accion: `grupo → ${grupo}` });
+  await invalidarContadores(f.actividad_id);
 }
 
 /**
@@ -430,6 +578,7 @@ export async function cargarListaFeria(actividadId: string, grupo: "ORIGINAL" | 
       .filter((x) => x.cambia)
       .map(({ id, patch }) => ({ id, patch }));
     await updateMany("feriantes", patches, yo.email, "reacomodar grupos según las listas");
+    await invalidarContadores(actividadId);
     return { cargadas: nuevas.length, repetidas: filas.length - nuevas.length, reacomodadas: patches.length };
   });
 }
