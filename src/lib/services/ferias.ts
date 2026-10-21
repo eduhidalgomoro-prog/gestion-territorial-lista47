@@ -422,29 +422,42 @@ async function despues(fn: () => Promise<unknown>) {
 
 /** Arma los contadores de lugares con lo que ya está en la planilla + lo que espera en la cola. */
 async function armarContadores(actividadId: string) {
-  await withLock(`feria:${actividadId}`, async () => {
-    // Si mientras esperaba ya los armó otra (llegaron muchas juntas), no se vuelve a leer la planilla.
+  // Si llegan muchas juntas, una sola arma los contadores; las demás no hacen fila: esperan a que estén listos.
+  const hasta = Date.now() + 25_000;
+  while (true) {
     if (await inicializada(actividadId)) return;
-    const [feriantes, participantes] = await Promise.all([readFresh("feriantes"), readFresh("participantes")]);
-    const personas = new Map(participantes.map((p) => [p.id, p]));
-    const activas = feriantes.filter((f) => f.actividad_id === actividadId && f.estado === "INSCRIPTA");
-    const porGrupo: Record<string, number> = {};
-    const claves: string[] = [];
-    const sumar = (grupo: string, p?: { telefono: string; dni: string }) => {
-      const g = grupo || "TODAS";
-      porGrupo[g] = (porGrupo[g] ?? 0) + 1;
-      if (p) claves.push(...clavesPersona(p));
-    };
-    for (const f of activas) sumar(f.grupo, personas.get(f.participante_id));
-    for (const x of await verCola(actividadId)) {
-      const e = JSON.parse(x) as EnCola;
-      sumar(e.grupo, e.persona);
+    try {
+      await withLock(`feria:${actividadId}`, () => armarContadoresYa(actividadId), { waitMs: 0, ttlMs: 20_000 });
+      return;
+    } catch (e) {
+      if (!(e instanceof BusyError) || Date.now() > hasta) throw e;
+      await new Promise((r) => setTimeout(r, 150 + Math.random() * 100));
     }
-    const total = Object.values(porGrupo).reduce((n, v) => n + v, 0);
-    for (const g of GRUPOS_FERIA) porGrupo[g] ??= 0;
-    porGrupo.TODAS ??= 0;
-    await inicializar(actividadId, { porGrupo, total, claves });
-  });
+  }
+}
+
+async function armarContadoresYa(actividadId: string) {
+  // Si mientras esperaba ya los armó otra, no se vuelve a leer la planilla.
+  if (await inicializada(actividadId)) return;
+  const [feriantes, participantes] = await Promise.all([readFresh("feriantes"), readFresh("participantes")]);
+  const personas = new Map(participantes.map((p) => [p.id, p]));
+  const activas = feriantes.filter((f) => f.actividad_id === actividadId && f.estado === "INSCRIPTA");
+  const porGrupo: Record<string, number> = {};
+  const claves: string[] = [];
+  const sumar = (grupo: string, p?: { telefono: string; dni: string }) => {
+    const g = grupo || "TODAS";
+    porGrupo[g] = (porGrupo[g] ?? 0) + 1;
+    if (p) claves.push(...clavesPersona(p));
+  };
+  for (const f of activas) sumar(f.grupo, personas.get(f.participante_id));
+  for (const x of await verCola(actividadId)) {
+    const e = JSON.parse(x) as EnCola;
+    sumar(e.grupo, e.persona);
+  }
+  const total = Object.values(porGrupo).reduce((n, v) => n + v, 0);
+  for (const g of GRUPOS_FERIA) porGrupo[g] ??= 0;
+  porGrupo.TODAS ??= 0;
+  await inicializar(actividadId, { porGrupo, total, claves });
 }
 
 /**
