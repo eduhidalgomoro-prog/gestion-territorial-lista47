@@ -10,7 +10,7 @@ import { cleanString, normalizePhone, nowIso, phoneKey } from "../util";
 import { after } from "next/server";
 import { BusyError } from "../lock";
 import { inicializada, inicializar, invalidarContadores, largoCola, reservar, sacarDeCola, verCola } from "../cola-feria";
-import { conGrupos, esGrupo, grupoAbierto, GRUPOS_FERIA, grupoDe, MENSAJE_GRUPO_CERRADO, mismaPersona, parseCupos, unirCupos, type GrupoFeria } from "../ferias-grupos";
+import { conGrupos, esGrupo, grupoAbierto, GRUPOS_FERIA, grupoDe, MENSAJE_GRUPO_CERRADO, mismaPersona, parseCupos, unicoGrupoAbierto, unirCupos, type GrupoFeria } from "../ferias-grupos";
 import { crearActividad, formularioInscripcion } from "./actividades";
 import { inscribir, inscripcionAbiertaPublica } from "./inscripciones";
 import { limpiarPersona, upsertParticipantes, type PersonaInput } from "./participantes";
@@ -382,7 +382,7 @@ export async function reservarLugarFeria(slug: string, input: FerianteInput & { 
   if (!abierta.abierta) return { resultado: { status: "cerrada", motivo: abierta.motivo }, actividadId: a.id };
   if (!input.consentimiento) throw new UserError("Para inscribirte tenés que aceptar el uso de tus datos.", { consentimiento: "Marcá esta casilla para continuar." });
   const { persona, datos } = limpiarFeriante(input);
-  const grupo = (await grupoPara(a, persona)) || "TODAS";
+  const grupo = unicoGrupoAbierto(a) ?? ((await grupoPara(a, persona)) || "TODAS");
   if (conGrupos(a) && !grupoAbierto(a, grupo)) return { resultado: { status: "cerrada", motivo: MENSAJE_GRUPO_CERRADO }, actividadId: a.id };
   const cupos = parseCupos(a.cupos_grupos);
   const maxGrupo = conGrupos(a) ? cupos[grupo as GrupoFeria] ?? 0 : -1;

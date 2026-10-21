@@ -686,6 +686,28 @@ describe("feria: cupo por grupos", () => {
     s = await snapshot({ fresh: true });
     expect(s.feriantes.find((f) => f.id === fabi.id)!.grupo).toBe("ESPERA");
   });
+
+  it("un grupo por día: con un solo grupo abierto, todas cuentan para ese grupo aunque no estén en la lista", async () => {
+    const a = await crearActividad(input({ nombre: "Feria Por Dia", zona: "NORTE", tipo: "FERIAS DE ESME", generar_formulario: false, fecha: "2099-11-24" }), admin);
+    await configurarFeria(a.id, 60, admin);
+    await configurarGrupos(a.id, { ORIGINAL: 2, ESPERA: 1, EXTRA: 1 }, admin);
+    await cargarListaFeria(a.id, "ESPERA", [{ nombre: "Dora Cuatro", telefono: "", emprendimiento: "" }], admin);
+    const slug = (await snapshot({ fresh: true })).actividades.find((x) => x.id === a.id)!.slug;
+    const persona = (nombre: string, apellido: string, tel: string) => ({ nombre, apellido, dni: "", telefono: tel, barrio: "", emprendimiento: `${nombre} Deco`, rubro: "Deco", lleva: [], al_lado_de: "", comparte: "SI", consentimiento: true });
+
+    // Jueves: solo originales (nadie está en la lista de originales y entran igual; se corta en el cupo).
+    await abrirGrupos(a.id, ["ORIGINAL"], admin);
+    expect(await inscribirFeriaPublico(slug, persona("Ana", "Sinlista", "3794300001"))).toMatchObject({ status: "inscripta" });
+    expect(await inscribirFeriaPublico(slug, persona("Dora", "Cuatro", "3794300002"))).toMatchObject({ status: "inscripta" });
+    expect(await inscribirFeriaPublico(slug, persona("Bea", "Tarde", "3794300003"))).toMatchObject({ status: "completo" });
+    // Viernes: solo segundo grupo.
+    await abrirGrupos(a.id, ["ESPERA"], admin);
+    expect(await inscribirFeriaPublico(slug, persona("Ana", "Sinlista", "3794300001"))).toMatchObject({ status: "ya" });
+    expect(await inscribirFeriaPublico(slug, persona("Bea", "Tarde", "3794300003"))).toMatchObject({ status: "inscripta" });
+    expect(await inscribirFeriaPublico(slug, persona("Cris", "Otra", "3794300004"))).toMatchObject({ status: "completo" });
+    const s = await snapshot({ fresh: true });
+    expect(s.feriantes.filter((f) => f.actividad_id === a.id).map((f) => f.grupo).sort()).toEqual(["ESPERA", "ORIGINAL", "ORIGINAL"]);
+  });
 });
 
 describe("feria: inscripción rápida (pico de inscripciones)", () => {

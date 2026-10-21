@@ -164,7 +164,7 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
             })}
           </div>
           <p className="mt-2 text-[13.5px] text-gris">
-            Al inscribirse, cada persona se busca en las listas por teléfono y por nombre: si está en la de originales entra como original, si está en la del segundo grupo como segundo grupo, y si no está en ninguna como extra. Cuando un grupo se completa, no entran más de ese grupo.
+            Si abrís <b>un solo grupo</b> (ej. originales el jueves, segundo grupo el viernes), todas las que se inscriban cuentan para ese grupo y se corta al completar su cupo. Si abrís varios a la vez, cada persona se busca en las listas por teléfono y por nombre: si está en la de originales entra como original, si está en la del segundo grupo como segundo grupo, y si no está en ninguna como extra.
           </p>
           {editable ? (
             <ActionForm action={abrirGruposAction.bind(null, a.id)} className="mt-3 rounded-xl bg-fondo p-3">
@@ -176,7 +176,7 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
                   </label>
                 ))}
               </div>
-              <p className="mt-2 mb-3 text-[13px] text-gris">Quien es de un grupo sin marcar ve «Todavía no abrió la inscripción para vos» y no se anota. Vos podés sumarla a mano igual.</p>
+              <p className="mt-2 mb-3 text-[13px] text-gris">Con varios grupos marcados, quien es de un grupo sin marcar ve «Todavía no abrió la inscripción para vos» y no se anota. Vos podés sumar a cualquiera a mano igual.</p>
               <SubmitButton size="md" variant="secundario">Guardar</SubmitButton>
             </ActionForm>
           ) : (

@@ -33,6 +33,16 @@ export const conGrupos = (a: { cupos_grupos?: string }) => Object.keys(parseCupo
 /** ¿Ese grupo ya puede inscribirse? (la encargada abre los grupos de a uno: ej. originales el jueves, segundo grupo el viernes). */
 export const grupoAbierto = (a: { grupos_cerrados?: string }, g: string) => !(a.grupos_cerrados ?? "").split(",").map((x) => x.trim()).includes(g);
 
+/**
+ * Si hay un solo grupo abierto, todas las que se inscriben por el formulario cuentan para ese grupo
+ * (el link se manda a un grupo de WhatsApp por día), sin depender de que el nombre o el teléfono coincidan con la lista.
+ */
+export function unicoGrupoAbierto(a: { cupos_grupos?: string; grupos_cerrados?: string }): GrupoFeria | null {
+  const cupos = parseCupos(a.cupos_grupos ?? "");
+  const abiertos = GRUPOS_FERIA.filter((g) => cupos[g] !== undefined && grupoAbierto(a, g));
+  return abiertos.length === 1 ? abiertos[0] : null;
+}
+
 export const MENSAJE_GRUPO_CERRADO = "Todavía no abrió la inscripción para vos: te vamos a avisar por WhatsApp cuando puedas inscribirte. ¡Gracias por tu interés!";
 
 /** Palabras del nombre que sirven para comparar (sin tildes, sin palabras cortas). */
