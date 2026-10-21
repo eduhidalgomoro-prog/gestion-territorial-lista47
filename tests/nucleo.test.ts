@@ -195,7 +195,7 @@ describe("participantes, importación y asistencia", () => {
     expect(await inscribirFeriaPublico(feria.slug, persona("Bea", "Gómez", "3794222222", { al_lado_de: "Carla Ruiz", rubro: "Comida" }))).toMatchObject({ status: "inscripta" });
     expect(await inscribirFeriaPublico(feria.slug, persona("Ana", "Pérez", "379 4111111", { comparte: "NO" }))).toMatchObject({ status: "ya" }); // no se duplica
     expect(await inscribirFeriaPublico(feria.slug, persona("Carla", "Ruiz", "3794333333"))).toMatchObject({ status: "inscripta" });
-    expect(await inscribirFeriaPublico(feria.slug, persona("Dora", "Sosa", "3794444444"))).toMatchObject({ status: "en_espera" }); // cupo lleno: lista de espera
+    expect(await inscribirFeriaPublico(feria.slug, persona("Dora", "Sosa", "3794444444", { lleva: ["Gazebo propio"] }))).toMatchObject({ status: "en_espera" }); // cupo lleno: lista de espera
     expect(await inscribirFeriaPublico(feria.slug, persona("Dora", "Sosa", "3794444444"))).toMatchObject({ status: "ya_en_espera" }); // no se duplica
     s = await snapshot({ fresh: true });
     expect(s.feriantes.filter((f) => f.estado === "INSCRIPTA")).toHaveLength(3);
@@ -210,13 +210,20 @@ describe("participantes, importación y asistencia", () => {
     expect(puestoDe("Ana")).toBe(1); // no comparte → individual
     expect(puestoDe("Bea")).toBe(2); // quiere estar con Carla y ambas comparten → mismo gazebo compartido
     expect(puestoDe("Carla")).toBe(2);
-    // Una baja libera el cupo: ahora sí entra Dora (estaba en la lista de espera y pasa a inscripta).
+    // Una baja libera un lugar: como hay lista de espera, el formulario no lo toma (la nueva queda esperando)…
     const ana = s.feriantes.find((f) => f.puesto === 1)!;
     await cambiarEstadoFeriante(ana.id, false, admin);
-    expect(await inscribirFeriaPublico(feria.slug, persona("Dora", "Sosa", "3794444444", { lleva: ["Gazebo propio"] }))).toMatchObject({ status: "inscripta" });
+    expect(await inscribirFeriaPublico(feria.slug, persona("Eli", "Nueva", "3794555555"))).toMatchObject({ status: "en_espera" });
+    expect(await inscribirFeriaPublico(feria.slug, persona("Dora", "Sosa", "3794444444"))).toMatchObject({ status: "ya_en_espera" });
+    // …lo cubre la encargada con la primera de la lista (Dora).
+    s = await snapshot({ fresh: true });
+    const espera = s.feriantes.filter((f) => f.estado === "EN ESPERA").sort((x, y) => x.creado.localeCompare(y.creado));
+    expect(espera).toHaveLength(2);
+    await cambiarEstadoFeriante(espera[0].id, true, admin);
+    await expect(cambiarEstadoFeriante(espera[1].id, true, admin)).rejects.toThrow(/cupo/); // ya no queda lugar
     await asignarAutomatico(a.id, admin);
     s = await snapshot({ fresh: true });
-    expect(s.feriantes.filter((f) => f.estado === "EN ESPERA")).toHaveLength(0);
+    expect(s.feriantes.filter((f) => f.estado === "EN ESPERA")).toHaveLength(1);
     expect(puestoDe("Dora")).toBe(3); // trae gazebo → puesto propio
     await expect(asignarPuesto(s.feriantes.find((f) => f.puesto === 3)!.id, 2, admin)).rejects.toThrow(/completo/);
     // Cambiar los sectores: el compartido pasa a ser el sector B con 2 gazebos; las asignaciones válidas se mantienen.
@@ -761,9 +768,10 @@ describe("feria: inscripción rápida (pico de inscripciones)", () => {
     expect(new Set(fs.map((f) => f.participante_id)).size).toBe(65);
     expect(s.inscripciones.filter((i) => i.actividad_id === a.id && i.estado === "INSCRIPTO").length).toBe(65);
 
-    // Una baja libera el lugar: la próxima del grupo entra.
+    // Una baja libera un lugar: como hay extras esperando, la nueva va a la lista de espera (el lugar lo cubre la encargada).
     await cambiarEstadoFeriante(fs.find((f) => f.grupo === "EXTRA")!.id, false, admin);
-    expect(await inscribirFeriaPublico(slug, { nombre: "Nueva", apellido: "Extra", dni: "", telefono: "3794299999", barrio: "", emprendimiento: "y", rubro: "y", lleva: [], al_lado_de: "", comparte: "SI", consentimiento: true })).toMatchObject({ status: "inscripta" });
+    expect(await inscribirFeriaPublico(slug, { nombre: "Nueva", apellido: "Extra", dni: "", telefono: "3794299999", barrio: "", emprendimiento: "y", rubro: "y", lleva: [], al_lado_de: "", comparte: "SI", consentimiento: true })).toMatchObject({ status: "en_espera" });
+    expect((await snapshot({ fresh: true })).feriantes.filter((f) => f.actividad_id === a.id && f.estado === "EN ESPERA")).toHaveLength(36);
   });
 });
 

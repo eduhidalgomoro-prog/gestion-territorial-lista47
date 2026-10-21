@@ -17,6 +17,7 @@ export interface Conteos {
   total: number;
   claves: string[]; // teléfonos / DNI de quienes ya tienen lugar (para no anotarlas dos veces)
   clavesEspera: string[]; // y de quienes ya están en la lista de espera
+  esperaPorGrupo: Record<string, number>; // cuántas esperan, según el grupo con el que se anotaron
 }
 
 const PREFIJO = () => `gt47:${(env.spreadsheetId() || "local").slice(0, 10)}:feria`;
@@ -28,6 +29,7 @@ if redis.call('exists', KEYS[1]) == 0 then return 'init' end
 for i = 4, #ARGV do
   if redis.call('hexists', KEYS[4], ARGV[i]) == 1 then return 'ya' end
 end
+if tonumber(redis.call('get', KEYS[6]) or '0') > 0 then return 'completo' end
 local g = tonumber(redis.call('get', KEYS[2]) or '0')
 local t = tonumber(redis.call('get', KEYS[3]) or '0')
 if tonumber(ARGV[1]) >= 0 and g >= tonumber(ARGV[1]) then return 'completo' end
@@ -38,7 +40,8 @@ for i = 4, #ARGV do redis.call('hset', KEYS[4], ARGV[i], '1') end
 redis.call('rpush', KEYS[5], ARGV[3])
 return 'ok'`;
 
-// Lista de espera: no ocupa lugar; solo evita anotar dos veces a la misma persona.
+// Lista de espera: no ocupa lugar; evita anotar dos veces a la misma persona y cuenta cuántas esperan en cada grupo
+// (mientras haya alguien esperando en un grupo, un lugar que se libera no lo toma el formulario: lo cubre la encargada con la primera de la lista).
 const ESPERAR = `
 for i = 2, #ARGV do
   if redis.call('hexists', KEYS[1], ARGV[i]) == 1 then return 'ya' end
@@ -48,6 +51,8 @@ for i = 2, #ARGV do
 end
 for i = 2, #ARGV do redis.call('hset', KEYS[2], ARGV[i], '1') end
 redis.call('expire', KEYS[2], ${3 * 86_400})
+redis.call('incr', KEYS[4])
+redis.call('expire', KEYS[4], ${3 * 86_400})
 redis.call('rpush', KEYS[3], ARGV[1])
 return 'espera'`;
 
@@ -81,11 +86,12 @@ const mem = {
 export async function reservar(id: string, grupo: string, maxGrupo: number, maxTotal: number, claves: string[], payload: string): Promise<Reserva> {
   const r = getRedis();
   if (r) {
-    return (await r.eval(RESERVAR, [k(id, "init"), k(id, `cnt:${grupo}`), k(id, "cnt:total"), k(id, "quien"), k(id, "cola")], [String(maxGrupo), String(maxTotal), payload, ...claves])) as Reserva;
+    return (await r.eval(RESERVAR, [k(id, "init"), k(id, `cnt:${grupo}`), k(id, "cnt:total"), k(id, "quien"), k(id, "cola"), k(id, `esp:${grupo}`)], [String(maxGrupo), String(maxTotal), payload, ...claves])) as Reserva;
   }
   if (!mem.init.has(id)) return "init";
   const quien = mem.quien.get(id) ?? new Set();
   if (claves.some((c) => quien.has(c))) return "ya";
+  if ((mem.cnt.get(`${id}:esp:${grupo}`) ?? 0) > 0) return "completo";
   const g = mem.cnt.get(`${id}:${grupo}`) ?? 0;
   const t = mem.cnt.get(`${id}:total`) ?? 0;
   if ((maxGrupo >= 0 && g >= maxGrupo) || (maxTotal > 0 && t >= maxTotal)) return "completo";
@@ -98,15 +104,16 @@ export async function reservar(id: string, grupo: string, maxGrupo: number, maxT
 }
 
 /** Anota en la lista de espera (cuando ya no hay lugar): «espera», o «ya» / «ya_espera» si esa persona ya tenía lugar o ya estaba esperando. */
-export async function esperar(id: string, claves: string[], payload: string): Promise<Espera> {
+export async function esperar(id: string, grupo: string, claves: string[], payload: string): Promise<Espera> {
   const r = getRedis();
-  if (r) return (await r.eval(ESPERAR, [k(id, "quien"), k(id, "espera"), k(id, "cola")], [payload, ...claves])) as Espera;
+  if (r) return (await r.eval(ESPERAR, [k(id, "quien"), k(id, "espera"), k(id, "cola"), k(id, `esp:${grupo}`)], [payload, ...claves])) as Espera;
   const quien = mem.quien.get(id) ?? new Set();
   if (claves.some((c) => quien.has(c))) return "ya";
   const espera = mem.espera.get(id) ?? new Set();
   if (claves.some((c) => espera.has(c))) return "ya_espera";
   claves.forEach((c) => espera.add(c));
   mem.espera.set(id, espera);
+  mem.cnt.set(`${id}:esp:${grupo}`, (mem.cnt.get(`${id}:esp:${grupo}`) ?? 0) + 1);
   mem.cola.set(id, [...(mem.cola.get(id) ?? []), payload]);
   return "espera";
 }
@@ -131,12 +138,14 @@ export async function inicializar(id: string, c: Conteos) {
     p.del(k(id, "espera"));
     if (c.clavesEspera.length) p.hset(k(id, "espera"), Object.fromEntries(c.clavesEspera.map((x) => [x, "1"])));
     p.expire(k(id, "espera"), DIAS_INIT);
+    for (const [g, n] of Object.entries(c.esperaPorGrupo)) p.set(k(id, `esp:${g}`), n, { ex: DIAS_INIT });
     p.set(k(id, "init"), "1", { ex: DIAS_INIT });
     await p.exec();
     return;
   }
   for (const key of [...mem.cnt.keys()]) if (key.startsWith(`${id}:`)) mem.cnt.delete(key);
   for (const [g, n] of Object.entries(c.porGrupo)) mem.cnt.set(`${id}:${g}`, n);
+  for (const [g, n] of Object.entries(c.esperaPorGrupo)) mem.cnt.set(`${id}:esp:${g}`, n);
   mem.cnt.set(`${id}:total`, c.total);
   mem.quien.set(id, new Set(c.claves));
   mem.espera.set(id, new Set(c.clavesEspera));

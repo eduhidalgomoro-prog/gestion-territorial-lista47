@@ -402,7 +402,7 @@ export async function reservarLugarFeria(slug: string, input: FerianteInput & { 
   if (r === "ok") return { resultado: { status: "inscripta", nombre: persona.nombre }, actividadId: a.id };
   if (r === "ya") return { resultado: { status: "ya", nombre: persona.nombre }, actividadId: a.id };
   // Sin lugar: queda en la lista de espera (en orden de llegada), para que la encargada la sume si se libera un lugar.
-  const e = await esperar(a.id, claves, JSON.stringify({ ...(JSON.parse(payload) as EnCola), espera: true } satisfies EnCola));
+  const e = await esperar(a.id, grupo, claves, JSON.stringify({ ...(JSON.parse(payload) as EnCola), espera: true } satisfies EnCola));
   const status = e === "espera" ? "en_espera" : e === "ya" ? "ya" : "ya_en_espera";
   return { resultado: { status, nombre: persona.nombre }, actividadId: a.id };
 }
@@ -460,20 +460,25 @@ async function armarContadoresYa(actividadId: string) {
     if (p) claves.push(...clavesPersona(p));
   };
   const clavesEspera: string[] = [];
+  const esperaPorGrupo: Record<string, number> = {};
+  const esperando = (grupo: string, p?: { telefono: string; dni: string }) => {
+    const g = grupo || "TODAS";
+    esperaPorGrupo[g] = (esperaPorGrupo[g] ?? 0) + 1;
+    if (p) clavesEspera.push(...clavesPersona(p));
+  };
   for (const f of activas) sumar(f.grupo, personas.get(f.participante_id));
-  for (const f of feriantes) {
-    const p = personas.get(f.participante_id);
-    if (f.actividad_id === actividadId && f.estado === "EN ESPERA" && p) clavesEspera.push(...clavesPersona(p));
-  }
+  for (const f of feriantes) if (f.actividad_id === actividadId && f.estado === "EN ESPERA") esperando(f.grupo, personas.get(f.participante_id));
   for (const x of await verCola(actividadId)) {
     const e = JSON.parse(x) as EnCola;
-    if (e.espera) clavesEspera.push(...clavesPersona(e.persona));
+    if (e.espera) esperando(e.grupo, e.persona);
     else sumar(e.grupo, e.persona);
   }
   const total = Object.values(porGrupo).reduce((n, v) => n + v, 0);
-  for (const g of GRUPOS_FERIA) porGrupo[g] ??= 0;
-  porGrupo.TODAS ??= 0;
-  await inicializar(actividadId, { porGrupo, total, claves, clavesEspera });
+  for (const g of [...GRUPOS_FERIA, "TODAS"]) {
+    porGrupo[g] ??= 0;
+    esperaPorGrupo[g] ??= 0;
+  }
+  await inicializar(actividadId, { porGrupo, total, claves, clavesEspera, esperaPorGrupo });
 }
 
 /**
@@ -516,6 +521,7 @@ export async function vaciarCola(actividadId: string) {
             return;
           }
           vistos.add(pid);
+          if (previa?.estado === "EN ESPERA") sobran++; // salió de la lista de espera: se recuentan las que esperan
           if (previa) reactivar.push({ id: previa.id, patch: { ...it.datos, estado: "INSCRIPTA", puesto: 0, grupo: it.grupo } });
           else crear.push({ actividad_id: actividadId, participante_id: pid, ...it.datos, estado: "INSCRIPTA", puesto: 0, grupo: it.grupo, observaciones: "" });
           aInscribir.push({ participanteId: pid, respuestas: `Emprendimiento: ${it.datos.emprendimiento}\nRubro: ${it.datos.rubro}` });
@@ -524,7 +530,7 @@ export async function vaciarCola(actividadId: string) {
         await insertMany("feriantes", crear, "formulario-publico", "inscripción rápida a feria");
         await inscribir(actividadId, aInscribir, "FORMULARIO PROPIO", "formulario-publico");
         await sacarDeCola(actividadId, lote.length);
-        // Si alguna sobró (ya estaba), los contadores quedaron de más: se rearman.
+        // Si alguna sobró (ya estaba) o salió de la lista de espera, los contadores quedaron de más: se rearman.
         if (sobran) await invalidarContadores(actividadId);
         return lote.length;
       },
