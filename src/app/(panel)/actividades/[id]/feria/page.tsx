@@ -18,7 +18,7 @@ import type { Actividad } from "@/lib/schema";
 import { faltanInscribirse, ferianteActivas, pendientesDeGuardar, puestosDe, vaciarCola } from "@/lib/services/ferias";
 import { after } from "next/server";
 import { conGrupos, GRUPO_LABEL, GRUPO_UNO, grupoAbierto, GRUPOS_FERIA, parseCupos, type GrupoFeria } from "@/lib/ferias-grupos";
-import { formatDate, formatPhone } from "@/lib/util";
+import { formatDate, formatDni, formatPhone, maskDni } from "@/lib/util";
 import { sp, type SP } from "@/lib/view";
 import { abrirGruposAction, agregarFerianteAction, asignarAutomaticoAction, feriaConfigAction, gruposFeriaAction, puestosAction, quitarAsignacionesAction } from "../../../actions";
 import { ListaFeriantes, type FilaFeriante } from "./feriantes";
@@ -45,6 +45,7 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
   if (!puede.verInscriptos(yo, a, s.asignaciones)) return <Notice tone="alerta">Tu rol no tiene acceso a las feriantes de esta actividad.</Notice>;
   const editable = puede.editarActividad(yo, a);
   const verTel = puede.verTelefono(yo);
+  const verDni = puede.verDniCompleto(yo);
   const volver = { href: `/actividades/${a.id}`, label: a.nombre };
 
   if (!a.es_feria) {
@@ -105,6 +106,7 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
     const v = f.al_lado_de ? buscarVecina(f, asignables.filter((o) => o.estado === "INSCRIPTA")) : undefined;
     return {
       id: f.id, orden: i + 1, nombre: f.nombre, enEspera: f.estado === "EN ESPERA", telefono: verTel && p?.telefono ? formatPhone(p.telefono) : "",
+      dni: p?.dni ? (verDni ? formatDni(p.dni) : maskDni(p.dni)) : "",
       emprendimiento: f.emprendimiento, rubro: f.rubro, lleva: f.lleva, comparte: f.comparte, al_lado_de: f.al_lado_de,
       vecina: v ? `${v.nombre} · ${v.emprendimiento}${v.puesto ? ` · N° ${v.puesto}` : ""}` : "",
       puesto: f.puesto, activa: f.estado === "INSCRIPTA", grupo: f.grupo,

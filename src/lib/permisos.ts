@@ -127,7 +127,8 @@ export const puede = {
   verFlyers: (yo: Yo) => esAdmin(yo) || esDiseno(yo) || esResponsable(yo),
   verCostos: (yo: Yo) => esAdmin(yo) || esResponsable(yo),
   verParticipantes: (yo: Yo) => esAdmin(yo) || esResponsable(yo),
-  verDniCompleto: (yo: Yo) => esAdmin(yo),
+  // Los encargados chequean el DNI de las inscriptas (los ayudantes con QR, no).
+  verDniCompleto: (yo: Yo) => !esAyudante(yo) && (esAdmin(yo) || esResponsable(yo) || esFerias(yo)),
   verTelefono: (yo: Yo) => esAdmin(yo) || esResponsable(yo) || esFerias(yo),
   verEstadisticas: (yo: Yo) => esAdmin(yo) || esResponsable(yo),
   configurar: (yo: Yo) => esAdmin(yo),

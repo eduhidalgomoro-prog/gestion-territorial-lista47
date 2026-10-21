@@ -174,6 +174,9 @@ describe("participantes, importación y asistencia", () => {
     expect(puede.verActividad(respDoble, general, [])).toBe(true); // tiene una zona de Capital
     expect(puede.verActividad(respDoble, sinRegion, [])).toBe(false);
     expect(zonasForzadas(respDoble)).toEqual(["ESTE", "MERCEDES - CURUZÚ"]);
+    // Los encargados ven el DNI completo de las inscriptas (para chequearlo); los ayudantes con QR, no.
+    expect(puede.verDniCompleto(respDoble)).toBe(true);
+    expect(puede.verDniCompleto({ ...respDoble, ayudante: { invitacionId: "X", actividadId: a.id, de: "d@lista47.test", vence: "2099-01-01" } })).toBe(false);
     // Elige en cuál de sus zonas carga; si no elige (o elige una ajena), tiene que elegir.
     expect(await crearActividad(input({ zona: "ESTE", nombre: "Taller Este" }), respDoble)).toMatchObject({ zona: "ESTE" });
     expect(await crearActividad(input({ zona: "MERCEDES - CURUZÚ", localidad: "mercedes", nombre: "Taller M" }), respDoble)).toMatchObject({ zona: "MERCEDES - CURUZÚ" });

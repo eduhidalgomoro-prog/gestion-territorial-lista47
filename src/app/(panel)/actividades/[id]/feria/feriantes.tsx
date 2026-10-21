@@ -15,6 +15,7 @@ export interface FilaFeriante {
   orden: number;
   nombre: string;
   telefono: string; // formateado ("" si el rol no lo ve)
+  dni: string; // completo o tapado según el rol ("" si no tiene)
   emprendimiento: string;
   rubro: string;
   lleva: string;
@@ -86,7 +87,7 @@ export function ListaFeriantes({ filas, puestos, editable, grupos = false }: { f
                   {f.rubro && <span className="text-gris"> · {f.rubro}</span>}
                 </p>
                 <p className="mt-0.5 text-sm text-gris">
-                  {[f.telefono, f.comparte ? "Puede compartir" : "No comparte", f.lleva && `Lleva: ${f.lleva}`].filter(Boolean).join(" · ")}
+                  {[f.dni && `DNI ${f.dni}`, f.telefono, f.comparte ? "Puede compartir" : "No comparte", f.lleva && `Lleva: ${f.lleva}`].filter(Boolean).join(" · ")}
                 </p>
                 {f.al_lado_de && (
                   <p className="text-sm text-gris">
