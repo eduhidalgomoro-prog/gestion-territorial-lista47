@@ -4,14 +4,14 @@ import { mensajeActividad } from "@/lib/compartir";
 import { invalidate, setConfigValue, snapshot } from "@/lib/db";
 import { conteosPorActividad, cumplimiento, filtrarActividades, indicadores } from "@/lib/domain/metricas";
 import { parseRegiones } from "@/lib/territorio";
-import { armarFilas, FILA_NUEVA, sectoresDe } from "@/lib/ferias";
+import { armarFilas, enPantalla, FILA_NUEVA, sectoresDe } from "@/lib/ferias";
 import { resumenHuellas, type AnimalInput } from "@/lib/huellas";
 import { editarAtencion, registrarAtencion } from "@/lib/services/huellas";
 import { compararIndicador, conclusionesEstadisticas, destacadosDelMes, estadoZona } from "@/lib/domain/resumen";
 import type { TipoPuesto } from "@/lib/schema";
 import { mismaPersona } from "@/lib/ferias-grupos";
 import { largoCola, reiniciarMemoria } from "@/lib/cola-feria";
-import { abrirGrupos, agregarPuesto, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, cambiarGrupoFeriante, cambiarTipoPuesto, cargarListaFeria, configurarFeria, configurarGrupos, crearFeria, eliminarPuesto, faltanInscribirse, generarPuestos, inscribirFeriaPublico, intercambiarPuestos, puestosDe, type FerianteInput } from "@/lib/services/ferias";
+import { abrirGrupos, agregarPuesto, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, cambiarGrupoFeriante, cambiarTipoPuesto, cargarListaFeria, configurarFeria, configurarGrupos, crearFeria, eliminarPuesto, faltanInscribirse, generarPuestos, inscribirFeriaPublico, intercambiarPuestos, invertirSector, puestosDe, type FerianteInput } from "@/lib/services/ferias";
 import { ubicacionLabel } from "@/lib/labels";
 import { normalizeDni, normalizePhone, parseFechaFlexible, parseFechaNacimiento, parseHoraFlexible, phoneKey } from "@/lib/format";
 import { parsePreguntas } from "@/lib/preguntas";
@@ -332,6 +332,18 @@ describe("participantes, importación y asistencia", () => {
     const ps = [1, 2, 3, 4, 5].map((n) => ({ numero: n, tipo: (n <= 2 ? "INDIVIDUAL" : "COMPARTIDO") as TipoPuesto, sector: n <= 2 ? "A" : n <= 3 ? "B" : "C" }));
     expect(armarFilas(ps).map((f) => `${f.sector}:${f.puestos.length}`)).toEqual(["A:2", "B:1", "C:2"]);
     expect(sectoresDe(ps)).toEqual([{ tipo: "INDIVIDUAL", cantidad: 2 }, { tipo: "COMPARTIDO", cantidad: 1 }, { tipo: "COMPARTIDO", cantidad: 2 }]);
+    // «Gusanito»: el sector C se dibuja al revés (5, 4), así sigue donde terminó la fila de arriba.
+    expect(armarFilas(ps, "C").map((f) => enPantalla(f).map((p) => p.numero).join("-"))).toEqual(["1-2", "3", "5-4"]);
+  });
+
+  it("feria: dar vuelta un sector del croquis", async () => {
+    const a = await crearActividad(input({ nombre: "Feria Gusanito", zona: "NORTE", tipo: "FERIAS DE ESME", generar_formulario: false, fecha: "2099-11-25" }), admin);
+    await configurarFeria(a.id, 10, admin);
+    await invertirSector(a.id, "B", admin);
+    expect((await snapshot({ fresh: true })).actividades.find((x) => x.id === a.id)!.sectores_invertidos).toBe("B");
+    await invertirSector(a.id, "D", admin);
+    await invertirSector(a.id, "B", admin);
+    expect((await snapshot({ fresh: true })).actividades.find((x) => x.id === a.id)!.sectores_invertidos).toBe("D");
   });
 
   it("importa listas sin DNI (nombre y teléfono), no fusiona familiares y después completa el DNI sin duplicar", async () => {

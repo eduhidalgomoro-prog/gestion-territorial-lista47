@@ -142,6 +142,7 @@ export interface Actividad extends Meta {
   cupo: number; // ferias: máximo de feriantes · otras actividades: máximo de inscriptos por el formulario (0 = sin límite)
   cupos_grupos: string; // ferias con cupo por grupos: «ORIGINAL:35,ESPERA:20,EXTRA:10» ("" = un solo cupo)
   grupos_cerrados: string; // ferias con grupos: grupos que todavía NO pueden inscribirse (ej. «ESPERA,EXTRA»; "" = todos abiertos)
+  sectores_invertidos: string; // ferias: sectores que en el croquis van de derecha a izquierda («gusanito»), ej. «B»
   croquis: string; // imagen del lugar donde se marcan los puestos
   checklist: string; // guía del operativo (ver guias.ts): ids de los ítems tildados, separados por coma
 }
@@ -448,6 +449,7 @@ export const TABLES: Record<TableName, TableDef> = {
       ["cupo", "Cupo"],
       ["cupos_grupos", "Cupos por grupo"],
       ["grupos_cerrados", "Grupos que todavía no se inscriben"],
+      ["sectores_invertidos", "Sectores al revés en el croquis"],
       ["croquis", "Croquis"],
       ["checklist", "Checklist"],
       ...META,

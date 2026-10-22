@@ -2,10 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { agregarPuestoAction, asignarPuestoAction, eliminarPuestoAction, intercambiarPuestosAction, tipoPuestoAction } from "@/app/(panel)/actions";
+import { agregarPuestoAction, asignarPuestoAction, eliminarPuestoAction, intercambiarPuestosAction, invertirSectorAction, tipoPuestoAction } from "@/app/(panel)/actions";
 import { IconPlus, IconX } from "@/components/icons";
 import { cx } from "@/components/ui";
-import { armarFilas, CAPACIDAD, FILA_NUEVA, TIPO_PUESTO_FONDO, TIPO_PUESTO_HEX, TIPO_PUESTO_LABEL } from "@/lib/ferias";
+import { armarFilas, CAPACIDAD, enPantalla, FILA_NUEVA, TIPO_PUESTO_FONDO, TIPO_PUESTO_HEX, TIPO_PUESTO_LABEL } from "@/lib/ferias";
 import { TIPOS_PUESTO, type TipoPuesto } from "@/lib/schema";
 
 export interface PuestoTablero {
@@ -27,13 +27,13 @@ const CORTO: Record<TipoPuesto, string> = { INDIVIDUAL: "Individual", COMPARTIDO
  * Organizar lugares después de la asignación: tocar una feriante y después el puesto al que va
  * (si está ocupado, se cambian de lugar). Cada puesto se puede cambiar de tipo o sacar, y cada fila suma puestos.
  */
-export function OrganizarPuestos({ actividadId, puestos, feriantes }: { actividadId: string; puestos: PuestoTablero[]; feriantes: FerianteTablero[] }) {
+export function OrganizarPuestos({ actividadId, puestos, feriantes, invertidos = "" }: { actividadId: string; puestos: PuestoTablero[]; feriantes: FerianteTablero[]; invertidos?: string }) {
   const router = useRouter();
   const [sel, setSel] = useState<string | null>(null);
   const [menu, setMenu] = useState<number | null>(null);
   const [msg, setMsg] = useState<{ t: string; ok: boolean } | null>(null);
   const [pending, start] = useTransition();
-  const filas = armarFilas(puestos);
+  const filas = armarFilas(puestos, invertidos);
   const porPuesto = new Map<number, FerianteTablero[]>();
   for (const f of feriantes) if (f.puesto) porPuesto.set(f.puesto, [...(porPuesto.get(f.puesto) ?? []), f]);
   const sinPuesto = feriantes.filter((f) => !f.puesto || !puestos.some((p) => p.numero === f.puesto));
@@ -87,6 +87,18 @@ export function OrganizarPuestos({ actividadId, puestos, feriantes }: { activida
     </button>
   );
 
+  const MasPuesto = ({ fila }: { fila: (typeof filas)[number] }) => (
+    <button
+      type="button"
+      disabled={pending}
+      onClick={() => run(() => agregarPuestoAction(actividadId, fila.sector, fila.puestos[fila.puestos.length - 1].tipo))}
+      className="flex min-h-28 w-[60px] shrink-0 flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed border-linea text-[12px] font-bold text-petroleo hover:border-petroleo"
+      aria-label={`Agregar un puesto al sector ${fila.sector}`}
+    >
+      <IconPlus size={18} /> Puesto
+    </button>
+  );
+
   return (
     <section className="rounded-2xl border border-linea bg-white p-3 sm:p-4">
       <h2 className="text-lg font-bold">Organizar lugares</h2>
@@ -107,11 +119,25 @@ export function OrganizarPuestos({ actividadId, puestos, feriantes }: { activida
         <div className="space-y-4" style={{ minWidth: Math.max(...filas.map((f) => f.puestos.length + 1), 4) * 78 }}>
           {filas.map((fila) => (
             <div key={fila.sector}>
-              <p className="mb-1 text-sm font-extrabold" style={{ color: TIPO_PUESTO_HEX[fila.tipo] }}>
-                Sector {fila.sector} <span className="font-semibold text-gris">· del {fila.puestos[0].numero} al {fila.puestos[fila.puestos.length - 1].numero}</span>
-              </p>
+              <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <p className="text-sm font-extrabold" style={{ color: TIPO_PUESTO_HEX[fila.tipo] }}>
+                  Sector {fila.sector}{" "}
+                  <span className="font-semibold text-gris">
+                    · {fila.invertida ? `del ${fila.puestos[fila.puestos.length - 1].numero} al ${fila.puestos[0].numero} (al revés)` : `del ${fila.puestos[0].numero} al ${fila.puestos[fila.puestos.length - 1].numero}`}
+                  </span>
+                </p>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => run(() => invertirSectorAction(actividadId, fila.sector))}
+                  className="inline-flex min-h-8 items-center gap-1 rounded-full px-2.5 text-[12.5px] font-bold text-petroleo ring-1 ring-linea hover:ring-petroleo"
+                  title="Dar vuelta el sentido de la fila (numeración tipo gusanito)"
+                >
+                  ⇄ {fila.invertida ? "Poner derecho" : "Dar vuelta"}
+                </button>
+              </div>
               <div className="flex gap-1.5">
-                {fila.puestos.map((p) => {
+                {enPantalla(fila).map((p) => {
                   const ahi = porPuesto.get(p.numero) ?? [];
                   const libres = CAPACIDAD[p.tipo] - ahi.length;
                   const destino = !!elegida && elegida.puesto !== p.numero && (libres > 0 || ahi.length === 1);
@@ -135,15 +161,7 @@ export function OrganizarPuestos({ actividadId, puestos, feriantes }: { activida
                     </div>
                   );
                 })}
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => run(() => agregarPuestoAction(actividadId, fila.sector, fila.puestos[fila.puestos.length - 1].tipo))}
-                  className="flex min-h-28 w-[60px] shrink-0 flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed border-linea text-[12px] font-bold text-petroleo hover:border-petroleo"
-                  aria-label={`Agregar un puesto al sector ${fila.sector}`}
-                >
-                  <IconPlus size={18} /> Puesto
-                </button>
+                <MasPuesto fila={fila} />
               </div>
             </div>
           ))}

@@ -135,8 +135,15 @@ export const TIPO_PUESTO_FONDO: Record<TipoPuesto, string> = {
 export interface FilaCroquis<P extends PuestoAsignable> {
   sector: string; // A, B, C…
   tipo: TipoPuesto;
-  puestos: P[];
+  puestos: P[]; // en orden de número
+  invertida: boolean; // se dibuja de derecha a izquierda («gusanito»: la numeración sigue donde terminó la fila de arriba)
 }
+
+/** Sectores que se dibujan al revés (lista «B,D»). */
+export const sectoresInvertidos = (valor: string | undefined) => new Set((valor ?? "").split(",").map((x) => x.trim()).filter(Boolean));
+
+/** Puestos de la fila en el orden en que se dibujan (de izquierda a derecha). */
+export const enPantalla = <P extends PuestoAsignable>(f: FilaCroquis<P>) => (f.invertida ? [...f.puestos].reverse() : f.puestos);
 
 /** Un sector de la feria: una fila del croquis con gazebos del mismo tipo. */
 export interface SectorFeria {
@@ -171,14 +178,15 @@ export function sectoresDe(puestos: (PuestoAsignable & { sector?: string })[]): 
  * Croquis automático: una fila por sector (A, B, C…), en orden de número.
  * Si los puestos no tienen sector (ferias viejas), se agrupan por tipo y los grupos largos se parten en filas de hasta `maxPorFila`.
  */
-export function armarFilas<P extends PuestoAsignable & { sector?: string }>(puestos: P[], maxPorFila = 16): FilaCroquis<P>[] {
+export function armarFilas<P extends PuestoAsignable & { sector?: string }>(puestos: P[], invertidos = "", maxPorFila = 16): FilaCroquis<P>[] {
   const ordenados = [...puestos].sort((a, b) => a.numero - b.numero);
+  const alReves = sectoresInvertidos(invertidos);
   if (ordenados.length && ordenados.every((p) => p.sector)) {
     const filas: FilaCroquis<P>[] = [];
     for (const p of ordenados) {
       const f = filas[filas.length - 1];
       if (f && f.sector === p.sector) f.puestos.push(p);
-      else filas.push({ sector: p.sector!, tipo: p.tipo, puestos: [p] });
+      else filas.push({ sector: p.sector!, tipo: p.tipo, puestos: [p], invertida: alReves.has(p.sector!) });
     }
     return filas;
   }
@@ -193,7 +201,8 @@ export function armarFilas<P extends PuestoAsignable & { sector?: string }>(pues
     const n = Math.ceil(g.length / maxPorFila);
     const tam = Math.ceil(g.length / n);
     for (let i = 0; i < g.length; i += tam) {
-      filas.push({ sector: String.fromCharCode(65 + (filas.length % 26)), tipo: g[0].tipo, puestos: g.slice(i, i + tam) });
+      const sector = String.fromCharCode(65 + (filas.length % 26));
+      filas.push({ sector, tipo: g[0].tipo, puestos: g.slice(i, i + tam), invertida: alReves.has(sector) });
     }
   }
   return filas;

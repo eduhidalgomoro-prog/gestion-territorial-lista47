@@ -347,6 +347,7 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
               actividadId={a.id}
               puestos={puestos.map((p) => ({ numero: p.numero, tipo: p.tipo, sector: p.sector }))}
               feriantes={asignables.filter((f) => f.estado === "INSCRIPTA").map((f) => ({ id: f.id, nombre: f.nombre, emprendimiento: f.emprendimiento, puesto: f.puesto }))}
+              invertidos={a.sectores_invertidos}
             />
           )}
           {editable && (
@@ -389,7 +390,7 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
             <section>
               <h2 className="mb-1 text-lg font-bold">Croquis</h2>
               <p className="mb-2 text-sm text-gris">Lo arma la app con los puestos y las asignaciones: un sector por fila, cada gazebo con su número y los emprendimientos. Se actualiza solo.</p>
-              <CroquisAuto puestos={croquisAuto} />
+              <CroquisAuto puestos={croquisAuto} invertidos={a.sectores_invertidos} />
             </section>
           )}
           {puestos.length > 0 && (editable || a.croquis) && (
@@ -425,7 +426,7 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
           </p>
           {puestos.length > 0 && (
             <div className="mb-4">
-              <CroquisAuto puestos={croquisAuto} />
+              <CroquisAuto puestos={croquisAuto} invertidos={a.sectores_invertidos} />
             </div>
           )}
           <div className="overflow-hidden rounded-2xl border border-linea bg-white">

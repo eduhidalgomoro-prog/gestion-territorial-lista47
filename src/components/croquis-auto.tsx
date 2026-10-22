@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { armarFilas, TIPO_PUESTO_FONDO, TIPO_PUESTO_HEX, TIPO_PUESTO_LABEL } from "@/lib/ferias";
+import { armarFilas, enPantalla, TIPO_PUESTO_FONDO, TIPO_PUESTO_HEX, TIPO_PUESTO_LABEL } from "@/lib/ferias";
 import type { TipoPuesto } from "@/lib/schema";
 import { cx } from "./ui";
 
@@ -22,9 +22,9 @@ const CUPO_TEXTO: Record<TipoPuesto, string> = {
  * Croquis armado por la app (sin imagen): un sector por fila, cada gazebo con su número
  * y los emprendimientos asignados. Se desplaza de costado en el celular.
  */
-export function CroquisAuto({ puestos, destacado, entrada = "Entrada principal" }: { puestos: PuestoConNombres[]; destacado?: number; entrada?: string }) {
+export function CroquisAuto({ puestos, destacado, entrada = "Entrada principal", invertidos = "" }: { puestos: PuestoConNombres[]; destacado?: number; entrada?: string; invertidos?: string }) {
   const ref = useRef<HTMLDivElement>(null);
-  const filas = armarFilas(puestos);
+  const filas = armarFilas(puestos, invertidos);
   const max = Math.max(...filas.map((f) => f.puestos.length), 1);
 
   // En el celular, llevar a la vista el puesto destacado.
@@ -42,11 +42,11 @@ export function CroquisAuto({ puestos, destacado, entrada = "Entrada principal" 
               <p className="mb-1.5 text-center">
                 <span className="font-titulo text-lg font-extrabold" style={{ color: TIPO_PUESTO_HEX[f.tipo] }}>SECTOR {f.sector}</span>{" "}
                 <span className="text-sm font-semibold text-gris">
-                  (del {f.puestos[0].numero} al {f.puestos[f.puestos.length - 1].numero}) · {TIPO_PUESTO_LABEL[f.tipo]}
+                  (del {enPantalla(f)[0].numero} al {enPantalla(f)[f.puestos.length - 1].numero}) · {TIPO_PUESTO_LABEL[f.tipo]}
                 </span>
               </p>
               <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${f.puestos.length}, minmax(0, 1fr))` }}>
-                {f.puestos.map((p) => (
+                {enPantalla(f).map((p) => (
                   <div
                     key={p.numero}
                     data-puesto={p.numero}

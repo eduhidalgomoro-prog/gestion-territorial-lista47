@@ -236,7 +236,7 @@ async function main() {
       es_feria: false,
       cupo: 0,
       croquis: "",
-      checklist: "", formulario_sin: "", bienvenida: "", cupos_grupos: "", grupos_cerrados: "",
+      checklist: "", formulario_sin: "", bienvenida: "", cupos_grupos: "", grupos_cerrados: "", sectores_invertidos: "",
       preguntas_extra: "",
       inscriptos: 0,
       presentes: 0,

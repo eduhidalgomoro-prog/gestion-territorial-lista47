@@ -58,7 +58,7 @@ export default async function CroquisPublico({ params, searchParams }: { params:
         )}
         {puestos.length ? (
           <div className="rounded-2xl bg-white p-2 shadow-lg ring-1 ring-linea">
-            <CroquisAuto puestos={puestos.map((x) => ({ numero: x.numero, tipo: x.tipo, sector: x.sector, nombres: delPuesto(x.numero).map((q) => q.emprendimiento) }))} destacado={destacado} />
+            <CroquisAuto puestos={puestos.map((x) => ({ numero: x.numero, tipo: x.tipo, sector: x.sector, nombres: delPuesto(x.numero).map((q) => q.emprendimiento) }))} destacado={destacado} invertidos={a.sectores_invertidos} />
           </div>
         ) : (
           <p className="rounded-2xl bg-white p-5 text-center ring-1 ring-linea">El croquis todavía no está disponible.</p>

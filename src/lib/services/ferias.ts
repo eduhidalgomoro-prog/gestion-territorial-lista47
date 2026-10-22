@@ -1,7 +1,7 @@
 import "server-only";
 import { insert, insertMany, readFresh, snapshot, update, updateMany, NotFoundError, type Snapshot } from "../db";
 import { ForbiddenError, UserError } from "../errors";
-import { CAPACIDAD, FILA_NUEVA, letraSector, LLEVA_OPCIONES, NO_LLEVA, proponerAsignacion, type SectorFeria } from "../ferias";
+import { CAPACIDAD, FILA_NUEVA, letraSector, LLEVA_OPCIONES, NO_LLEVA, proponerAsignacion, sectoresInvertidos, type SectorFeria } from "../ferias";
 import { withLock } from "../lock";
 import { esResponsable, misZonas, puede, type Yo } from "../permisos";
 import { ambitoDe } from "../territorio";
@@ -233,6 +233,16 @@ export async function eliminarPuesto(actividadId: string, numero: number, yo: Yo
 }
 
 /** Cambia el tipo de un puesto. Si ahora entra menos gente, la última que se había asignado queda sin puesto. */
+/** Da vuelta el sentido de un sector en el croquis (numeración «gusanito»: sigue donde terminó la fila de arriba). */
+export async function invertirSector(actividadId: string, sector: string, yo: Yo) {
+  const { a } = await feriaEditable(actividadId, yo);
+  if (!/^[A-Z]{1,2}$/.test(sector)) throw new UserError("Sector inválido.");
+  const alReves = sectoresInvertidos(a.sectores_invertidos);
+  if (alReves.has(sector)) alReves.delete(sector);
+  else alReves.add(sector);
+  await update("actividades", actividadId, { sectores_invertidos: [...alReves].sort().join(",") }, yo.email, { accion: `croquis: sector ${sector} ${alReves.has(sector) ? "al revés" : "derecho"}` });
+}
+
 export async function cambiarTipoPuesto(actividadId: string, numero: number, tipo: TipoPuesto, yo: Yo) {
   if (!(TIPOS_PUESTO as readonly string[]).includes(tipo)) throw new UserError("Tipo de puesto inválido.");
   return editarPuestos(actividadId, yo, `puesto ${numero} → ${tipo}`, (puestos, feriantes) => {
