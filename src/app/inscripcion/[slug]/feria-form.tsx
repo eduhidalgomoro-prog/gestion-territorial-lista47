@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState, type ReactNode } from "react";
 import { useSubmitWithoutReset } from "@/components/forms";
-import { LLEVA_OPCIONES } from "@/lib/ferias";
+import { LLEVA_OPCIONES, NO_LLEVA } from "@/lib/ferias";
 import { inscribirFeriaAction, type FeriaState } from "./actions";
 
 const field =
@@ -99,7 +99,19 @@ export function FeriaForm({ slug, token, rubros }: { slug: string; token: string
         <div className="flex flex-wrap gap-2">
           {LLEVA_OPCIONES.map((o) => (
             <label key={o} className="cursor-pointer">
-              <input type="checkbox" name="lleva" value={o} className="peer sr-only" />
+              <input
+                type="checkbox"
+                name="lleva"
+                value={o}
+                className="peer sr-only"
+                onChange={(ev) => {
+                  // «No tengo nada» va sola: al marcarla se desmarcan las otras, y al revés.
+                  if (!ev.target.checked) return;
+                  ev.target.form?.querySelectorAll<HTMLInputElement>('input[name="lleva"]').forEach((x) => {
+                    if (x !== ev.target && (o === NO_LLEVA || x.value === NO_LLEVA)) x.checked = false;
+                  });
+                }}
+              />
               <span className={chip}>{o}</span>
             </label>
           ))}

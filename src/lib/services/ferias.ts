@@ -1,7 +1,7 @@
 import "server-only";
 import { insert, insertMany, readFresh, snapshot, update, updateMany, NotFoundError, type Snapshot } from "../db";
 import { ForbiddenError, UserError } from "../errors";
-import { CAPACIDAD, FILA_NUEVA, letraSector, LLEVA_OPCIONES, proponerAsignacion, type SectorFeria } from "../ferias";
+import { CAPACIDAD, FILA_NUEVA, letraSector, LLEVA_OPCIONES, NO_LLEVA, proponerAsignacion, type SectorFeria } from "../ferias";
 import { withLock } from "../lock";
 import { esResponsable, misZonas, puede, type Yo } from "../permisos";
 import { ambitoDe } from "../territorio";
@@ -318,7 +318,9 @@ function limpiarFeriante(input: FerianteInput) {
   if (!rubro) f.rubro = "Contanos el rubro.";
   if (input.comparte !== "SI" && input.comparte !== "NO") f.comparte = "Elegí una opción.";
   if (Object.keys(f).length) throw new UserError("Revisá los campos marcados.", f);
-  const lleva = (input.lleva ?? []).filter((x) => LLEVA_OPCIONES.includes(x)).join(", ");
+  const elegidas = (input.lleva ?? []).filter((x) => LLEVA_OPCIONES.includes(x));
+  // «No tengo nada» solo vale sola.
+  const lleva = (elegidas.some((x) => x !== NO_LLEVA) ? elegidas.filter((x) => x !== NO_LLEVA) : elegidas).join(", ");
   return { persona, datos: { emprendimiento, rubro, lleva, al_lado_de: cleanString(input.al_lado_de, 200), comparte: input.comparte === "SI" } };
 }
 

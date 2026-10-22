@@ -115,19 +115,19 @@ export default async function FormularioPublico({ params }: { params: Promise<{ 
           {!abierta.abierta ? (
             <p className="rounded-2xl bg-white p-5 text-center text-[17px] ring-1 ring-linea">{abierta.motivo}</p>
           ) : a.es_feria ? (
-            libres === 0 ? (
-              <p className="rounded-2xl bg-white p-5 text-center text-[16px] font-semibold ring-1 ring-linea">
-                ¡Se completó el cupo de esta feria! Gracias por tu interés: vas a tener oportunidad en la próxima.
-              </p>
-            ) : (
-              <>
-                <h2 id="form-titulo" className="mb-1 text-2xl font-extrabold">Reservá tu lugar</h2>
+            <>
+              <h2 id="form-titulo" className="mb-1 text-2xl font-extrabold">{libres === 0 ? "Lista de espera" : "Reservá tu lugar"}</h2>
+              {libres === 0 ? (
+                <p className="mb-5 rounded-2xl bg-alerta-50 p-4 text-[16px] leading-snug text-alerta">
+                  <b>¡Se completó el cupo!</b> Igual podés anotarte en la <b>lista de espera</b>: si se libera un lugar, te avisamos por WhatsApp.
+                </p>
+              ) : (
                 <p className="mb-5 text-[15px] text-gris">
                   Cupo limitado{libres !== null && libres <= 15 && !conGrupos(a) ? `: quedan ${libres} ${libres === 1 ? "lugar" : "lugares"}` : ""}. Te lleva un minuto.
                 </p>
-                <FeriaForm slug={a.slug} token={formToken()} rubros={rubros} />
-              </>
-            )
+              )}
+              <FeriaForm slug={a.slug} token={formToken()} rubros={rubros} />
+            </>
           ) : (
             <>
               <div className="mb-5 flex items-start gap-3 px-1">

@@ -23,7 +23,8 @@ export const TIPO_PUESTO_HEX: Record<TipoPuesto, string> = {
 };
 
 /** Opciones de «Puedo llevar a la feria». */
-export const LLEVA_OPCIONES = ["Gazebo propio", "Mesa", "Sillas", "Mantel o exhibidor", "Alargue"];
+export const NO_LLEVA = "No tengo nada";
+export const LLEVA_OPCIONES = ["Gazebo propio", "Mesa", NO_LLEVA];
 
 export const llevaGazebo = (lleva: string) => /gaz|gac/i.test(lleva);
 
