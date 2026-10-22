@@ -11,7 +11,7 @@ import { compararIndicador, conclusionesEstadisticas, destacadosDelMes, estadoZo
 import type { TipoPuesto } from "@/lib/schema";
 import { mismaPersona } from "@/lib/ferias-grupos";
 import { largoCola, reiniciarMemoria } from "@/lib/cola-feria";
-import { abrirGrupos, agregarPuesto, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, cambiarGrupoFeriante, cambiarTipoPuesto, cargarListaFeria, configurarFeria, configurarGrupos, crearFeria, eliminarPuesto, faltanInscribirse, generarPuestos, inscribirFeriaPublico, intercambiarPuestos, invertirSector, puestosDe, type FerianteInput } from "@/lib/services/ferias";
+import { abrirGrupos, agregarPuesto, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, cambiarGrupoFeriante, cambiarTipoPuesto, cargarListaFeria, configurarFeria, configurarGrupos, crearFeria, eliminarPuesto, faltanInscribirse, faltasEnFerias, generarPuestos, inscribirFeriaPublico, intercambiarPuestos, invertirSector, marcarAsistenciaFeriante, planillaFeria, puestosDe, type FerianteInput } from "@/lib/services/ferias";
 import { ubicacionLabel } from "@/lib/labels";
 import { normalizeDni, normalizePhone, parseFechaFlexible, parseFechaNacimiento, parseHoraFlexible, phoneKey } from "@/lib/format";
 import { parsePreguntas } from "@/lib/preguntas";
@@ -787,6 +787,34 @@ describe("feria: inscripción rápida (pico de inscripciones)", () => {
     await cambiarEstadoFeriante(fs.find((f) => f.grupo === "EXTRA")!.id, false, admin);
     expect(await inscribirFeriaPublico(slug, { nombre: "Nueva", apellido: "Extra", dni: "", telefono: "3794299999", barrio: "", emprendimiento: "y", rubro: "y", lleva: [], al_lado_de: "", comparte: "SI", consentimiento: true })).toMatchObject({ status: "en_espera" });
     expect((await snapshot({ fresh: true })).feriantes.filter((f) => f.actividad_id === a.id && f.estado === "EN ESPERA")).toHaveLength(36);
+  });
+});
+
+describe("feria: planilla y control del día", () => {
+  it("planilla ordenada por puesto; las que no vinieron quedan marcadas para la próxima feria", async () => {
+    const crear = async (nombre: string, fecha: string) => {
+      const a = await crearActividad(input({ nombre, zona: "NORTE", tipo: "FERIAS DE ESME", generar_formulario: false, fecha }), admin);
+      await configurarFeria(a.id, 10, admin);
+      await generarPuestos(a.id, [{ tipo: "INDIVIDUAL", cantidad: 2 }, { tipo: "COMPARTIDO", cantidad: 1 }], admin);
+      return (await snapshot({ fresh: true })).actividades.find((x) => x.id === a.id)!;
+    };
+    const persona = (nombre: string, apellido: string, tel: string) => ({ nombre, apellido, dni: "", telefono: tel, barrio: "", emprendimiento: `${nombre} Deco`, rubro: "Deco", lleva: [], al_lado_de: "", comparte: "NO", consentimiento: true });
+    const f1 = await crear("Feria Uno", "2099-12-20");
+    for (const [n, ap, t] of [["Ana", "Planilla", "3794700001"], ["Bea", "Planilla", "3794700002"]]) await inscribirFeriaPublico(f1.slug, persona(n, ap, t));
+    await asignarAutomatico(f1.id, admin);
+    let s = await snapshot({ fresh: true });
+    const planilla = planillaFeria(s, f1.id);
+    expect(planilla.map((f) => [f.puesto, f.tipo, f.responsable, f.telefono])).toEqual([[1, "Individual", "Ana Planilla", "3794700001"], [2, "Individual", "Bea Planilla", "3794700002"]]);
+    // El día de la feria: Ana vino, Bea no.
+    await marcarAsistenciaFeriante(planilla[0].ferianteId, "SI", admin);
+    await marcarAsistenciaFeriante(planilla[1].ferianteId, "NO", admin);
+    // En la próxima feria, Bea aparece con una falta.
+    const f2 = await crear("Feria Dos", "2099-12-27");
+    await inscribirFeriaPublico(f2.slug, persona("Bea", "Planilla", "3794700002"));
+    s = await snapshot({ fresh: true });
+    const bea = s.feriantes.find((f) => f.actividad_id === f2.id)!;
+    expect(faltasEnFerias(s, f2.id).get(bea.participante_id)).toBe(1);
+    expect(faltasEnFerias(s, f1.id).get(bea.participante_id)).toBeUndefined(); // la feria actual no cuenta
   });
 });
 

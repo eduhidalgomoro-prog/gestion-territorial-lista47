@@ -15,7 +15,7 @@ import { geocodificar, type Ubicacion } from "@/lib/services/geocode";
 import { anularLote, marcarPreparando, registrarMovimiento, type MovimientoInput } from "@/lib/services/logistica";
 import { cortarAccesoAyudante, crearAccesoAyudante } from "@/lib/services/ayudantes";
 import {
-  abrirGrupos, agregarFeriante, agregarPuesto, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, cambiarGrupoFeriante, cambiarTipoPuesto, configurarFeria, configurarGrupos, crearFeria, eliminarPuesto, generarPuestos, invertirSector,
+  abrirGrupos, agregarFeriante, agregarPuesto, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, cambiarGrupoFeriante, cambiarTipoPuesto, configurarFeria, configurarGrupos, crearFeria, eliminarPuesto, generarPuestos, invertirSector, marcarAsistenciaFeriante,
   intercambiarPuestos, quitarAsignaciones, ubicarPuestos,
 } from "@/lib/services/ferias";
 import type { TipoPuesto } from "@/lib/schema";
@@ -218,6 +218,10 @@ export async function agregarPuestoAction(actividadId: string, sector: string, t
 export async function eliminarPuestoAction(actividadId: string, numero: number): Promise<ActionResult> {
   const r = await act((yo) => eliminarPuesto(actividadId, numero, yo));
   return r.ok && r.data ? { ok: true, message: `Puesto N° ${numero} eliminado.${avisoCorridos(r.data.corridos)}` } : r;
+}
+
+export async function asistenciaFerianteAction(ferianteId: string, valor: string): Promise<ActionResult> {
+  return act((yo) => marcarAsistenciaFeriante(ferianteId, valor, yo), { ok: valor === "SI" ? "Vino." : valor === "NO" ? "No vino: queda marcada." : "Sin marcar." });
 }
 
 export async function invertirSectorAction(actividadId: string, sector: string): Promise<ActionResult> {

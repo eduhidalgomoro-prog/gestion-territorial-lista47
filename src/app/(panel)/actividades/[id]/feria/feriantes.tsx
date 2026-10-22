@@ -25,6 +25,7 @@ export interface FilaFeriante {
   puesto: number;
   activa: boolean;
   enEspera: boolean; // se anotó con el cupo completo
+  faltas: number; // ferias anteriores en las que confirmó y no fue
   grupo: string; // ferias con cupo por grupos: ORIGINAL | ESPERA | EXTRA
   whatsapp: string; // link con el mensaje del puesto ("" si no hay teléfono o puesto)
 }
@@ -63,6 +64,11 @@ export function ListaFeriantes({ filas, puestos, editable, grupos = false }: { f
               <div className="min-w-0 flex-1">
                 <p className="flex flex-wrap items-center gap-1.5 font-bold">
                   {f.nombre} {!f.activa && !f.enEspera && <Badge color="rojo">BAJA</Badge>}
+                  {f.faltas > 0 && (
+                    <span className="rounded-full bg-peligro-50 px-2 py-0.5 text-[12px] font-bold text-peligro" title="Confirmó y no fue a ferias anteriores">
+                      Faltó a {f.faltas} feria{f.faltas === 1 ? "" : "s"}
+                    </span>
+                  )}
                   {grupos && f.activa && (
                     editable ? (
                       <select

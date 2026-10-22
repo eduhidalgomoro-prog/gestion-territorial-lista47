@@ -279,6 +279,56 @@ export async function quitarAsignaciones(actividadId: string, yo: Yo) {
   return patches.length;
 }
 
+/** Control del día de la feria: vino («SI»), no vino («NO») o sin marcar (""). Las que no vienen quedan marcadas para las próximas ferias. */
+export async function marcarAsistenciaFeriante(ferianteId: string, valor: string, yo: Yo) {
+  if (!["SI", "NO", ""].includes(valor)) throw new UserError("Valor inválido.");
+  const s = await snapshot({ fresh: true });
+  const f = s.feriantes.find((x) => x.id === ferianteId);
+  if (!f) throw new NotFoundError("La feriante");
+  await feriaEditable(f.actividad_id, yo);
+  if (f.estado !== "INSCRIPTA") throw new UserError("Solo se controla a las inscriptas.");
+  await update("feriantes", ferianteId, { asistio: valor }, yo.email, { accion: valor === "SI" ? "feria: vino" : valor === "NO" ? "feria: no vino" : "feria: asistencia sin marcar" });
+}
+
+export interface FilaPlanilla {
+  ferianteId: string;
+  puesto: number; // 0 = sin puesto
+  tipo: string; // Individual / Compartido / Gazebo propio
+  sector: string;
+  responsable: string;
+  telefono: string;
+  dni: string;
+  emprendimiento: string;
+  rubro: string;
+  asistio: string;
+}
+
+/** Planilla para mandar al grupo y controlar el día de la feria: una fila por feriante inscripta, ordenada por puesto (las sin puesto al final). */
+export function planillaFeria(s: Pick<Snapshot, "feriantes" | "participantes" | "puestos">, actividadId: string): FilaPlanilla[] {
+  const personas = new Map(s.participantes.map((p) => [p.id, p]));
+  const puestos = new Map(puestosDe(s, actividadId).map((p) => [p.numero, p]));
+  return ferianteActivas(s, actividadId)
+    .map((f) => {
+      const p = personas.get(f.participante_id);
+      const pu = f.puesto ? puestos.get(f.puesto) : undefined;
+      return {
+        ferianteId: f.id, puesto: pu ? f.puesto : 0, tipo: pu ? TIPO_CORTO[pu.tipo] : "", sector: pu?.sector ?? "",
+        responsable: p ? `${p.nombre} ${p.apellido}`.trim() : "", telefono: p?.telefono ?? "", dni: p?.dni ?? "",
+        emprendimiento: f.emprendimiento, rubro: f.rubro, asistio: f.asistio,
+      };
+    })
+    .sort((x, y) => (x.puesto || 1e6) - (y.puesto || 1e6) || x.responsable.localeCompare(y.responsable));
+}
+
+const TIPO_CORTO: Record<TipoPuesto, string> = { INDIVIDUAL: "Individual", COMPARTIDO: "Compartido", PROPIO: "Gazebo propio" };
+
+/** Cuántas veces cada persona confirmó y no fue a una feria (sin contar la actual). */
+export function faltasEnFerias(s: Pick<Snapshot, "feriantes">, sinContar: string): Map<string, number> {
+  const faltas = new Map<string, number>();
+  for (const f of s.feriantes) if (f.actividad_id !== sinContar && f.estado === "INSCRIPTA" && f.asistio === "NO") faltas.set(f.participante_id, (faltas.get(f.participante_id) ?? 0) + 1);
+  return faltas;
+}
+
 /** Baja (libera el cupo y el puesto) o reincorporación (si hay cupo). */
 export async function cambiarEstadoFeriante(ferianteId: string, activa: boolean, yo: Yo) {
   const s = await snapshot({ fresh: true });
@@ -375,7 +425,7 @@ async function anotar(a: Actividad, input: FerianteInput, origen: "FORMULARIO PR
     if (a.cupo && activas.length >= a.cupo) return { status: "completo", motivo: COMPLETO };
     if (!hayLugarEnGrupo(a, grupo, activas)) return { status: "completo", motivo: COMPLETO };
     if (previa) await update("feriantes", previa.id, { ...datos, estado: "INSCRIPTA", puesto: 0, grupo }, user, { accion: "reinscripción a feria", lock: false });
-    else await insert("feriantes", { actividad_id: a.id, participante_id: r.participante.id, ...datos, estado: "INSCRIPTA", puesto: 0, grupo, observaciones: "" }, user);
+    else await insert("feriantes", { actividad_id: a.id, participante_id: r.participante.id, ...datos, estado: "INSCRIPTA", puesto: 0, grupo, asistio: "", observaciones: "" }, user);
     await inscribir(a.id, [{ participanteId: r.participante.id, respuestas: `Emprendimiento: ${datos.emprendimiento}\nRubro: ${datos.rubro}` }], origen, user);
     return { status: "inscripta", nombre: persona.nombre };
   });
@@ -525,7 +575,7 @@ export async function vaciarCola(actividadId: string) {
             if (vistos.has(pid) || previa?.estado === "INSCRIPTA" || previa?.estado === "EN ESPERA") return;
             vistos.add(pid);
             if (previa) reactivar.push({ id: previa.id, patch: { ...it.datos, estado: "EN ESPERA", puesto: 0, grupo: it.grupo } });
-            else crear.push({ actividad_id: actividadId, participante_id: pid, ...it.datos, estado: "EN ESPERA", puesto: 0, grupo: it.grupo, observaciones: "" });
+            else crear.push({ actividad_id: actividadId, participante_id: pid, ...it.datos, estado: "EN ESPERA", puesto: 0, grupo: it.grupo, asistio: "", observaciones: "" });
             return;
           }
           if (vistos.has(pid) || previa?.estado === "INSCRIPTA") {
@@ -535,7 +585,7 @@ export async function vaciarCola(actividadId: string) {
           vistos.add(pid);
           if (previa?.estado === "EN ESPERA") sobran++; // salió de la lista de espera: se recuentan las que esperan
           if (previa) reactivar.push({ id: previa.id, patch: { ...it.datos, estado: "INSCRIPTA", puesto: 0, grupo: it.grupo } });
-          else crear.push({ actividad_id: actividadId, participante_id: pid, ...it.datos, estado: "INSCRIPTA", puesto: 0, grupo: it.grupo, observaciones: "" });
+          else crear.push({ actividad_id: actividadId, participante_id: pid, ...it.datos, estado: "INSCRIPTA", puesto: 0, grupo: it.grupo, asistio: "", observaciones: "" });
           aInscribir.push({ participanteId: pid, respuestas: `Emprendimiento: ${it.datos.emprendimiento}\nRubro: ${it.datos.rubro}` });
         });
         await updateMany("feriantes", reactivar, "formulario-publico", "reinscripción a feria");

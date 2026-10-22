@@ -4,7 +4,7 @@ import { CopyButton } from "@/components/copy-button";
 import { CroquisEditor, CroquisVista } from "@/components/croquis";
 import { CroquisAuto } from "@/components/croquis-auto";
 import { ActionForm, Field, Input, Select, SubmitButton } from "@/components/forms";
-import { IconWhatsApp } from "@/components/icons";
+import { IconDownload, IconWhatsApp } from "@/components/icons";
 import { FeriaHero } from "@/components/feria-ui";
 import { Card, cx, Notice } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
@@ -12,10 +12,10 @@ import { whatsappA, whatsappCompartir } from "@/lib/compartir";
 import { snapshot } from "@/lib/db";
 import { env } from "@/lib/env";
 import { SectoresEditor } from "@/components/sectores-editor";
-import { buscarVecina, CAPACIDAD, describirPuesto, LLEVA_OPCIONES, SECTORES_INICIALES, sectoresDe, TIPO_PUESTO_HEX, TIPO_PUESTO_LABEL } from "@/lib/ferias";
+import { buscarVecina, CAPACIDAD, describirPuesto, LLEVA_OPCIONES, SECTORES_INICIALES, sectoresDe, TIPO_PUESTO_HEX } from "@/lib/ferias";
 import { puede } from "@/lib/permisos";
 import type { Actividad } from "@/lib/schema";
-import { faltanInscribirse, ferianteActivas, pendientesDeGuardar, puestosDe, vaciarCola } from "@/lib/services/ferias";
+import { faltanInscribirse, faltasEnFerias, ferianteActivas, pendientesDeGuardar, planillaFeria, puestosDe, vaciarCola } from "@/lib/services/ferias";
 import { after } from "next/server";
 import { conGrupos, GRUPO_LABEL, GRUPO_UNO, grupoAbierto, GRUPOS_FERIA, parseCupos, type GrupoFeria } from "@/lib/ferias-grupos";
 import { formatDate, formatDni, formatPhone, maskDni } from "@/lib/util";
@@ -23,6 +23,7 @@ import { sp, type SP } from "@/lib/view";
 import { abrirGruposAction, agregarFerianteAction, asignarAutomaticoAction, feriaConfigAction, gruposFeriaAction, puestosAction, quitarAsignacionesAction } from "../../../actions";
 import { ListaFeriantes, type FilaFeriante } from "./feriantes";
 import { BotonAccion } from "./boton-accion";
+import { BotonImprimir, VinoONo } from "./control-dia";
 import { OrganizarPuestos } from "./organizar";
 
 export const metadata = { title: "Feria" };
@@ -101,11 +102,13 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
     ].filter(Boolean).join("\n");
   };
 
+  // Las que confirmaron y no fueron a ferias anteriores (para tenerlo en cuenta).
+  const faltas = faltasEnFerias(s, a.id);
   const fila = (f: (typeof asignables)[number], i: number): FilaFeriante => {
     const p = personas.get(f.participante_id);
     const v = f.al_lado_de ? buscarVecina(f, asignables.filter((o) => o.estado === "INSCRIPTA")) : undefined;
     return {
-      id: f.id, orden: i + 1, nombre: f.nombre, enEspera: f.estado === "EN ESPERA", telefono: verTel && p?.telefono ? formatPhone(p.telefono) : "",
+      id: f.id, orden: i + 1, nombre: f.nombre, enEspera: f.estado === "EN ESPERA", faltas: faltas.get(f.participante_id) ?? 0, telefono: verTel && p?.telefono ? formatPhone(p.telefono) : "",
       dni: p?.dni ? (verDni ? formatDni(p.dni) : maskDni(p.dni)) : "",
       emprendimiento: f.emprendimiento, rubro: f.rubro, lleva: f.lleva, comparte: f.comparte, al_lado_de: f.al_lado_de,
       vecina: v ? `${v.nombre} · ${v.emprendimiento}${v.puesto ? ` · N° ${v.puesto}` : ""}` : "",
@@ -116,6 +119,11 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
   const filas = asignables.filter((f) => f.estado !== "EN ESPERA").map(fila);
   // Lista de espera: en orden de llegada.
   const filasEspera = asignables.filter((f) => f.estado === "EN ESPERA").map(fila);
+
+  // Planilla (para mandar al grupo y controlar el día) y faltas en ferias anteriores.
+  const planilla = planillaFeria(s, a.id);
+  const asistieron = { si: planilla.filter((f) => f.asistio === "SI").length, no: planilla.filter((f) => f.asistio === "NO").length };
+  const personaDe = new Map(todas.map((f) => [f.id, f.participante_id]));
 
   // Listado del día, por número de puesto.
   const listado = puestos.map((p) => ({ ...p, quienes: asignables.filter((f) => f.estado === "INSCRIPTA" && f.puesto === p.numero) }));
@@ -429,25 +437,54 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
               <CroquisAuto puestos={croquisAuto} invertidos={a.sectores_invertidos} />
             </div>
           )}
-          <div className="overflow-hidden rounded-2xl border border-linea bg-white">
-            <table className="w-full text-left text-[15px]">
+          {/* Planilla para mandar al grupo y, el día de la feria, controlar quién vino. */}
+          <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 className="text-lg font-bold">Planilla de puestos</h2>
+              <p className="text-sm text-gris print:hidden">
+                Para mandar al grupo: descargala en Excel o guardala como PDF. El día de la feria, marcá quién vino: las que confirmaron y no vinieron quedan marcadas para las próximas ferias.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 print:hidden">
+              <a href={`/actividades/${a.id}/feria/planilla`} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-marca px-3 text-sm font-bold text-white hover:bg-marca-600">
+                <IconDownload size={17} /> Descargar planilla (Excel)
+              </a>
+              <BotonImprimir />
+            </div>
+          </div>
+          {editable && (asistieron.si > 0 || asistieron.no > 0) && (
+            <p className="mb-2 text-sm font-semibold print:hidden">
+              Control del día: <span className="text-ok">{asistieron.si} vinieron</span> · <span className="text-peligro">{asistieron.no} no vinieron</span> · {planilla.length - asistieron.si - asistieron.no} sin marcar
+            </p>
+          )}
+          <div className="overflow-x-auto rounded-2xl border border-linea bg-white">
+            <table className="w-full text-left text-[14.5px]">
               <thead className="bg-fondo text-xs font-bold text-gris uppercase">
                 <tr>
                   <th className="px-3 py-2">N°</th>
                   <th className="px-3 py-2">Tipo</th>
-                  <th className="px-3 py-2">Feriante</th>
-                  <th className="hidden px-3 py-2 sm:table-cell">Rubro</th>
+                  <th className="px-3 py-2">Responsable</th>
+                  {verTel && <th className="px-3 py-2">Teléfono</th>}
+                  <th className="px-3 py-2">Emprendimiento</th>
+                  {editable && <th className="px-3 py-2 print:hidden">¿Vino?</th>}
+                  <th className="hidden px-3 py-2 print:table-cell">¿Vino?</th>
                 </tr>
               </thead>
               <tbody>
-                {listado.map((p) => (
-                  <tr key={p.numero} className="border-t border-linea align-top">
-                    <td className="px-3 py-2 font-extrabold" style={{ color: TIPO_PUESTO_HEX[p.tipo] }}>{p.numero}</td>
-                    <td className="px-3 py-2 text-sm text-gris">{TIPO_PUESTO_LABEL[p.tipo]}</td>
+                {planilla.map((f) => (
+                  <tr key={f.ferianteId} className="border-t border-linea align-top">
+                    <td className="px-3 py-2 font-extrabold whitespace-nowrap" style={{ color: f.puesto ? TIPO_PUESTO_HEX[tipoDe.get(f.puesto)!] : undefined }}>{f.puesto || "—"}</td>
+                    <td className="px-3 py-2 text-sm text-gris">{f.tipo || "Sin puesto"}</td>
                     <td className="px-3 py-2">
-                      {p.quienes.length ? p.quienes.map((f) => <span key={f.id} className="block"><b>{f.nombre}</b> · {f.emprendimiento}</span>) : <span className="text-gris">Libre</span>}
+                      <b>{f.responsable}</b>
+                      {(faltas.get(personaDe.get(f.ferianteId) ?? "") ?? 0) > 0 && (
+                        <span className="ml-1.5 inline-block rounded-full bg-peligro-50 px-2 py-0.5 text-[11.5px] font-bold text-peligro">Faltó a {faltas.get(personaDe.get(f.ferianteId)!)} feria{faltas.get(personaDe.get(f.ferianteId)!) === 1 ? "" : "s"}</span>
+                      )}
                     </td>
-                    <td className="hidden px-3 py-2 text-sm text-gris sm:table-cell">{p.quienes.map((f) => f.rubro).join(" / ")}</td>
+                    {verTel && <td className="px-3 py-2 whitespace-nowrap">{f.telefono ? formatPhone(f.telefono) : ""}</td>}
+                    <td className="px-3 py-2">{f.emprendimiento}<span className="block text-[12.5px] text-gris">{f.rubro}</span></td>
+                    {editable && <td className="px-3 py-2 print:hidden"><VinoONo ferianteId={f.ferianteId} valor={f.asistio} /></td>}
+                    <td className="hidden px-3 py-2 print:table-cell">{f.asistio === "SI" ? "Sí" : f.asistio === "NO" ? "No" : "☐"}</td>
                   </tr>
                 ))}
               </tbody>

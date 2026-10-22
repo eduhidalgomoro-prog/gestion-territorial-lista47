@@ -187,6 +187,7 @@ export interface Feriante extends Meta {
   estado: EstadoFeriante;
   puesto: number; // número de puesto asignado (0 = sin asignar)
   grupo: string; // ferias con cupo por grupos: ORIGINAL | ESPERA | EXTRA ("" = feria sin grupos)
+  asistio: string; // control del día de la feria: «SI» | «NO» ("" = sin controlar). Las que faltan quedan marcadas para las próximas.
   observaciones: string;
 }
 
@@ -594,6 +595,7 @@ export const TABLES: Record<TableName, TableDef> = {
       ["estado", "Estado"],
       ["puesto", "Puesto"],
       ["grupo", "Grupo"],
+      ["asistio", "Asistió a la feria"],
       ["observaciones", "Observaciones"],
       ...META,
     ],

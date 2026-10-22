@@ -105,7 +105,7 @@ const snapshotCompartido = unstable_cache(
   },
   // Cambiar la versión cuando se agrega una hoja o columna nueva: la copia compartida sobrevive a los deploys
   // y, si no, el código nuevo leería una copia vieja sin esa hoja.
-  ["snapshot-v6"],
+  ["snapshot-v7"],
   { tags: [TAG], revalidate: REVALIDAR_S },
 );
 
