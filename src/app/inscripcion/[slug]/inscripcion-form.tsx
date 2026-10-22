@@ -459,7 +459,8 @@ function Confirmacion({ taller, nombre, yaEstaba, espera = false, escuela }: { t
         <ul className="mt-3 space-y-2 text-[16px]">
           <li className="flex items-start gap-2.5"><IconCalendar size={20} className="mt-0.5 shrink-0 text-petroleo" /><span className="font-bold first-letter:uppercase">{taller.cuando}</span></li>
           {taller.horario && <li className="flex items-start gap-2.5"><IconClock size={20} className="mt-0.5 shrink-0 text-petroleo" /><span className="font-bold">{taller.horario}</span></li>}
-          {(taller.lugar || taller.direccion) && (
+          {/* En lista de espera no se muestra dónde es (si no, van igual). */}
+          {!espera && (taller.lugar || taller.direccion) && (
             <li className="flex items-start gap-2.5">
               <IconPin size={20} className="mt-0.5 shrink-0 text-petroleo" />
               <span><b>{taller.lugar}</b>{taller.lugar && taller.direccion && <br />}{taller.direccion}</span>

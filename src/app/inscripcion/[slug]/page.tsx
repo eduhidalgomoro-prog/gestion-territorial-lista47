@@ -108,7 +108,7 @@ export default async function FormularioPublico({ params }: { params: Promise<{ 
             {a.detalle && <p className="mt-4 text-[16px] leading-relaxed whitespace-pre-line text-gris">{a.detalle}</p>}
           </article>
         ) : (
-          <TarjetaTaller a={a} cuando={cuando} horario={horario} />
+          <TarjetaTaller a={a} cuando={cuando} horario={horario} ocultarLugar={lugares.libres === 0} />
         )}
 
         <section className="mt-6" aria-labelledby={a.es_feria ? "form-titulo" : undefined}>
@@ -162,8 +162,9 @@ export default async function FormularioPublico({ params }: { params: Promise<{ 
                   nombre: a.nombre,
                   cuando: cuando || "Fecha a confirmar",
                   horario,
-                  lugar: a.lugar,
-                  direccion: [a.direccion, a.barrio && `Barrio ${nombrePropio(a.barrio)}`, a.localidad].filter(Boolean).join(" · "),
+                  // Con el cupo completo (lista de espera) no se muestra dónde es: si no, van igual.
+                  lugar: lugares.libres === 0 ? "" : a.lugar,
+                  direccion: (lugares.libres === 0 ? [a.localidad] : [a.direccion, a.barrio && `Barrio ${nombrePropio(a.barrio)}`, a.localidad]).filter(Boolean).join(" · "),
                   calendario: linkCalendario(a),
                 }}
               />
@@ -175,10 +176,13 @@ export default async function FormularioPublico({ params }: { params: Promise<{ 
   );
 }
 
-/** Encabezado del taller: qué es, cuándo y dónde, bien grande y fácil de leer. */
-function TarjetaTaller({ a, cuando, horario }: { a: Actividad; cuando: string; horario: string }) {
+/**
+ * Encabezado del taller: qué es, cuándo y dónde, bien grande y fácil de leer.
+ * Con el cupo completo (`ocultarLugar`) no se muestra el lugar exacto, solo la localidad: así no van las que quedaron en espera.
+ */
+function TarjetaTaller({ a, cuando, horario, ocultarLugar = false }: { a: Actividad; cuando: string; horario: string; ocultarLugar?: boolean }) {
   const { Icon } = rubroDe(a);
-  const mapa = a.lat && a.lng ? `https://www.google.com/maps/search/?api=1&query=${a.lat},${a.lng}` : "";
+  const mapa = !ocultarLugar && a.lat && a.lng ? `https://www.google.com/maps/search/?api=1&query=${a.lat},${a.lng}` : "";
   return (
     <article className="rounded-[28px] bg-white p-5 shadow-[0_8px_24px_rgba(16,105,133,0.10)] ring-1 ring-linea sm:p-7">
       <div className="flex items-center gap-3">
@@ -209,11 +213,20 @@ function TarjetaTaller({ a, cuando, horario }: { a: Actividad; cuando: string; h
         <li className="flex items-start gap-3">
           <IconPin size={22} className="mt-0.5 shrink-0 text-petroleo" />
           <span>
-            {a.lugar && <b className="block">{a.lugar}</b>}
-            {a.direccion && <span className="block">{a.direccion}</span>}
-            {a.barrio && <span className="block">Barrio {nombrePropio(a.barrio)}</span>}
-            {a.localidad && <span className="block">{a.localidad}</span>}
-            {!a.lugar && !a.direccion && !a.barrio && "Lugar a confirmar"}
+            {ocultarLugar ? (
+              <>
+                {a.localidad && <b className="block">{a.localidad}</b>}
+                <span className="block text-[15px] text-gris">El lugar se les avisa a quienes tienen su lugar confirmado.</span>
+              </>
+            ) : (
+              <>
+                {a.lugar && <b className="block">{a.lugar}</b>}
+                {a.direccion && <span className="block">{a.direccion}</span>}
+                {a.barrio && <span className="block">Barrio {nombrePropio(a.barrio)}</span>}
+                {a.localidad && <span className="block">{a.localidad}</span>}
+                {!a.lugar && !a.direccion && !a.barrio && "Lugar a confirmar"}
+              </>
+            )}
             {mapa && (
               <a href={mapa} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex min-h-11 items-center font-bold text-petroleo underline underline-offset-4">
                 Ver en el mapa
