@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState, useTransition, type CSSProperties } from "react";
 import { agregarPuestoAction, asignarPuestoAction, eliminarPuestoAction, intercambiarPuestosAction, invertirSectorAction, tipoPuestoAction } from "@/app/(panel)/actions";
 import { IconPlus, IconX } from "@/components/icons";
 import { cx } from "@/components/ui";
@@ -34,6 +34,7 @@ export function OrganizarPuestos({ actividadId, puestos, feriantes, invertidos =
   const [msg, setMsg] = useState<{ t: string; ok: boolean } | null>(null);
   const [pending, start] = useTransition();
   const filas = armarFilas(puestos, invertidos);
+  const columnas = Math.max(...filas.map((f) => f.puestos.length + 1), 4); // +1: el botón «+ Puesto»
   const porPuesto = new Map<number, FerianteTablero[]>();
   for (const f of feriantes) if (f.puesto) porPuesto.set(f.puesto, [...(porPuesto.get(f.puesto) ?? []), f]);
   const sinPuesto = feriantes.filter((f) => !f.puesto || !puestos.some((p) => p.numero === f.puesto));
@@ -92,7 +93,7 @@ export function OrganizarPuestos({ actividadId, puestos, feriantes, invertidos =
       type="button"
       disabled={pending}
       onClick={() => run(() => agregarPuestoAction(actividadId, fila.sector, fila.puestos[fila.puestos.length - 1].tipo))}
-      className="flex min-h-28 w-[60px] shrink-0 flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed border-linea text-[12px] font-bold text-petroleo hover:border-petroleo"
+      className="flex min-h-28 min-w-0 flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed border-linea text-[12px] font-bold text-petroleo hover:border-petroleo"
       aria-label={`Agregar un puesto al sector ${fila.sector}`}
     >
       <IconPlus size={18} /> Puesto
@@ -115,8 +116,9 @@ export function OrganizarPuestos({ actividadId, puestos, feriantes, invertidos =
         </div>
       )}
 
+      {/* En la PC entra todo a lo ancho (los puestos se achican); en el celular se desliza de costado. */}
       <div className="overflow-x-auto">
-        <div className="space-y-4" style={{ minWidth: Math.max(...filas.map((f) => f.puestos.length + 1), 4) * 78 }}>
+        <div className="min-w-(--ancho) space-y-4 lg:min-w-0" style={{ "--ancho": `${columnas * 64}px` } as CSSProperties}>
           {filas.map((fila) => (
             <div key={fila.sector}>
               <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -136,13 +138,14 @@ export function OrganizarPuestos({ actividadId, puestos, feriantes, invertidos =
                   ⇄ {fila.invertida ? "Poner derecho" : "Dar vuelta"}
                 </button>
               </div>
-              <div className="flex gap-1.5">
+              {/* Todas las filas en las mismas columnas: así el «gusanito» queda alineado. */}
+              <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${columnas}, minmax(0, 1fr))` }}>
                 {enPantalla(fila).map((p) => {
                   const ahi = porPuesto.get(p.numero) ?? [];
                   const libres = CAPACIDAD[p.tipo] - ahi.length;
                   const destino = !!elegida && elegida.puesto !== p.numero && (libres > 0 || ahi.length === 1);
                   return (
-                    <div key={p.numero} className="relative w-[72px] shrink-0">
+                    <div key={p.numero} className="relative min-w-0">
                       <div
                         role="button"
                         tabIndex={0}

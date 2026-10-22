@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import { armarFilas, enPantalla, TIPO_PUESTO_FONDO, TIPO_PUESTO_HEX, TIPO_PUESTO_LABEL } from "@/lib/ferias";
 import type { TipoPuesto } from "@/lib/schema";
 import { cx } from "./ui";
@@ -36,7 +36,8 @@ export function CroquisAuto({ puestos, destacado, entrada = "Entrada principal",
   return (
     <div>
       <div ref={ref} className="overflow-x-auto rounded-2xl border border-linea bg-white p-3 sm:p-4">
-        <div className="space-y-5" style={{ minWidth: Math.max(max * 66, 300) }}>
+        {/* En la PC entra todo a lo ancho; en el celular se desliza de costado. */}
+        <div className="min-w-(--ancho) space-y-5 lg:min-w-0" style={{ "--ancho": `${Math.max(max * 66, 300)}px` } as CSSProperties}>
           {filas.map((f) => (
             <section key={f.sector}>
               <p className="mb-1.5 text-center">
@@ -45,7 +46,7 @@ export function CroquisAuto({ puestos, destacado, entrada = "Entrada principal",
                   (del {enPantalla(f)[0].numero} al {enPantalla(f)[f.puestos.length - 1].numero}) · {TIPO_PUESTO_LABEL[f.tipo]}
                 </span>
               </p>
-              <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${f.puestos.length}, minmax(0, 1fr))` }}>
+              <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${max}, minmax(0, 1fr))` }}>
                 {enPantalla(f).map((p) => (
                   <div
                     key={p.numero}
