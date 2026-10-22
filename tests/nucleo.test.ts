@@ -11,7 +11,7 @@ import { compararIndicador, conclusionesEstadisticas, destacadosDelMes, estadoZo
 import type { TipoPuesto } from "@/lib/schema";
 import { mismaPersona } from "@/lib/ferias-grupos";
 import { largoCola, reiniciarMemoria } from "@/lib/cola-feria";
-import { abrirGrupos, agregarPuesto, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, cambiarGrupoFeriante, cambiarTipoPuesto, cargarListaFeria, configurarFeria, configurarGrupos, crearFeria, eliminarPuesto, faltanInscribirse, faltasEnFerias, generarPuestos, inscribirFeriaPublico, intercambiarPuestos, invertirSector, marcarAsistenciaFeriante, planillaFeria, puestosDe, type FerianteInput } from "@/lib/services/ferias";
+import { abrirGrupos, agregarPuesto, asignarAutomatico, asignarPuesto, cambiarEstadoFeriante, cambiarGrupoFeriante, cambiarTipoPuesto, cargarListaFeria, configurarFeria, configurarGrupos, crearFeria, eliminarPuesto, faltanInscribirse, faltasEnFerias, feriaEnListaDeEspera, generarPuestos, inscribirFeriaPublico, intercambiarPuestos, invertirSector, marcarAsistenciaFeriante, planillaFeria, puestosDe, type FerianteInput } from "@/lib/services/ferias";
 import { ubicacionLabel } from "@/lib/labels";
 import { normalizeDni, normalizePhone, parseFechaFlexible, parseFechaNacimiento, parseHoraFlexible, phoneKey } from "@/lib/format";
 import { parsePreguntas } from "@/lib/preguntas";
@@ -730,13 +730,17 @@ describe("feria: cupo por grupos", () => {
     const slug = (await snapshot({ fresh: true })).actividades.find((x) => x.id === a.id)!.slug;
     const persona = (nombre: string, apellido: string, tel: string) => ({ nombre, apellido, dni: "", telefono: tel, barrio: "", emprendimiento: `${nombre} Deco`, rubro: "Deco", lleva: [], al_lado_de: "", comparte: "SI", consentimiento: true });
 
+    const enEspera = async () => feriaEnListaDeEspera((await snapshot({ fresh: true })).actividades.find((x) => x.id === a.id)!, await snapshot({ fresh: true }));
     // Jueves: solo originales (nadie está en la lista de originales y entran igual; se corta en el cupo).
     await abrirGrupos(a.id, ["ORIGINAL"], admin);
+    expect(await enEspera()).toBe(false);
     expect(await inscribirFeriaPublico(slug, persona("Ana", "Sinlista", "3794300001"))).toMatchObject({ status: "inscripta" });
     expect(await inscribirFeriaPublico(slug, persona("Dora", "Cuatro", "3794300002"))).toMatchObject({ status: "inscripta" });
+    expect(await enEspera()).toBe(true); // originales completas: la página dice «lista de espera» aunque queden lugares de otros grupos
     expect(await inscribirFeriaPublico(slug, persona("Bea", "Tarde", "3794300003"))).toMatchObject({ status: "en_espera" });
     // Viernes: solo segundo grupo (Bea, que había quedado en espera, ahora entra).
     await abrirGrupos(a.id, ["ESPERA"], admin);
+    expect(await enEspera()).toBe(false);
     expect(await inscribirFeriaPublico(slug, persona("Ana", "Sinlista", "3794300001"))).toMatchObject({ status: "ya" });
     expect(await inscribirFeriaPublico(slug, persona("Bea", "Tarde", "3794300003"))).toMatchObject({ status: "inscripta" });
     expect(await inscribirFeriaPublico(slug, persona("Cris", "Otra", "3794300004"))).toMatchObject({ status: "en_espera" });

@@ -369,6 +369,20 @@ export function lugaresLibres(a: Actividad, s: Pick<Snapshot, "feriantes">): num
   return a.cupo ? Math.max(0, a.cupo - ferianteActivas(s, a.id).length) : null;
 }
 
+/**
+ * ¿Quien se inscriba ahora por el formulario va a la lista de espera? (para que la página lo diga claro).
+ * Pasa cuando se llenó el cupo total, o el del único grupo abierto, o cuando en ese grupo ya hay gente esperando.
+ */
+export function feriaEnListaDeEspera(a: Actividad, s: Pick<Snapshot, "feriantes">): boolean {
+  if (lugaresLibres(a, s) === 0) return true;
+  const grupo = conGrupos(a) ? unicoGrupoAbierto(a) : "";
+  if (grupo === null) return false; // varios grupos abiertos: depende de cada persona
+  const activas = ferianteActivas(s, a.id);
+  const cupoGrupo = grupo ? parseCupos(a.cupos_grupos)[grupo] : undefined;
+  if (grupo && cupoGrupo !== undefined && activas.filter((f) => f.grupo === grupo).length >= cupoGrupo) return true;
+  return s.feriantes.some((f) => f.actividad_id === a.id && f.estado === "EN ESPERA" && (f.grupo || "") === grupo);
+}
+
 function limpiarFeriante(input: FerianteInput) {
   const persona = limpiarPersona({ ...input, barrio: input.barrio ?? "" }, { telefonoObligatorio: true, dniOpcional: true });
   const f: Record<string, string> = {};

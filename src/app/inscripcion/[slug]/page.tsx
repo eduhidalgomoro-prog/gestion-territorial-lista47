@@ -7,7 +7,7 @@ import { parsePreguntas } from "@/lib/preguntas";
 import { snapshot } from "@/lib/db";
 import { formatDate, titleCase } from "@/lib/util";
 import { inscripcionAbiertaPublica, lugaresActividad } from "@/lib/services/inscripciones";
-import { lugaresLibres } from "@/lib/services/ferias";
+import { feriaEnListaDeEspera, lugaresLibres } from "@/lib/services/ferias";
 import { IconosFeria } from "@/components/feria-ui";
 import { IconCalendar, IconClock, IconHeart, IconPin } from "@/components/icons";
 import { rubroDe } from "@/components/taller";
@@ -60,6 +60,8 @@ export default async function FormularioPublico({ params }: { params: Promise<{ 
   const cuando = a.fecha ? formatDate(a.fecha, { weekday: "long", day: "numeric", month: "long" }) : "";
   const horario = a.hora_inicio ? `${a.hora_inicio}${a.hora_fin ? ` a ${a.hora_fin}` : ""} h` : "";
   const libres = a.es_feria ? lugaresLibres(a, s) : null;
+  // Ferias: si ya no hay lugar en el grupo abierto, el formulario anota en la lista de espera (y lo dice claro).
+  const feriaEspera = a.es_feria && feriaEnListaDeEspera(a, s);
   // Talleres y demás actividades con cupo: lugares que quedan (con el cupo completo, lista de espera).
   const lugares = lugaresActividad(a, s.inscripciones);
   // Rubros que ya usaron otras feriantes (sugerencias para escribir igual).
@@ -80,6 +82,9 @@ export default async function FormularioPublico({ params }: { params: Promise<{ 
             <p className="font-titulo text-5xl leading-none font-black tracking-tight uppercase italic drop-shadow-sm">Feria</p>
             <p className="mt-1 font-titulo text-lg font-extrabold">Emprendedoras ESME</p>
             <IconosFeria className="mt-3" size={20} />
+            {feriaEspera && (
+              <p className="mt-3 inline-block rounded-full bg-white px-3.5 py-1.5 text-[14px] font-extrabold tracking-wide text-alerta uppercase">Cupo completo · Inscripción a lista de espera</p>
+            )}
           </div>
         )}
       </header>
@@ -116,17 +121,17 @@ export default async function FormularioPublico({ params }: { params: Promise<{ 
             <p className="rounded-2xl bg-white p-5 text-center text-[17px] ring-1 ring-linea">{abierta.motivo}</p>
           ) : a.es_feria ? (
             <>
-              <h2 id="form-titulo" className="mb-1 text-2xl font-extrabold">{libres === 0 ? "Lista de espera" : "Reservá tu lugar"}</h2>
-              {libres === 0 ? (
+              <h2 id="form-titulo" className="mb-1 text-2xl font-extrabold">{feriaEspera ? "Anotate en la lista de espera" : "Reservá tu lugar"}</h2>
+              {feriaEspera ? (
                 <p className="mb-5 rounded-2xl bg-alerta-50 p-4 text-[16px] leading-snug text-alerta">
-                  <b>¡Se completó el cupo!</b> Igual podés anotarte en la <b>lista de espera</b>: si se libera un lugar, te avisamos por WhatsApp.
+                  <b>¡Se completó el cupo!</b> Este formulario ahora es para la <b>lista de espera</b>: anotarte <b>no te asegura un lugar en la feria</b>. Si se libera uno, te avisamos por WhatsApp.
                 </p>
               ) : (
                 <p className="mb-5 text-[15px] text-gris">
                   Cupo limitado{libres !== null && libres <= 15 && !conGrupos(a) ? `: quedan ${libres} ${libres === 1 ? "lugar" : "lugares"}` : ""}. Te lleva un minuto.
                 </p>
               )}
-              <FeriaForm slug={a.slug} token={formToken()} rubros={rubros} />
+              <FeriaForm slug={a.slug} token={formToken()} rubros={rubros} listaEspera={feriaEspera} />
             </>
           ) : (
             <>

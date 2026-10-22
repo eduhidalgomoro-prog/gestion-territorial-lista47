@@ -26,7 +26,7 @@ const chip =
   "inline-flex min-h-11 items-center rounded-full border border-linea bg-white px-4 text-[15px] font-semibold peer-checked:border-marca peer-checked:bg-verde-50 peer-checked:text-marca-600 peer-focus-visible:outline-2 peer-focus-visible:outline-petroleo";
 
 /** Formulario público de inscripción a una feria de emprendedoras. */
-export function FeriaForm({ slug, token, rubros }: { slug: string; token: string; rubros: string[] }) {
+export function FeriaForm({ slug, token, rubros, listaEspera = false }: { slug: string; token: string; rubros: string[]; listaEspera?: boolean }) {
   const [state, action, pending] = useActionState<FeriaState, FormData>(inscribirFeriaAction.bind(null, slug), { ok: true });
   const onSubmit = useSubmitWithoutReset(action);
   const e = state.fields ?? {};
@@ -34,12 +34,12 @@ export function FeriaForm({ slug, token, rubros }: { slug: string; token: string
   if (state.ok && (state.data?.status === "en_espera" || state.data?.status === "ya_en_espera")) {
     return (
       <div role="status" className="rounded-2xl bg-white p-6 text-center ring-1 ring-alerta/40">
-        <p className="font-titulo text-2xl font-extrabold text-tinta">Se completó el cupo{state.data.nombre ? `, ${state.data.nombre}` : ""}</p>
+        <p className="font-titulo text-2xl font-extrabold text-alerta">Estás en la lista de espera{state.data.nombre ? `, ${state.data.nombre}` : ""}</p>
         <p className="mt-2 text-[16px] leading-relaxed">
           {state.data.status === "ya_en_espera"
             ? "Ya estabas anotada en la lista de espera."
-            : "Quedaste anotada en la lista de espera, en orden de llegada."}{" "}
-          Si se libera un lugar, te avisamos por WhatsApp.
+            : "Se completó el cupo de la feria y quedaste anotada en la lista de espera, en orden de llegada."}{" "}
+          <b>Todavía no tenés lugar en la feria.</b> Si se libera uno, te avisamos por WhatsApp.
         </p>
       </div>
     );
@@ -144,8 +144,17 @@ export function FeriaForm({ slug, token, rubros }: { slug: string; token: string
       </label>
       {e.consentimiento && <p className="-mt-3 mb-4 text-sm font-semibold text-peligro">{e.consentimiento}</p>}
 
-      <button type="submit" disabled={pending} className="h-14 w-full rounded-full bg-marca text-[16px] font-extrabold tracking-wide text-white uppercase hover:bg-marca-600 disabled:opacity-60">
-        {pending ? "Enviando…" : "Quiero mi lugar en la feria"}
+      {listaEspera && (
+        <p className="mb-3 rounded-xl bg-alerta-50 px-4 py-3 text-center text-[15px] leading-snug font-semibold text-alerta">
+          Te estás anotando en la <b>lista de espera</b>, no en la feria.
+        </p>
+      )}
+      <button
+        type="submit"
+        disabled={pending}
+        className={`h-14 w-full rounded-full px-3 text-[16px] leading-tight font-extrabold tracking-wide text-white uppercase disabled:opacity-60 ${listaEspera ? "bg-alerta hover:opacity-90" : "bg-marca hover:bg-marca-600"}`}
+      >
+        {pending ? "Enviando…" : listaEspera ? "Quiero mi lugar en la lista de espera" : "Quiero mi lugar en la feria"}
       </button>
     </form>
   );
