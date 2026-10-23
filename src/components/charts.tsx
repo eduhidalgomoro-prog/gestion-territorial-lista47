@@ -14,12 +14,13 @@ export interface Dato {
 }
 
 /** Barras horizontales: una categoría por fila, con el número al final. */
-export function Barras({ data, format = (n) => String(n), color = "#106985", max: maxProp, vacio = "Sin datos para este período." }: {
+export function Barras({ data, format = (n) => String(n), color = "#106985", max: maxProp, vacio = "Sin datos para este período.", envolver = false }: {
   data: Dato[];
   format?: (n: number) => string;
   color?: string;
   max?: number;
   vacio?: string;
+  envolver?: boolean; // etiquetas largas (ej. opciones de una pregunta): en varias líneas en vez de cortarlas
 }) {
   if (!data.length) return <p className="py-4 text-sm text-gris">{vacio}</p>;
   const max = maxProp ?? Math.max(1, ...data.map((d) => d.value));
@@ -28,7 +29,7 @@ export function Barras({ data, format = (n) => String(n), color = "#106985", max
       {data.map((d) => (
         <li key={d.label}>
           <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
-            <span className="truncate font-semibold text-tinta">{d.label}</span>
+            <span className={cx("font-semibold text-tinta", envolver ? "min-w-0" : "truncate")}>{d.label}</span>
             <span className="shrink-0 font-bold tabular-nums">{format(d.value)}</span>
           </div>
           <div className="h-2.5 overflow-hidden rounded-full bg-fondo">

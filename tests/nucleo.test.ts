@@ -15,6 +15,8 @@ import { abrirGrupos, agregarPuesto, asignarAutomatico, asignarPuesto, cambiarEs
 import { ubicacionLabel } from "@/lib/labels";
 import { normalizeDni, normalizePhone, parseFechaFlexible, parseFechaNacimiento, parseHoraFlexible, phoneKey } from "@/lib/format";
 import { parsePreguntas } from "@/lib/preguntas";
+import { armarInforme } from "@/lib/informe";
+import { firmaInforme, firmaValida } from "@/lib/informe-link";
 import type { Yo } from "@/lib/permisos";
 import { aplicarVerComo, misZonas, puede, zonasForzadas } from "@/lib/permisos";
 import { asistenciaPorClase, cerrarActividad, crearActividad, editarFormulario, formularioInscripcion, marcarChecklist, preguntasEditables, resumenAsistencia, type ActividadInput } from "@/lib/services/actividades";
@@ -791,6 +793,31 @@ describe("feria: inscripción rápida (pico de inscripciones)", () => {
     await cambiarEstadoFeriante(fs.find((f) => f.grupo === "EXTRA")!.id, false, admin);
     expect(await inscribirFeriaPublico(slug, { nombre: "Nueva", apellido: "Extra", dni: "", telefono: "3794299999", barrio: "", emprendimiento: "y", rubro: "y", lleva: [], al_lado_de: "", comparte: "SI", consentimiento: true })).toMatchObject({ status: "en_espera" });
     expect((await snapshot({ fresh: true })).feriantes.filter((f) => f.actividad_id === a.id && f.estado === "EN ESPERA")).toHaveLength(36);
+  });
+});
+
+describe("informe del público", () => {
+  it("cuenta las opciones elegidas, junta las respuestas abiertas y arma edades y localidades", async () => {
+    const preguntas = "¿Situación laboral? [Busco trabajo / Trabajo / Estudio]\n¿Qué te gustaría llevarte?";
+    const a = await crearActividad(input({ nombre: "Taller Informe", fecha: "2099-10-28", preguntas_extra: preguntas }), admin);
+    const persona = (dni: string, tel: string, fn: string, respuestas: string[]) => ({ ...publico, dni, telefono: tel, nombre: `N${dni.slice(-2)}`, fecha_nacimiento: fn, respuestas: respuestas.map((respuesta, i) => ({ pregunta: String(i), respuesta })) });
+    await inscribirPublico(a.slug, persona("30000101", "3794000101", "15/08/1990", ["Busco trabajo", "Herramientas"]));
+    await inscribirPublico(a.slug, persona("30000102", "3794000102", "01/02/2000", ["Busco trabajo", ""]));
+    await inscribirPublico(a.slug, persona("30000103", "3794000103", "10/10/1960", ["Estudio", "Contactos\npara emprender"]));
+    const s = await snapshot({ fresh: true });
+    const inf = armarInforme(s.actividades.find((x) => x.id === a.id)!, s.inscripciones, s.participantes);
+    expect(inf.inscriptos).toBe(3);
+    expect(inf.preguntas[0]).toMatchObject({ respondieron: 3, opciones: [{ label: "Busco trabajo", value: 2 }, { label: "Trabajo", value: 0 }, { label: "Estudio", value: 1 }] });
+    expect(inf.preguntas[1]).toMatchObject({ respondieron: 2, opciones: null });
+    expect(inf.preguntas[1].libres.sort()).toEqual(["Contactos\npara emprender", "Herramientas"]);
+    expect(inf.edades.filter((e) => e.value).map((e) => `${e.label}:${e.value}`)).toEqual(["18 a 29:1", "30 a 44:1", "60 o más:1"]);
+    expect(inf.ciudades).toEqual([{ label: "Corrientes", value: 3 }]);
+  });
+
+  it("el link del disertante solo sirve para su actividad", () => {
+    expect(firmaValida("ACT-2026-0070", firmaInforme("ACT-2026-0070"))).toBe(true);
+    expect(firmaValida("ACT-2026-0071", firmaInforme("ACT-2026-0070"))).toBe(false);
+    expect(firmaValida("ACT-2026-0070", "cualquiera")).toBe(false);
   });
 });
 

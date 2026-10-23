@@ -45,11 +45,3 @@ export function VinoONo({ ferianteId, valor }: { ferianteId: string; valor: stri
     </span>
   );
 }
-
-export function BotonImprimir() {
-  return (
-    <button type="button" onClick={() => window.print()} className="inline-flex min-h-10 items-center rounded-xl border border-linea px-3 text-sm font-bold text-petroleo">
-      Imprimir / guardar PDF
-    </button>
-  );
-}

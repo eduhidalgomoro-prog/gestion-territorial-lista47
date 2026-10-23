@@ -73,6 +73,7 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
           <>
             {puede.tomarAsistencia(yo, a, s.asignaciones) && <Link href={`/actividades/${id}/asistencia`} className={btn("primario")}>Tomar asistencia</Link>}
             {puede.importar(yo, a) && <Link href={`/actividades/${id}/importar`} className={btn("secundario")}>Importar Google Forms</Link>}
+            {!a.es_feria && <Link href={`/actividades/${id}/informe`} className={btn("secundario")}>Informe del público</Link>}
           </>
         }
       />

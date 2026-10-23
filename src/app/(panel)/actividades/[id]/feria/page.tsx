@@ -23,7 +23,8 @@ import { sp, type SP } from "@/lib/view";
 import { abrirGruposAction, agregarFerianteAction, asignarAutomaticoAction, feriaConfigAction, gruposFeriaAction, puestosAction, quitarAsignacionesAction } from "../../../actions";
 import { ListaFeriantes, type FilaFeriante } from "./feriantes";
 import { BotonAccion } from "./boton-accion";
-import { BotonImprimir, VinoONo } from "./control-dia";
+import { BotonImprimir } from "@/components/boton-imprimir";
+import { VinoONo } from "./control-dia";
 import { OrganizarPuestos } from "./organizar";
 
 export const metadata = { title: "Feria" };

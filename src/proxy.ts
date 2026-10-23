@@ -8,7 +8,7 @@ import { AYUDANTE_COOKIE, SESSION_COOKIE, verifyAyudanteToken, verifySessionToke
  */
 // /guias/: guías de organización (sin datos personales), pensadas para compartir por WhatsApp.
 // /ayudante/: entrada con el QR de ayudante (pide el nombre y valida el acceso).
-const PUBLIC_PREFIXES = ["/inscripcion/", "/feria/", "/login", "/privacidad", "/api/auth/", "/offline", "/icons/", "/guias/", "/ayudante/"];
+const PUBLIC_PREFIXES = ["/inscripcion/", "/feria/", "/login", "/privacidad", "/api/auth/", "/offline", "/icons/", "/guias/", "/ayudante/", "/informe/"];
 const PUBLIC_FILES = ["/manifest.webmanifest", "/sw.js", "/favicon.ico", "/robots.txt"];
 
 export async function proxy(request: NextRequest) {

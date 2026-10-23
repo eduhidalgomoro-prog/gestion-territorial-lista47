@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { CopyButton } from "@/components/copy-button";
 import { ActionForm, Input, Select, SubmitButton } from "@/components/forms";
-import { IconCheck, IconEdit, IconForm, IconGazebo, IconImage, IconLock, IconMap, IconPin, IconUpload, IconUserPlus, IconUsers, IconWhatsApp, IconX } from "@/components/icons";
+import { IconChart, IconCheck, IconEdit, IconForm, IconGazebo, IconImage, IconLock, IconMap, IconPin, IconUpload, IconUserPlus, IconUsers, IconWhatsApp, IconX } from "@/components/icons";
 import { mensajeActividad, whatsappCompartir } from "@/lib/compartir";
 import { FlyersActividad } from "@/components/flyer-imagen";
 import { FlyerRapido } from "@/components/flyer-rapido";
@@ -160,6 +160,7 @@ export default async function FichaActividad({ params, searchParams }: { params:
             {flyerRapido}
             <nav className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Acciones de la actividad">
               {verInscriptos && <AccionSec href={`/actividades/${a.id}/inscriptos`} Icon={IconUsers}>Ver inscriptos</AccionSec>}
+              {verInscriptos && !a.es_feria && <AccionSec href={`/actividades/${a.id}/informe`} Icon={IconChart}>Informe del público</AccionSec>}
               {editar && <AccionSec href={`/actividades/${a.id}/editar`} Icon={IconEdit}>Editar</AccionSec>}
               {puede.gestionarLogistica(yo) && <AccionSec href={`/actividades/${a.id}/logistica`} Icon={IconGazebo}>Logística</AccionSec>}
               {puede.sumarAyudantes(yo, a) && a.estado !== "CANCELADA" && a.estado !== "REALIZADA" && <AccionSec href={`/actividades/${a.id}/ayudantes`} Icon={IconUserPlus}>Sumar ayudantes</AccionSec>}
