@@ -15,7 +15,7 @@ import { abrirGrupos, agregarPuesto, asignarAutomatico, asignarPuesto, cambiarEs
 import { ubicacionLabel } from "@/lib/labels";
 import { normalizeDni, normalizePhone, parseFechaFlexible, parseFechaNacimiento, parseHoraFlexible, phoneKey } from "@/lib/format";
 import { parsePreguntas } from "@/lib/preguntas";
-import { armarInforme } from "@/lib/informe";
+import { armarInforme, conclusiones, temasFrecuentes } from "@/lib/informe";
 import { firmaInforme, firmaValida } from "@/lib/informe-link";
 import type { Yo } from "@/lib/permisos";
 import { aplicarVerComo, misZonas, puede, zonasForzadas } from "@/lib/permisos";
@@ -812,6 +812,11 @@ describe("informe del público", () => {
     expect(inf.preguntas[1].libres.sort()).toEqual(["Contactos\npara emprender", "Herramientas"]);
     expect(inf.edades.filter((e) => e.value).map((e) => `${e.label}:${e.value}`)).toEqual(["18 a 29:1", "30 a 44:1", "60 o más:1"]);
     expect(inf.ciudades).toEqual([{ label: "Corrientes", value: 3 }]);
+    // «Lo principal»: frases con los mismos números.
+    const c = conclusiones(inf);
+    expect(c.find((x) => x.sobre === "¿Situación laboral?")?.texto).toBe("Lo más elegido es «Busco trabajo» (67%), seguido de «Estudio» (33%).");
+    expect(c.find((x) => x.sobre === "Edades")?.texto).toMatch(/^El grupo más grande/);
+    expect(temasFrecuentes(["Más herramientas", "herramienta para vender", "Panadería", "panaderías y herramientas"])).toEqual(["herramientas", "panadería"]);
   });
 
   it("el link del disertante solo sirve para su actividad", () => {

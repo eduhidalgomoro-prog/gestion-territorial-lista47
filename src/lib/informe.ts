@@ -25,6 +25,7 @@ export interface Informe {
   edades: Conteo[];
   ciudades: Conteo[];
   barrios: Conteo[];
+  barriosDistintos: number;
   preguntas: InformePregunta[];
 }
 
@@ -90,8 +91,11 @@ export function armarInforme(a: Actividad, inscripciones: Inscripcion[], partici
   }
   if (sinEdad) edades.push({ label: "Sin dato", value: sinEdad });
 
-  const ciudades = frecuentes(quienes.map((p) => (p.ciudad ? nombrePropio(p.ciudad) : "Sin dato")), 6, "Otras localidades");
-  const barrios = frecuentes(quienes.filter((p) => p.barrio).map((p) => nombrePropio(p.barrio)), 8, "Otros barrios");
+  // «Corrientes» y «Corrientes Capital» son la misma.
+  const ciudadDe = (c: string) => (!c ? "Sin dato" : /^corrientes( capital)?$/.test(normalizeText(c)) ? "Corrientes" : nombrePropio(c));
+  const ciudades = frecuentes(quienes.map((p) => ciudadDe(p.ciudad)), 6, "Otras localidades");
+  const conBarrio = quienes.filter((p) => p.barrio).map((p) => nombrePropio(p.barrio));
+  const barrios = frecuentes(conBarrio, 8, "Otros barrios");
 
   const preguntas = parsePreguntas(a.preguntas_extra);
   const respuestas = activas.map((i) => respuestasPorPregunta(i.respuestas, preguntas));
@@ -101,6 +105,7 @@ export function armarInforme(a: Actividad, inscripciones: Inscripcion[], partici
     edades,
     ciudades,
     barrios,
+    barriosDistintos: new Set(conBarrio).size,
     preguntas: preguntas.map((q) => {
       const dadas = respuestas.map((r) => r.get(q.texto) ?? "").filter(Boolean);
       if (!q.opciones) return { texto: q.texto, respondieron: dadas.length, opciones: null, libres: dadas };
@@ -115,4 +120,96 @@ export function armarInforme(a: Actividad, inscripciones: Inscripcion[], partici
       return { texto: q.texto, respondieron: dadas.length, opciones: conteo, libres: [] };
     }),
   };
+}
+
+
+// ---------------------------------------------------------------------------
+// «Lo principal»: frases cortas armadas con reglas fijas a partir de los mismos números del informe
+// (no son interpretaciones: siempre coinciden con los gráficos).
+// ---------------------------------------------------------------------------
+
+export interface Conclusion {
+  sobre: string; // la pregunta o el tema («Edades», «De dónde vienen»…)
+  texto: string;
+}
+
+const pct = (n: number, total: number) => (total ? Math.round((n / total) * 100) : 0);
+
+// Palabras que no dicen nada sobre el tema (para las respuestas abiertas). Sin tildes.
+const VACIAS = new Set(
+  ("para como poder tener hacer quiero quisiera gustaria llevar llevarme llevarte taller algo algun alguna mucho muchas muchos " +
+    "sobre desde entre hasta cuando donde porque pero tambien solo cada todo todos todas otra otro otras otros este esta estos estas " +
+    "esas esos tengo tiene nuevo nueva nuevos nuevas mejor mejorar saber sacar lograr ver mas muy bien area que con los las del una unos unas por mis sus").split(" "),
+);
+
+const raiz = (w: string) => (w.length > 5 && w.endsWith("es") ? w.slice(0, -2) : w.length > 4 && w.endsWith("s") ? w.slice(0, -1) : w);
+
+/** Los temas que más se repiten en las respuestas abiertas (cada respuesta cuenta una vez por palabra). Se muestran con sus tildes. */
+export function temasFrecuentes(respuestas: string[], max = 4): string[] {
+  const cuenta = new Map<string, { n: number; formas: Map<string, number> }>();
+  for (const r of respuestas) {
+    const vistas = new Set<string>();
+    for (const original of r.toLowerCase().split(/[^a-záéíóúüñ]+/)) {
+      const w = normalizeText(original);
+      if (w.length < 4 || VACIAS.has(w)) continue;
+      const k = raiz(w);
+      if (VACIAS.has(k) || vistas.has(k)) continue;
+      vistas.add(k);
+      const c = cuenta.get(k) ?? { n: 0, formas: new Map() };
+      c.n++;
+      c.formas.set(original, (c.formas.get(original) ?? 0) + 1);
+      cuenta.set(k, c);
+    }
+  }
+  return [...cuenta.values()]
+    .filter((c) => c.n >= 2)
+    .sort((a, b) => b.n - a.n)
+    .slice(0, max)
+    .map((c) => [...c.formas.entries()].sort((a, b) => b[1] - a[1])[0][0]);
+}
+
+const enumerar = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
+
+export function conclusiones(inf: Informe): Conclusion[] {
+  const out: Conclusion[] = [];
+  if (!inf.inscriptos) return out;
+
+  for (const p of inf.preguntas) {
+    if (p.respondieron < 3) continue;
+    if (p.opciones) {
+      const orden = [...p.opciones].filter((o) => o.label !== "Otra respuesta" && o.value).sort((a, b) => b.value - a.value);
+      const [primera, segunda, tercera] = orden;
+      if (!primera) continue;
+      const sino = p.opciones.some((o) => normalizeText(o.label) === "si") && p.opciones.length <= 3;
+      const v = (o: Conteo) => `${pct(o.value, p.respondieron)}%`;
+      let texto: string;
+      if (sino) texto = `El ${v(primera)} respondió «${primera.label}».`;
+      else if (segunda && segunda.value === primera.value) texto = `Empatan «${primera.label}» y «${segunda.label}» (${v(primera)} cada una).`;
+      else if (segunda && (!tercera || tercera.value < segunda.value)) texto = `Lo más elegido es «${primera.label}» (${v(primera)}), seguido de «${segunda.label}» (${v(segunda)}).`;
+      else texto = `Lo más elegido es «${primera.label}» (${v(primera)}).`;
+      out.push({ sobre: p.texto, texto });
+    } else {
+      const temas = temasFrecuentes(p.libres);
+      if (temas.length >= 2) out.push({ sobre: p.texto, texto: `Lo que más se repite: ${enumerar(temas)}.` });
+    }
+  }
+
+  const edades = inf.edades.filter((e) => e.label !== "Sin dato");
+  const conEdad = edades.reduce((n, e) => n + e.value, 0);
+  const mayor = [...edades].sort((a, b) => b.value - a.value)[0];
+  if (mayor?.value && conEdad >= 3) {
+    const rango = mayor.label === "60 o más" || mayor.label === "Hasta 17" ? mayor.label.toLowerCase() : `de ${mayor.label}`;
+    out.push({ sobre: "Edades", texto: `El grupo más grande es ${rango} años (${pct(mayor.value, conEdad)}%).` });
+  }
+
+  const [ciudad, ...otras] = inf.ciudades.filter((c) => c.label !== "Sin dato");
+  if (ciudad) {
+    const texto = !otras.length
+      ? `Todo el público es de ${ciudad.label}${inf.barriosDistintos > 1 ? `, de ${inf.barriosDistintos} barrios distintos` : ""}.`
+      : `El ${pct(ciudad.value, inf.inscriptos)}% es de ${ciudad.label}; el resto viene de ${otras.length === 1 ? otras[0].label : `${otras.length} localidades más`}.`;
+    out.push({ sobre: "De dónde vienen", texto });
+  }
+
+  if (inf.enEspera > 0) out.push({ sobre: "Lista de espera", texto: `Hay ${inf.enEspera} ${inf.enEspera === 1 ? "persona" : "personas"} esperando un lugar: el interés supera el cupo.` });
+  return out;
 }

@@ -1,5 +1,5 @@
 import { Barras, ChartCard } from "./charts";
-import type { Informe } from "@/lib/informe";
+import { conclusiones, type Informe } from "@/lib/informe";
 
 const COLOR = "#0b7ea6"; // un solo tono (validado contra fondo claro y oscuro)
 
@@ -11,6 +11,7 @@ const conPorcentaje = (total: number) => (n: number) => `${n} · ${total ? Math.
  */
 export function InformePublico({ informe }: { informe: Informe }) {
   const { inscriptos } = informe;
+  const principales = conclusiones(informe);
   if (!inscriptos) return <p className="rounded-2xl border border-linea bg-white p-5 text-center text-gris">Todavía no hay inscriptos para armar el informe.</p>;
   return (
     <div className="space-y-4">
@@ -24,6 +25,24 @@ export function InformePublico({ informe }: { informe: Informe }) {
           <p className="font-titulo text-4xl font-black tabular-nums">{informe.enEspera}</p>
         </div>
       </div>
+
+      {principales.length > 0 && (
+        <section className="break-inside-avoid rounded-2xl border border-petroleo/25 bg-petroleo-50 p-4 sm:p-5">
+          <h2 className="mb-2 font-titulo text-lg font-extrabold text-petroleo-600">Lo principal</h2>
+          <ul className="space-y-2.5">
+            {principales.map((c) => (
+              <li key={c.sobre} className="flex gap-2.5">
+                <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-petroleo" />
+                <span className="min-w-0">
+                  <span className="block text-[12.5px] font-bold text-gris">{c.sobre}</span>
+                  <span className="block text-[15.5px] leading-snug text-tinta">{c.texto}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-gris">Resumen automático con los mismos números de los gráficos.</p>
+        </section>
+      )}
 
       {informe.preguntas.map((p) => (
         <ChartCard key={p.texto} title={p.texto} className="break-inside-avoid">
