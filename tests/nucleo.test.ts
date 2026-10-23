@@ -695,12 +695,12 @@ describe("feria: cupo por grupos", () => {
     expect(await inscribirFeriaPublico(slug, persona("Bea", "Dos", "3794100002"))).toMatchObject({ status: "inscripta" }); // por nombre
     expect(await inscribirFeriaPublico(slug, persona("Cris", "Tres", "3794100003"))).toMatchObject({ status: "en_espera" }); // originales completas
     expect(await inscribirFeriaPublico(slug, persona("Dora", "Cuatro", "3794100004"))).toMatchObject({ status: "inscripta" });
-    // Grupos cerrados: el segundo grupo todavía no puede inscribirse (la encargada sí puede sumarla a mano).
+    // Grupo cerrado (ej. se tildó mal): no se la rechaza, queda en la lista de espera (no se pierde nadie).
     await abrirGrupos(a.id, ["ORIGINAL", "EXTRA"], admin);
-    expect(await inscribirFeriaPublico(slug, persona("Eva", "Cinco", "3794100005"))).toMatchObject({ status: "cerrada" });
+    expect(await inscribirFeriaPublico(slug, persona("Eva", "Cinco", "3794100005"))).toMatchObject({ status: "en_espera" });
     await abrirGrupos(a.id, ["ORIGINAL", "ESPERA", "EXTRA"], admin);
 
-    expect(await inscribirFeriaPublico(slug, persona("Eva", "Cinco", "3794100005"))).toMatchObject({ status: "en_espera" }); // segundo grupo completo
+    expect(await inscribirFeriaPublico(slug, persona("Eva", "Cinco", "3794100005"))).toMatchObject({ status: "ya_en_espera" }); // ya estaba esperando: no se duplica
     expect(await inscribirFeriaPublico(slug, persona("Fabi", "Nueva", "3794100006"))).toMatchObject({ status: "inscripta" }); // extra
     s = await snapshot({ fresh: true });
     const grupos = s.feriantes.filter((f) => f.actividad_id === a.id && f.estado === "INSCRIPTA").map((f) => f.grupo).sort();

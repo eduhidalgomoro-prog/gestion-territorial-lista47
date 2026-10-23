@@ -24,7 +24,7 @@ import { abrirGruposAction, agregarFerianteAction, asignarAutomaticoAction, feri
 import { ListaFeriantes, type FilaFeriante } from "./feriantes";
 import { BotonAccion } from "./boton-accion";
 import { BotonImprimir } from "@/components/boton-imprimir";
-import { VinoONo } from "./control-dia";
+import { DarDeBaja, VinoONo } from "./control-dia";
 import { OrganizarPuestos } from "./organizar";
 
 export const metadata = { title: "Feria" };
@@ -191,7 +191,7 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
                   </label>
                 ))}
               </div>
-              <p className="mt-2 mb-3 text-[13px] text-gris">Con varios grupos marcados, quien es de un grupo sin marcar ve «Todavía no abrió la inscripción para vos» y no se anota. Vos podés sumar a cualquiera a mano igual.</p>
+              <p className="mt-2 mb-3 text-[13px] text-gris">Con varios grupos marcados, quien es de un grupo sin marcar queda en la lista de espera (no se pierde nadie). Vos podés sumar a cualquiera a mano igual.</p>
               <SubmitButton size="md" variant="secundario">Guardar</SubmitButton>
             </ActionForm>
           ) : (
@@ -467,7 +467,7 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
                   <th className="px-3 py-2">Responsable</th>
                   {verTel && <th className="px-3 py-2">Teléfono</th>}
                   <th className="px-3 py-2">Emprendimiento</th>
-                  {editable && <th className="px-3 py-2 print:hidden">¿Vino?</th>}
+                  {editable && <th className="px-3 py-2 print:hidden">¿Vino? / Baja</th>}
                   <th className="hidden px-3 py-2 print:table-cell">¿Vino?</th>
                 </tr>
               </thead>
@@ -484,7 +484,12 @@ export default async function FeriaPage({ params, searchParams }: { params: Prom
                     </td>
                     {verTel && <td className="px-3 py-2 whitespace-nowrap">{f.telefono ? formatPhone(f.telefono) : ""}</td>}
                     <td className="px-3 py-2">{f.emprendimiento}<span className="block text-[12.5px] text-gris">{f.rubro}</span></td>
-                    {editable && <td className="px-3 py-2 print:hidden"><VinoONo ferianteId={f.ferianteId} valor={f.asistio} /></td>}
+                    {editable && (
+                      <td className="px-3 py-2 print:hidden">
+                        <VinoONo ferianteId={f.ferianteId} valor={f.asistio} />
+                        <DarDeBaja ferianteId={f.ferianteId} nombre={f.responsable} />
+                      </td>
+                    )}
                     <td className="hidden px-3 py-2 print:table-cell">{f.asistio === "SI" ? "Sí" : f.asistio === "NO" ? "No" : "☐"}</td>
                   </tr>
                 ))}

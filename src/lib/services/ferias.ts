@@ -9,8 +9,8 @@ import { TIPOS_PUESTO, type Actividad, type Feriante, type Puesto, type TipoPues
 import { cleanString, normalizePhone, nowIso, phoneKey } from "../util";
 import { after } from "next/server";
 import { BusyError } from "../lock";
-import { esperar, inicializada, inicializar, invalidarContadores, largoCola, reservar, sacarDeCola, verCola } from "../cola-feria";
-import { conGrupos, esGrupo, grupoAbierto, GRUPOS_FERIA, grupoDe, MENSAJE_GRUPO_CERRADO, mismaPersona, parseCupos, unicoGrupoAbierto, unirCupos, type GrupoFeria } from "../ferias-grupos";
+import { esperar, inicializada, inicializar, invalidarContadores, largoCola, reservar, sacarDeCola, verCola, type Reserva } from "../cola-feria";
+import { conGrupos, esGrupo, grupoAbierto, GRUPOS_FERIA, grupoDe, mismaPersona, parseCupos, unicoGrupoAbierto, unirCupos, type GrupoFeria } from "../ferias-grupos";
 import { crearActividad, formularioInscripcion } from "./actividades";
 import { inscribir, inscripcionAbiertaPublica } from "./inscripciones";
 import { limpiarPersona, upsertParticipantes, type PersonaInput } from "./participantes";
@@ -465,16 +465,20 @@ export async function reservarLugarFeria(slug: string, input: FerianteInput & { 
   if (!input.consentimiento) throw new UserError("Para inscribirte tenés que aceptar el uso de tus datos.", { consentimiento: "Marcá esta casilla para continuar." });
   const { persona, datos } = limpiarFeriante(input);
   const grupo = unicoGrupoAbierto(a) ?? ((await grupoPara(a, persona)) || "TODAS");
-  if (conGrupos(a) && !grupoAbierto(a, grupo)) return { resultado: { status: "cerrada", motivo: MENSAJE_GRUPO_CERRADO }, actividadId: a.id };
+  // Si su grupo todavía no está abierto (ej. se tildó mal), no se la rechaza: queda en la lista de espera, así no se pierde nadie.
+  const cerrado = conGrupos(a) && !grupoAbierto(a, grupo);
   const cupos = parseCupos(a.cupos_grupos);
   const maxGrupo = conGrupos(a) ? cupos[grupo as GrupoFeria] ?? 0 : -1;
   const claves = clavesPersona(persona);
   const payload = JSON.stringify({ persona, datos, grupo: grupo === "TODAS" ? "" : grupo, consentimiento: nowIso() } satisfies EnCola);
-  let r = await reservar(a.id, grupo, maxGrupo, a.cupo || 0, claves, payload);
-  if (r === "init") {
-    await armarContadores(a.id);
+  let r: Reserva | "cerrado" = "cerrado";
+  if (!cerrado) {
     r = await reservar(a.id, grupo, maxGrupo, a.cupo || 0, claves, payload);
-  }
+    if (r === "init") {
+      await armarContadores(a.id);
+      r = await reservar(a.id, grupo, maxGrupo, a.cupo || 0, claves, payload);
+    }
+  } else if (!(await inicializada(a.id))) await armarContadores(a.id); // para reconocer a quien ya tiene lugar o ya espera
   if (r === "ok") return { resultado: { status: "inscripta", nombre: persona.nombre }, actividadId: a.id };
   if (r === "ya") return { resultado: { status: "ya", nombre: persona.nombre }, actividadId: a.id };
   // Sin lugar: queda en la lista de espera (en orden de llegada), para que la encargada la sume si se libera un lugar.
