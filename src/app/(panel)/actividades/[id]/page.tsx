@@ -405,6 +405,7 @@ export default async function FichaActividad({ params, searchParams }: { params:
         <div className="flex flex-wrap gap-2">
           <Link href={`/actividades/${a.id}/inscriptos`} className={btn("secundario", "sm")}>Ver participantes</Link>
           {asistencia && a.estado !== "CANCELADA" && <Link href={`/actividades/${a.id}/asistencia`} className={btn("primario", "sm")}>{asistenciaTomada ? "Revisar asistencia" : "Tomar asistencia"}</Link>}
+          {clasesTaller.length > 1 && <Link href={`/actividades/${a.id}/certificados`} className={btn("secundario", "sm")}>Asistencia por persona y certificados</Link>}
         </div>
       </Seccion>}
 

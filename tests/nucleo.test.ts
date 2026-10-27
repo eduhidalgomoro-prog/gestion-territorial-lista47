@@ -16,6 +16,7 @@ import { ubicacionLabel } from "@/lib/labels";
 import { normalizeDni, normalizePhone, parseFechaFlexible, parseFechaNacimiento, parseHoraFlexible, phoneKey } from "@/lib/format";
 import { parsePreguntas } from "@/lib/preguntas";
 import { armarInforme, conclusiones, temasFrecuentes } from "@/lib/informe";
+import { asistenciaPorPersona, minimoPorDefecto } from "@/lib/clases";
 import { firmaInforme, firmaValida } from "@/lib/informe-link";
 import type { Yo } from "@/lib/permisos";
 import { aplicarVerComo, misZonas, puede, zonasForzadas } from "@/lib/permisos";
@@ -793,6 +794,20 @@ describe("feria: inscripción rápida (pico de inscripciones)", () => {
     await cambiarEstadoFeriante(fs.find((f) => f.grupo === "EXTRA")!.id, false, admin);
     expect(await inscribirFeriaPublico(slug, { nombre: "Nueva", apellido: "Extra", dni: "", telefono: "3794299999", barrio: "", emprendimiento: "y", rubro: "y", lleva: [], al_lado_de: "", comparte: "SI", consentimiento: true })).toMatchObject({ status: "en_espera" });
     expect((await snapshot({ fresh: true })).feriantes.filter((f) => f.actividad_id === a.id && f.estado === "EN ESPERA")).toHaveLength(36);
+  });
+});
+
+describe("asistencia por persona (certificados)", () => {
+  it("cuenta las clases de cada persona; las marcas viejas son de la clase 1 y gana PRESENTE", () => {
+    const m = (pid: string, clase: number, estado: string) => ({ participante_id: pid, clase, estado });
+    const filas = asistenciaPorPersona(4, ["A", "B", "C"], [m("A", 0, "PRESENTE"), m("A", 2, "PRESENTE"), m("A", 3, "PRESENTE"), m("B", 1, "AUSENTE"), m("B", 1, "PRESENTE"), m("B", 4, "AUSENTE"), m("D", 2, "PRESENTE")]);
+    const de = (pid: string) => filas.find((f) => f.participante_id === pid)!;
+    expect(de("A")).toMatchObject({ presentes: 3, porClase: ["PRESENTE", "PRESENTE", "PRESENTE", ""] });
+    expect(de("B")).toMatchObject({ presentes: 1, porClase: ["PRESENTE", "", "", "AUSENTE"] });
+    expect(de("C").presentes).toBe(0);
+    expect(de("D").presentes).toBe(1); // vino sin estar inscripta: igual aparece
+    expect(minimoPorDefecto(4)).toBe(3);
+    expect(minimoPorDefecto(1)).toBe(1);
   });
 });
 

@@ -43,3 +43,34 @@ export function estadoPorPersona(marcas: Marca[]): Map<string, "PRESENTE" | "AUS
   }
   return out;
 }
+
+/** Mínimo de clases para el certificado por defecto: el 75% (ej. 3 de 4), al menos 1. */
+export const minimoPorDefecto = (clases: number) => Math.max(1, Math.ceil(clases * 0.75));
+
+export interface FilaAsistenciaPersona {
+  participante_id: string;
+  porClase: ("PRESENTE" | "AUSENTE" | "")[]; // una por clase ("" = sin marcar)
+  presentes: number;
+}
+
+/**
+ * Asistencia de cada persona en cada clase (para los certificados): inscriptos y quien tenga alguna marca.
+ * Si en una misma clase hay varias marcas de la persona, gana PRESENTE.
+ */
+export function asistenciaPorPersona(clases: number, inscriptos: string[], marcas: Marca[]): FilaAsistenciaPersona[] {
+  const filas = new Map<string, FilaAsistenciaPersona>();
+  const fila = (pid: string) => {
+    let f = filas.get(pid);
+    if (!f) filas.set(pid, (f = { participante_id: pid, porClase: Array(clases).fill(""), presentes: 0 }));
+    return f;
+  };
+  for (const pid of inscriptos) fila(pid);
+  for (const m of marcas) {
+    const i = claseDeMarca(m) - 1;
+    if (i < 0 || i >= clases || (m.estado !== "PRESENTE" && m.estado !== "AUSENTE")) continue;
+    const f = fila(m.participante_id);
+    if (m.estado === "PRESENTE" || !f.porClase[i]) f.porClase[i] = m.estado;
+  }
+  for (const f of filas.values()) f.presentes = f.porClase.filter((e) => e === "PRESENTE").length;
+  return [...filas.values()];
+}
