@@ -10,7 +10,7 @@ import { snapshot } from "@/lib/db";
 import { estadoPorPersona } from "@/lib/clases";
 import { esCapital } from "@/lib/inscripcion-publica";
 import { puede } from "@/lib/permisos";
-import { formatDate, formatDni, formatPhone, fullName, maskDni, maskPhone, normalizeText, titleCase } from "@/lib/util";
+import { formatDate, formatDni, formatPhone, fullName, maskDni, maskPhone, normalizeText, titleCase, today, haceDias, enLasUltimas } from "@/lib/util";
 import { qs, sp, type SP } from "@/lib/view";
 import { bajaInscripcionAction, confirmacionAction, linkGrupoAction, mensajesAction, pasarAInscriptoAction } from "../../../actions";
 import { lugaresActividad } from "@/lib/services/inscripciones";
@@ -42,11 +42,19 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
     no: todos.filter((i) => i.confirmacion === "NO VA").length,
     sin: todos.filter((i) => !i.confirmacion).length,
   };
+  // Número de llegada (#1 = la primera que se anotó): así se ve enseguida quiénes se sumaron después de un reporte.
+  const llegada = new Map([...todos].sort((x, y) => x.creado.localeCompare(y.creado)).map((i, n) => [i.id, n + 1]));
+  const recientes = sp(q, "o") === "recientes";
+  const esNueva = (creado: string) => enLasUltimas(creado, 24);
+  const hoyISO = today();
+  const ayerISO = haceDias(1);
+  const deHoy = todos.filter((i) => i.creado.slice(0, 10) === hoyISO).length;
+  const deAyer = todos.filter((i) => i.creado.slice(0, 10) === ayerISO).length;
   const lista = todos
     .filter((i) => !filtro || (filtro === "si" ? i.confirmacion === "CONFIRMÓ" : filtro === "no" ? i.confirmacion === "NO VA" : !i.confirmacion))
     .map((i) => ({ i, p: personas.get(i.participante_id) }))
     .filter(({ p }) => !busq || (p && normalizeText(`${p.nombre} ${p.apellido} ${p.dni} ${p.telefono}`).includes(busq)))
-    .sort((x, y) => fullName(x.p).localeCompare(fullName(y.p)));
+    .sort((x, y) => (recientes ? y.i.creado.localeCompare(x.i.creado) : fullName(x.p).localeCompare(fullName(y.p))));
   const dni = puede.verDniCompleto(yo);
   const tel = puede.verTelefono(yo);
   const editar = puede.editarActividad(yo, a);
@@ -132,7 +140,7 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
           return (
             <Link
               key={f.id}
-              href={`/actividades/${id}/inscriptos${qs({ c: f.id, q: sp(q, "q") })}`}
+              href={`/actividades/${id}/inscriptos${qs({ c: f.id, q: sp(q, "q"), o: sp(q, "o") })}`}
               aria-current={filtro === f.id ? "page" : undefined}
               className={cx(
                 "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold",
@@ -145,10 +153,39 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
         })}
       </nav>
 
-      <FiltrosForm action={`/actividades/${id}/inscriptos`} className="mb-4">
+      <FiltrosForm action={`/actividades/${id}/inscriptos`} className="mb-3">
         {filtro && <input type="hidden" name="c" value={filtro} />}
+        {recientes && <input type="hidden" name="o" value="recientes" />}
         <Buscador value={sp(q, "q")} placeholder="Buscar por nombre, apellido, DNI o teléfono" />
       </FiltrosForm>
+
+      {/* Quiénes se sumaron: número de llegada, «Nueva» (últimas 24 h) y orden por llegada. */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-gris">
+          {deHoy || deAyer ? (
+            <>
+              {deHoy > 0 && <>Hoy se {deHoy === 1 ? "sumó" : "sumaron"} <b className="text-tinta">{deHoy}</b></>}
+              {deHoy > 0 && deAyer > 0 && " · "}
+              {deAyer > 0 && <>ayer <b className="text-tinta">{deAyer}</b></>}
+              . El número (#) es el orden en que se anotaron.
+            </>
+          ) : (
+            "El número (#) es el orden en que se anotaron."
+          )}
+        </p>
+        <div className="flex gap-1 rounded-full border border-linea bg-white p-1 text-sm font-bold">
+          {([["", "A–Z"], ["recientes", "Últimas primero"]] as const).map(([o, label]) => (
+            <Link
+              key={o}
+              href={`/actividades/${id}/inscriptos${qs({ c: filtro, q: sp(q, "q"), o })}`}
+              aria-current={(recientes ? "recientes" : "") === o ? "page" : undefined}
+              className={cx("rounded-full px-3 py-1", (recientes ? "recientes" : "") === o ? "bg-petroleo text-white" : "text-gris hover:text-petroleo")}
+            >
+              {label}
+            </Link>
+          ))}
+        </div>
+      </div>
 
       {lista.length === 0 ? (
         <Empty>{busq || filtro ? "Nadie coincide con la búsqueda." : "Todavía no hay inscriptos."}</Empty>
@@ -163,11 +200,15 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
               <li key={i.id} className="rounded-2xl border border-linea bg-white p-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
-                    {puede.verParticipantes(yo) ? (
-                      <Link href={`/participantes/${i.participante_id}`} className="font-bold hover:text-petroleo hover:underline">{fullName(p)}</Link>
-                    ) : (
-                      <p className="font-bold">{fullName(p)}</p>
-                    )}
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="text-sm font-bold text-gris tabular-nums" title="Orden en que se anotó">#{llegada.get(i.id)}</span>
+                      {puede.verParticipantes(yo) ? (
+                        <Link href={`/participantes/${i.participante_id}`} className="font-bold hover:text-petroleo hover:underline">{fullName(p)}</Link>
+                      ) : (
+                        <span className="font-bold">{fullName(p)}</span>
+                      )}
+                      {esNueva(i.creado) && <Badge color="verde">NUEVA</Badge>}
+                    </p>
                     <p className="text-sm text-gris">
                       {p?.dni ? `DNI ${dni ? formatDni(p.dni) : maskDni(p.dni)}` : "Sin DNI"}
                       {p?.telefono && ` · Tel. ${tel ? formatPhone(p.telefono) : maskPhone(p.telefono)}`}
@@ -187,7 +228,7 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
                     {i.ensenaria && <p className="mt-1 text-sm"><b>Enseñaría:</b> {i.ensenaria}</p>}
                     {i.espacio && <p className="mt-1 text-sm"><b>Espacio:</b> {i.espacio}</p>}
                     <p className="text-xs text-gris">
-                      Inscripción {formatDate(i.fecha)} · {i.origen.toLowerCase()}
+                      Se anotó el {formatDate(i.creado.slice(0, 10) || i.fecha)}{/T\d{2}:\d{2}/.test(i.creado) ? ` a las ${i.creado.slice(11, 16)}` : ""} · {i.origen.toLowerCase()}
                     </p>
                     {i.respuestas && <p className="mt-1 text-sm whitespace-pre-line">{i.respuestas}</p>}
                   </div>

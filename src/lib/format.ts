@@ -22,6 +22,12 @@ export function today(d: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(d);
 }
 
+/** Fecha local de hace `dias` días (YYYY-MM-DD): today(), ayer… */
+export const haceDias = (dias: number) => today(new Date(Date.now() - dias * 86_400_000));
+
+/** ¿Pasó en las últimas `horas` horas? (fecha/hora ISO). */
+export const enLasUltimas = (iso: string, horas: number) => Date.parse(iso) > Date.now() - horas * 3_600_000;
+
 /** Fecha y hora local legible: 28/09/2026 14:05 */
 export function nowLocal(d: Date = new Date()): string {
   return new Intl.DateTimeFormat("es-AR", {
