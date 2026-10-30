@@ -220,6 +220,14 @@ export async function VistaActividades({ vista, searchParams }: { vista: Vista; 
             <b className="text-tinta">{lista.length}</b> {lista.length === 1 ? "actividad" : "actividades"} · <b className="text-tinta">{totalInscriptos}</b>{" "}
             {totalInscriptos === 1 ? "inscripto" : "inscriptos"} · <b className="text-tinta">{zonasDistintas}</b> {zonasDistintas === 1 ? "zona" : "zonas"}
           </p>
+          {vista === "calendario" && (
+            <Link
+              href={`/calendario/linea-de-tiempo${qs({ ...keep, orden: undefined })}`}
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-petroleo/40 bg-white px-3.5 text-sm font-bold text-petroleo hover:bg-petroleo-50"
+            >
+              <IconList size={16} /> Línea de tiempo del mes (PDF)
+            </Link>
+          )}
           {vista === "listado" && (
             <label className="flex items-center gap-2 text-sm text-gris">
               Ordenar

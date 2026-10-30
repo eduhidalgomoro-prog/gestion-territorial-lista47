@@ -46,12 +46,17 @@ export default async function PanelLayout({ children }: { children: React.ReactN
   const rol = ROL_LABEL[yo.rol] + (yo.rol === "RESPONSABLE" && yo.zona ? ` · ${misZonas(yo).map(zonaLabel).join(" · ")}` : "");
   return (
     <div className="flex min-h-dvh">
-      <Sidebar nombre={yo.nombre} rol={rol} permisos={permisos} />
+      {/* Al imprimir (o guardar en PDF) solo sale el contenido, sin los menús. */}
+      <div className="contents print:hidden">
+        <Sidebar nombre={yo.nombre} rol={rol} permisos={permisos} />
+      </div>
       <div className="flex min-w-0 flex-1 flex-col">
-        <MobileNav permisos={permisos} />
+        <div className="contents print:hidden">
+          <MobileNav permisos={permisos} />
+        </div>
         {yo.vistaPrevia && (
           // «Ver la app como…»: siempre a la vista, con la salida a un toque.
-          <div className="sticky top-14 z-20 flex flex-wrap items-center justify-between gap-2 bg-alerta px-4 py-2 text-white shadow-md lg:top-0 lg:px-10">
+          <div className="sticky top-14 z-20 flex flex-wrap items-center justify-between gap-2 bg-alerta px-4 py-2 text-white shadow-md lg:top-0 lg:px-10 print:hidden">
             <p className="flex min-w-0 items-center gap-2 text-[14px] font-bold">
               <IconEye size={18} className="shrink-0" />
               <span className="min-w-0">Viendo la app como <b className="underline decoration-white/50 underline-offset-2">{yo.vistaPrevia.etiqueta}</b> · solo para mirar</span>
@@ -61,7 +66,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             </form>
           </div>
         )}
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-5 pb-28 sm:px-6 lg:px-10 lg:pt-8 lg:pb-10">{children}</main>
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-5 pb-28 sm:px-6 lg:px-10 lg:pt-8 lg:pb-10 print:max-w-none print:p-0">{children}</main>
       </div>
     </div>
   );
