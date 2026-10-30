@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@googleapis/sheets": "^18.0.1",
+    "@react-pdf/renderer": "4.3.0",
     "@upstash/redis": "^1.39.0",
     "@vercel/blob": "^2.8.0",
     "arctic": "^3.7.0",
