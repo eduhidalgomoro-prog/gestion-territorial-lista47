@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Fragment } from "react";
 import { notFound } from "next/navigation";
 import { Buscador, FiltrosForm } from "@/components/filtros";
 import { ActionForm, Input, SubmitButton, Textarea } from "@/components/forms";
@@ -61,7 +62,13 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
     .filter((i) => enFiltro(filtro, i))
     .map((i) => ({ i, p: personas.get(i.participante_id) }))
     .filter(({ p }) => !busq || (p && normalizeText(`${p.nombre} ${p.apellido} ${p.dni} ${p.telefono}`).includes(busq)))
-    .sort((x, y) => (recientes ? y.i.creado.localeCompare(x.i.creado) : fullName(x.p).localeCompare(fullName(y.p))));
+    .sort(
+      (x, y) =>
+        // Las que ya están en el grupo van al final: arriba quedan las que falta sumar.
+        Number(x.i.en_grupo === "SI") - Number(y.i.en_grupo === "SI") ||
+        (recientes ? y.i.creado.localeCompare(x.i.creado) : fullName(x.p).localeCompare(fullName(y.p))),
+    );
+  const enGrupo = lista.filter(({ i }) => i.en_grupo === "SI").length;
   const dni = puede.verDniCompleto(yo);
   const tel = puede.verTelefono(yo);
   const editar = puede.editarActividad(yo, a);
@@ -219,13 +226,22 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
         <Empty>{busq || filtro ? "Nadie coincide con la búsqueda." : "Todavía no hay inscriptos."}</Empty>
       ) : (
         <ul className="space-y-2">
-          {lista.map(({ i, p }) => {
+          {lista.map(({ i, p }, n) => {
             const estado = asis.get(i.participante_id);
             const waConfirmar = contactar && p ? whatsappA(p.telefono, completarMensaje(plantillaConfirmacion, p.nombre, a)) : "";
             const waGrupo =
               contactar && p && a.link_grupo && i.confirmacion === "CONFIRMÓ" ? whatsappA(p.telefono, completarMensaje(plantillaGrupo, p.nombre, a)) : "";
+            const enElGrupo = i.en_grupo === "SI";
+            // Separador antes de la primera que ya está en el grupo (van todas juntas al final).
+            const separador = enElGrupo && n > 0 && lista[n - 1].i.en_grupo !== "SI";
             return (
-              <li key={i.id} className="rounded-2xl border border-linea bg-white p-4">
+              <Fragment key={i.id}>
+              {separador && (
+                <li className="flex items-center gap-2 pt-3 text-sm font-bold text-marca-600" aria-hidden>
+                  <span className="h-px flex-1 bg-verde/40" /> Ya en el grupo ({enGrupo}) <span className="h-px flex-1 bg-verde/40" />
+                </li>
+              )}
+              <li className={cx("rounded-2xl border p-4", enElGrupo ? "border-verde/50 border-l-4 border-l-verde bg-verde-50" : "border-linea bg-white")}>
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -311,6 +327,7 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
                   </details>
                 )}
               </li>
+              </Fragment>
             );
           })}
         </ul>
