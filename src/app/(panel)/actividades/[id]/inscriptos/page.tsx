@@ -12,7 +12,7 @@ import { esCapital } from "@/lib/inscripcion-publica";
 import { puede } from "@/lib/permisos";
 import { formatDate, formatDni, formatPhone, fullName, maskDni, maskPhone, normalizeText, titleCase, today, haceDias, enLasUltimas } from "@/lib/util";
 import { qs, sp, type SP } from "@/lib/view";
-import { bajaInscripcionAction, confirmacionAction, linkGrupoAction, mensajesAction, pasarAInscriptoAction } from "../../../actions";
+import { bajaInscripcionAction, confirmacionAction, enGrupoAction, linkGrupoAction, mensajesAction, pasarAInscriptoAction } from "../../../actions";
 import { lugaresActividad } from "@/lib/services/inscripciones";
 
 export const metadata = { title: "Inscriptos" };
@@ -22,7 +22,18 @@ const FILTROS = [
   { id: "sin", label: "Sin respuesta" },
   { id: "si", label: "Confirmaron" },
   { id: "no", label: "No van" },
+  { id: "grupo", label: "En el grupo" },
+  { id: "faltagrupo", label: "Confirmaron sin grupo" },
 ] as const;
+
+/** Qué inscripciones entran en cada filtro de arriba. */
+const enFiltro = (filtro: string, i: { confirmacion: string; en_grupo: string }) =>
+  filtro === "si" ? i.confirmacion === "CONFIRMÓ"
+  : filtro === "no" ? i.confirmacion === "NO VA"
+  : filtro === "sin" ? !i.confirmacion
+  : filtro === "grupo" ? i.en_grupo === "SI"
+  : filtro === "faltagrupo" ? i.confirmacion === "CONFIRMÓ" && i.en_grupo !== "SI"
+  : true;
 
 export default async function Inscriptos({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<SP> }) {
   const yo = await requireUser();
@@ -37,11 +48,7 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
   const busq = normalizeText(sp(q, "q"));
   const filtro = sp(q, "c");
   const todos = s.inscripciones.filter((i) => i.actividad_id === id && i.estado === "INSCRIPTO");
-  const cuenta = {
-    si: todos.filter((i) => i.confirmacion === "CONFIRMÓ").length,
-    no: todos.filter((i) => i.confirmacion === "NO VA").length,
-    sin: todos.filter((i) => !i.confirmacion).length,
-  };
+  const cuenta = Object.fromEntries(FILTROS.map((f) => [f.id, todos.filter((i) => enFiltro(f.id, i)).length])) as Record<string, number>;
   // Número de llegada (#1 = la primera que se anotó): así se ve enseguida quiénes se sumaron después de un reporte.
   const llegada = new Map([...todos].sort((x, y) => x.creado.localeCompare(y.creado)).map((i, n) => [i.id, n + 1]));
   const recientes = sp(q, "o") === "recientes";
@@ -51,7 +58,7 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
   const deHoy = todos.filter((i) => i.creado.slice(0, 10) === hoyISO).length;
   const deAyer = todos.filter((i) => i.creado.slice(0, 10) === ayerISO).length;
   const lista = todos
-    .filter((i) => !filtro || (filtro === "si" ? i.confirmacion === "CONFIRMÓ" : filtro === "no" ? i.confirmacion === "NO VA" : !i.confirmacion))
+    .filter((i) => enFiltro(filtro, i))
     .map((i) => ({ i, p: personas.get(i.participante_id) }))
     .filter(({ p }) => !busq || (p && normalizeText(`${p.nombre} ${p.apellido} ${p.dni} ${p.telefono}`).includes(busq)))
     .sort((x, y) => (recientes ? y.i.creado.localeCompare(x.i.creado) : fullName(x.p).localeCompare(fullName(y.p))));
@@ -111,7 +118,9 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
           <ol className="mt-1 mb-3 list-decimal space-y-0.5 pl-5 text-sm text-gris">
             <li>Tocá <b>«Pedir confirmación»</b> en cada persona: se abre WhatsApp con el mensaje listo.</li>
             <li>Cuando responda, marcá <b>✓ Confirmó</b> o <b>✗ No va</b>.</li>
-            <li>Pegá acá el link de invitación del grupo y usá <b>«Invitar al grupo»</b> con quienes confirmaron.</li>
+            <li>
+              Sumalas al grupo de WhatsApp: agregala vos y tocá <b>«Agregada al grupo»</b>, o pegá acá el link del grupo y usá <b>«Invitar al grupo»</b>. El filtro <b>«Confirmaron sin grupo»</b> muestra a quién falta sumar.
+            </li>
           </ol>
           <details className="mb-3 rounded-xl bg-fondo p-3">
             <summary className="cursor-pointer text-sm font-bold text-petroleo">
@@ -254,6 +263,7 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
                   <div className="flex flex-wrap items-center gap-2">
                     {i.confirmacion === "CONFIRMÓ" && <Badge color="verde">✓ CONFIRMÓ</Badge>}
                     {i.confirmacion === "NO VA" && <Badge color="naranja">✗ NO VA</Badge>}
+                    {i.en_grupo === "SI" && <Badge color="petroleo">EN EL GRUPO</Badge>}
                     {estado === "PRESENTE" && <Badge color="petroleo">PRESENTE</Badge>}
                     {estado === "AUSENTE" && <Badge color="gris">AUSENTE</Badge>}
                   </div>
@@ -275,8 +285,14 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
                         </SubmitButton>
                       </ActionForm>
                     ))}
-                    {waGrupo && (
-                      <a href={waGrupo} target="_blank" rel="noopener noreferrer" className={btn("primario", "sm")}>
+                    {/* La encargada la suma ella al grupo (sin mandarle el link) y lo deja marcado. */}
+                    <ActionForm action={enGrupoAction.bind(null, i.id, i.en_grupo !== "SI")}>
+                      <SubmitButton size="sm" variant={i.en_grupo === "SI" ? "primario" : "secundario"} pendingText="…">
+                        {i.en_grupo === "SI" ? "✓ En el grupo" : "＋ Agregada al grupo"}
+                      </SubmitButton>
+                    </ActionForm>
+                    {waGrupo && i.en_grupo !== "SI" && (
+                      <a href={waGrupo} target="_blank" rel="noopener noreferrer" className={btn("secundario", "sm")}>
                         <IconWhatsApp size={18} /> Invitar al grupo
                       </a>
                     )}

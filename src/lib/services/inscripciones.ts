@@ -58,7 +58,7 @@ export async function inscribir(
           origen,
           estado: conCupo ? estadoNuevo() : "INSCRIPTO",
           respuestas: it.respuestas ?? "",
-          confirmacion: "",
+          confirmacion: "", en_grupo: "",
           ...(it.escuela ?? SIN_RESPUESTAS_ESCUELA),
         });
     }
@@ -109,6 +109,15 @@ export async function marcarConfirmacion(inscripcionId: string, valor: string, y
   await actividadDeContacto(ins.actividad_id, yo);
   const confirmacion = (CONFIRMACIONES as readonly string[]).includes(valor) ? (valor as Confirmacion) : "";
   return update("inscripciones", inscripcionId, { confirmacion }, yo.email, { accion: `confirmación → ${confirmacion || "sin respuesta"}` });
+}
+
+/** La encargada la sumó al grupo de WhatsApp (o lo desmarca). */
+export async function marcarEnGrupo(inscripcionId: string, enGrupo: boolean, yo: Yo) {
+  const s = await snapshot();
+  const ins = s.inscripciones.find((i) => i.id === inscripcionId);
+  if (!ins) throw new NotFoundError("La inscripción");
+  await actividadDeContacto(ins.actividad_id, yo);
+  return update("inscripciones", inscripcionId, { en_grupo: enGrupo ? "SI" : "" }, yo.email, { accion: enGrupo ? "agregada al grupo" : "quitada del grupo" });
 }
 
 export async function guardarLinkGrupo(actividadId: string, link: string, yo: Yo) {

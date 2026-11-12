@@ -28,7 +28,7 @@ import { limpiarPersona, upsertParticipantes } from "@/lib/services/participante
 import { agregarPresente, guardarAsistencia } from "@/lib/services/asistencia";
 import { anularLote, marcarPreparando, registrarMovimiento } from "@/lib/services/logistica";
 import { resumenLogistico } from "@/lib/logistica";
-import { confirmarImportacion, inscribir, inscribirPublico, lugaresActividad, pasarAInscripto, vistaPreviaImportacion } from "@/lib/services/inscripciones";
+import { confirmarImportacion, inscribir, inscribirPublico, lugaresActividad, marcarEnGrupo, pasarAInscripto, vistaPreviaImportacion } from "@/lib/services/inscripciones";
 import { setStore } from "@/lib/store";
 import { MemoryStore } from "@/lib/store/memory";
 
@@ -794,6 +794,22 @@ describe("feria: inscripción rápida (pico de inscripciones)", () => {
     await cambiarEstadoFeriante(fs.find((f) => f.grupo === "EXTRA")!.id, false, admin);
     expect(await inscribirFeriaPublico(slug, { nombre: "Nueva", apellido: "Extra", dni: "", telefono: "3794299999", barrio: "", emprendimiento: "y", rubro: "y", lleva: [], al_lado_de: "", comparte: "SI", consentimiento: true })).toMatchObject({ status: "en_espera" });
     expect((await snapshot({ fresh: true })).feriantes.filter((f) => f.actividad_id === a.id && f.estado === "EN ESPERA")).toHaveLength(36);
+  });
+});
+
+describe("grupo de WhatsApp", () => {
+  it("la encargada marca y desmarca «agregada al grupo»", async () => {
+    const a = await crearActividad(input({ fecha: "2099-02-10" }), admin);
+    await inscribirPublico(a.slug, { ...publico, dni: "30000201", telefono: "3794000201" });
+    let s = await snapshot({ fresh: true });
+    const ins = s.inscripciones.find((i) => i.actividad_id === a.id)!;
+    expect(ins.en_grupo).toBe("");
+    await marcarEnGrupo(ins.id, true, admin);
+    s = await snapshot({ fresh: true });
+    expect(s.inscripciones.find((i) => i.id === ins.id)!.en_grupo).toBe("SI");
+    await marcarEnGrupo(ins.id, false, admin);
+    s = await snapshot({ fresh: true });
+    expect(s.inscripciones.find((i) => i.id === ins.id)!.en_grupo).toBe("");
   });
 });
 

@@ -19,7 +19,7 @@ import {
   intercambiarPuestos, quitarAsignaciones, ubicarPuestos,
 } from "@/lib/services/ferias";
 import type { TipoPuesto } from "@/lib/schema";
-import { confirmarImportacion, darDeBaja, pasarAInscripto, guardarLinkGrupo, guardarMensajes, marcarConfirmacion, vistaPreviaImportacion, type FilaImportada, type VistaPrevia } from "@/lib/services/inscripciones";
+import { confirmarImportacion, darDeBaja, pasarAInscripto, guardarLinkGrupo, guardarMensajes, marcarConfirmacion, marcarEnGrupo, vistaPreviaImportacion, type FilaImportada, type VistaPrevia } from "@/lib/services/inscripciones";
 import type { Yo } from "@/lib/permisos";
 import type { SectorFeria } from "@/lib/ferias";
 import { anularAtencion, buscarResponsable, editarAtencion, registrarAtencion, type AtencionInput } from "@/lib/services/huellas";
@@ -108,6 +108,10 @@ export async function cortarAyudanteAction(id: string) {
 
 export async function confirmacionAction(inscripcionId: string, valor: string): Promise<ActionResult> {
   return act((yo) => marcarConfirmacion(inscripcionId, valor, yo), { ok: "Anotado." });
+}
+
+export async function enGrupoAction(inscripcionId: string, enGrupo: boolean): Promise<ActionResult> {
+  return act((yo) => marcarEnGrupo(inscripcionId, enGrupo, yo), { ok: enGrupo ? "Agregada al grupo." : "Desmarcada." });
 }
 
 export async function linkGrupoAction(actividadId: string, _: ActionResult, fd: FormData): Promise<ActionResult> {

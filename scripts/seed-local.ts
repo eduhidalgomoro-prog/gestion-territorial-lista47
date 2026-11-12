@@ -84,7 +84,7 @@ async function main() {
     U,
   );
   const insc = (act: number, desde: number, hasta: number) =>
-    personas.slice(desde, hasta).map((p) => ({ actividad_id: creadas[act].id, participante_id: p.id, fecha: f(prev.anio, prev.mes, 1), origen: "GOOGLE FORMS" as const, estado: "INSCRIPTO" as const, respuestas: "", confirmacion: "" as const, participo_antes: "" as const, ex_alumna: "" as const, quiere_ser_profe: "" as const, ensenaria: "", conoce_espacio: "" as const, espacio: "" }));
+    personas.slice(desde, hasta).map((p) => ({ actividad_id: creadas[act].id, participante_id: p.id, fecha: f(prev.anio, prev.mes, 1), origen: "GOOGLE FORMS" as const, estado: "INSCRIPTO" as const, respuestas: "", confirmacion: "" as const, en_grupo: "" as const, participo_antes: "" as const, ex_alumna: "" as const, quiere_ser_profe: "" as const, ensenaria: "", conoce_espacio: "" as const, espacio: "" }));
   await insertMany("inscripciones", [...insc(0, 0, 8), ...insc(3, 4, 12), ...insc(4, 0, 6)], U);
   const reg = new Date().toISOString();
   await insertMany(

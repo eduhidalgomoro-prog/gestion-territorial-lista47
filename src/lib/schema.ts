@@ -235,6 +235,7 @@ export interface Inscripcion extends Meta {
   estado: EstadoInscripcion;
   respuestas: string; // preguntas adicionales: "Pregunta: respuesta" por línea
   confirmacion: Confirmacion | "";
+  en_grupo: SiNo | ""; // la encargada la sumó al grupo de WhatsApp («SI»), en vez de mandarle el link
   // Preguntas del formulario público de inscripción. «» = no respondió.
   participo_antes: SiNo | ""; // ¿Participaste alguna vez de nuestras actividades?
   ex_alumna: SiNo | ""; // pregunta anterior (¿fuiste alumna de la Escuela?): se conserva lo ya respondido
@@ -495,6 +496,7 @@ export const TABLES: Record<TableName, TableDef> = {
       ["estado", "Estado"],
       ["respuestas", "Respuestas adicionales"],
       ["confirmacion", "Confirmación"],
+      ["en_grupo", "Agregada al grupo"],
       ["participo_antes", "Participó antes"],
       ["ex_alumna", "Ex alumna ESME"],
       ["quiere_ser_profe", "Quiere ser profe"],
@@ -504,7 +506,7 @@ export const TABLES: Record<TableName, TableDef> = {
       ...META,
     ],
     enums: {
-      origen: ORIGENES_INSCRIPCION, estado: ESTADOS_INSCRIPCION, confirmacion: CONFIRMACIONES,
+      origen: ORIGENES_INSCRIPCION, estado: ESTADOS_INSCRIPCION, confirmacion: CONFIRMACIONES, en_grupo: SI_NO,
       participo_antes: SI_NO, ex_alumna: SI_NO, quiere_ser_profe: SI_NO, conoce_espacio: SI_NO,
     },
   },
