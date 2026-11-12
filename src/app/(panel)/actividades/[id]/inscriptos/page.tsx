@@ -66,17 +66,25 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
   const personalizado = !!(a.mensaje_confirmacion || a.mensaje_grupo);
   const ejemplo = todos.map((i) => personas.get(i.participante_id)).find(Boolean);
   const lugares = lugaresActividad(a, s.inscripciones);
-  const espera = s.inscripciones
+  // En cuántas OTRAS actividades se anotó cada persona (0 = es su primer taller con nosotros).
+  const otrasActividades = new Map<string, number>();
+  for (const x of s.inscripciones) {
+    if (x.actividad_id !== id && x.estado === "INSCRIPTO") otrasActividades.set(x.participante_id, (otrasActividades.get(x.participante_id) ?? 0) + 1);
+  }
+  const esperaTodas = s.inscripciones
     .filter((i) => i.actividad_id === id && i.estado === "EN ESPERA")
     .sort((x, y) => x.creado.localeCompare(y.creado))
-    .map((i) => ({ i, p: personas.get(i.participante_id) }));
+    .map((i, n) => ({ i, p: personas.get(i.participante_id), orden: n + 1, otras: otrasActividades.get(i.participante_id) ?? 0 }));
+  const soloPrimera = sp(q, "e") === "primera";
+  const primerTaller = esperaTodas.filter((x) => x.otras === 0).length;
+  const espera = soloPrimera ? esperaTodas.filter((x) => x.otras === 0) : esperaTodas;
 
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader
         back={{ href: `/actividades/${id}`, label: a.nombre }}
         title="Inscriptos"
-        subtitle={`${todos.length} ${todos.length === 1 ? "persona" : "personas"}${lugares.cupo ? ` de ${lugares.cupo} lugares` : ""}${espera.length ? ` · ${espera.length} en lista de espera` : ""}`}
+        subtitle={`${todos.length} ${todos.length === 1 ? "persona" : "personas"}${lugares.cupo ? ` de ${lugares.cupo} lugares` : ""}${esperaTodas.length ? ` · ${esperaTodas.length} en lista de espera` : ""}`}
         actions={
           <>
             {puede.tomarAsistencia(yo, a, s.asignaciones) && <Link href={`/actividades/${id}/asistencia`} className={btn("primario")}>Tomar asistencia</Link>}
@@ -85,6 +93,17 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
           </>
         }
       />
+
+      {/* La lista de espera está al final: acceso directo bien a la vista. */}
+      {esperaTodas.length > 0 && (
+        <a href="#lista-espera" className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-alerta/40 bg-alerta-50 px-4 py-3 hover:border-alerta">
+          <span className="min-w-0">
+            <b className="block text-[16px] text-alerta">Lista de espera: {esperaTodas.length} {esperaTodas.length === 1 ? "persona" : "personas"}</b>
+            <span className="block text-sm text-tinta">{primerTaller} {primerTaller === 1 ? "es su primer taller" : "son su primer taller"} con nosotros.</span>
+          </span>
+          <span className="shrink-0 font-bold text-alerta">Ver ↓</span>
+        </a>
+      )}
 
       {contactar && (
         <section className="mb-4 rounded-2xl border border-linea bg-white p-4">
@@ -282,20 +301,39 @@ export default async function Inscriptos({ params, searchParams }: { params: Pro
       )}
 
       {/* Lista de espera: se anotaron con el cupo completo; no cuentan como inscriptos hasta que el equipo los pase. */}
-      {espera.length > 0 && (
-        <section className="mt-6 rounded-2xl border border-alerta/30 bg-white p-4">
-          <h2 className="font-bold">Lista de espera ({espera.length})</h2>
+      {esperaTodas.length > 0 && (
+        <section id="lista-espera" className="mt-6 scroll-mt-20 rounded-2xl border border-alerta/30 bg-white p-4">
+          <h2 className="font-bold">Lista de espera ({esperaTodas.length})</h2>
           <p className="mb-3 text-sm text-gris">
             {lugares.cupo ? `Cupo: ${lugares.cupo} · ${lugares.libres ? `quedan ${lugares.libres} lugares` : "completo"}. ` : ""}
             En orden de llegada. Si se libera un lugar, pasá a la primera persona a inscriptos.
           </p>
+          <div className="mb-3 flex flex-wrap gap-1 text-sm font-bold">
+            {([["", `Todas (${esperaTodas.length})`], ["primera", `Solo primer taller (${primerTaller})`]] as const).map(([e, label]) => (
+              <Link
+                key={e}
+                href={`/actividades/${id}/inscriptos${qs({ c: filtro, q: sp(q, "q"), o: sp(q, "o"), e })}#lista-espera`}
+                aria-current={(soloPrimera ? "primera" : "") === e ? "page" : undefined}
+                className={cx("rounded-full border px-3 py-1.5", (soloPrimera ? "primera" : "") === e ? "border-alerta bg-alerta text-white" : "border-linea bg-white text-gris hover:border-alerta")}
+              >
+                {label}
+              </Link>
+            ))}
+          </div>
+          {espera.length === 0 && <p className="text-sm text-gris">Nadie de la lista de espera hace su primer taller.</p>}
           <ol className="space-y-2">
-            {espera.map(({ i, p }, n) => (
+            {espera.map(({ i, p, orden, otras }) => (
               <li key={i.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-fondo px-3 py-2">
                 <div className="min-w-0">
-                  <p className="font-bold">{n + 1}. {fullName(p)}</p>
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <b>{orden}. {fullName(p)}</b>
+                    {otras === 0 ? <Badge color="verde">PRIMER TALLER</Badge> : <span className="text-xs font-semibold text-gris">Ya se anotó en {otras} {otras === 1 ? "actividad" : "actividades"}</span>}
+                  </p>
                   <p className="text-sm text-gris">
-                    {p?.telefono && `Tel. ${tel ? formatPhone(p.telefono) : maskPhone(p.telefono)} · `}se anotó el {formatDate(i.fecha)}
+                    {p?.dni && `DNI ${dni ? formatDni(p.dni) : maskDni(p.dni)} · `}
+                    {p?.telefono && `Tel. ${tel ? formatPhone(p.telefono) : maskPhone(p.telefono)} · `}
+                    se anotó el {formatDate(i.creado.slice(0, 10) || i.fecha)}{/T\d{2}:\d{2}/.test(i.creado) ? ` a las ${i.creado.slice(11, 16)}` : ""}
+                    {p?.barrio && ` · ${titleCase(p.barrio)}`}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
